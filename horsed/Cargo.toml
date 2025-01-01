@@ -4,3 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+futures = "0.3.31"
+interprocess = { version = "2.2.2", features = ["tokio"] }
+rand_core = "0.6.4"
+ratatui = "0.29.0"
+
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+stable.workspace = true
+russh.workspace = true
+russh-keys.workspace = true
+ssh-key.workspace = true
+async-trait.workspace = true

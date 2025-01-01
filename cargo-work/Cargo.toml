@@ -4,3 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cargo-config2 = "0.1.31"
+cargo-options = "0.7.5"
+indicatif = "0.17.9"
+paste = "1.0.15"
+
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+stable.workspace = true
+russh.workspace = true
+shell-escape.workspace = true
+tokio.workspace = true
+tracing.workspace = true
