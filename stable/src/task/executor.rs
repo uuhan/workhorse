@@ -10,7 +10,8 @@ pub enum TaskType {
 #[rustfmt::skip]
 #[derive(Clone)]
 pub struct TaskExecutor(
-    Arc<
+    Arc
+    <
         dyn Fn(SomeFuture<()>, TaskType)
             -> JoinFuture<()> + Send + Sync
     >
@@ -39,4 +40,24 @@ impl TaskExecutor {
     pub fn spawn(&self, fut: SomeFuture<()>, tt: TaskType) -> JoinFuture<()> {
         self.0(fut, tt)
     }
+}
+
+impl Default for TaskExecutor {
+    fn default() -> Self {
+        build_executor()
+    }
+}
+
+/// 创建执行器
+fn build_executor() -> TaskExecutor {
+    use futures::future::FutureExt;
+    let handler = RUNTIME.handle().clone();
+
+    (move |fut, tt| match tt {
+        TaskType::Async => handler.spawn(fut).map(drop),
+        TaskType::Block => handler
+            .spawn_blocking(move || futures::executor::block_on(fut))
+            .map(drop),
+    })
+    .into()
 }

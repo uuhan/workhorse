@@ -1,5 +1,10 @@
 //! 异步任务管理器
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::{
+    future::{FusedFuture, FutureExt},
+    pin_mut, select,
+};
+use once_cell::sync::Lazy;
 use parking_lot::{Condvar, Mutex};
 use std::future::Future;
 use std::pin::Pin;
@@ -10,7 +15,7 @@ pub mod manager;
 pub mod signal;
 
 pub use executor::TaskExecutor;
-pub use manager::{SpawnTaskHandle, TaskManager};
+pub use manager::{SpawnEssentialTaskHandle, SpawnTaskHandle, TaskManager};
 
 pub(self) type TracingUnboundedSender<T> = UnboundedSender<T>;
 pub(self) type TracingUnboundedReceiver<T> = UnboundedReceiver<T>;
@@ -20,6 +25,8 @@ pub(self) type SomeFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
 /// 任务运行限制，比如限制同时运行的任务数量
 pub(self) struct TaskCondition(Mutex<usize>, Condvar);
+
+static RUNTIME: Lazy<Runtime> = Lazy::new(build_multi_thread);
 
 impl TaskCondition {
     pub fn new() -> Self {
@@ -53,7 +60,7 @@ pub fn tracing_unbounded<T>() -> (TracingUnboundedSender<T>, TracingUnboundedRec
     mpsc::unbounded()
 }
 
-pub fn build_multi_thread() -> Runtime {
+fn build_multi_thread() -> Runtime {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -68,5 +75,43 @@ pub fn build_multi_thread() -> Runtime {
         })
         .enable_all()
         .build()
-        .unwrap()
+        .expect("build tokio runtime failed!")
+}
+
+async fn signal_wrapper<F>(func: F)
+where
+    F: Future<Output = ()> + FusedFuture,
+{
+    #[cfg(unix)]
+    let (mut t1, mut t2) = {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut t1 = signal(SignalKind::interrupt()).unwrap();
+        let mut t2 = signal(SignalKind::terminate()).unwrap();
+        (t1, t2)
+    };
+
+    #[cfg(windows)]
+    let (mut t1, mut t2) = {
+        let mut t1 = tokio::signal::windows::ctrl_c().unwrap();
+        let mut t2 = tokio::signal::windows::ctrl_break().unwrap();
+        (t1, t2)
+    };
+
+    let t1 = t1.recv().fuse();
+    let t2 = t2.recv().fuse();
+    let t3 = func;
+
+    pin_mut!(t1, t2, t3);
+
+    select! {
+        _ = t1 => {
+            tracing::info!("Received Ctrl-C Event.");
+            // std::process::exit(0);
+        },
+        _ = t2 => {
+            tracing::info!("Received Terminate/Ctrl-Break Event.");
+            // std::process::exit(0);
+        },
+        res = t3 => {},
+    }
 }

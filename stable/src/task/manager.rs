@@ -249,14 +249,14 @@ impl TaskManager {
     //     })
     // }
 
-    pub fn join<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+    pub fn future<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             let mut t1 = self.essential_failed_rx.next().fuse();
             let mut t2 = self.on_exit.clone().fuse();
             let mut t3 = join_all(
                 self.child_tasks
                     .iter_mut()
-                    .map(|x| x.join())
+                    .map(|x| x.future())
                     .chain(std::iter::once(pending().boxed())),
             )
             .fuse();
@@ -303,5 +303,11 @@ impl TaskManager {
             essential_failed_tx: self.essential_failed_tx.clone(),
             inner: self.spawn_handle(),
         }
+    }
+}
+
+impl Default for TaskManager {
+    fn default() -> Self {
+        Self::new(Default::default())
     }
 }

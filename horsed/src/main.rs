@@ -4,6 +4,7 @@ use interprocess::local_socket::{
     tokio::{prelude::*, Stream},
     GenericNamespaced, ListenerOptions,
 };
+use stable::prelude::*;
 use std::io;
 use std::path::PathBuf;
 use tokio::{
@@ -11,8 +12,7 @@ use tokio::{
     try_join,
 };
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = command!()
         .arg(arg!(
             -f --fg "Run in the foreground"
@@ -51,7 +51,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("fg") {
-        horsed::ui::run().await;
+        let mut tm = TaskManager::default();
+        let handler = tm.spawn_essential_handle();
+        handler.spawn(move || horsed::ui::run());
+
+        futures::executor::block_on(tm.future());
+
         return Ok(());
     }
 

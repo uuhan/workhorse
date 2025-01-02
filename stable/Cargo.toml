@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 futures.workspace = true
+once_cell.workspace = true
 parking_lot.workspace = true
 tokio.workspace = true
 tracing.workspace = true
