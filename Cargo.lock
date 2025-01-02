@@ -2095,6 +2095,12 @@ dependencies = [
 [[package]]
 name = "stable"
 version = "0.1.0"
+dependencies = [
+ "futures",
+ "parking_lot",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "static_assertions"
@@ -2201,6 +2207,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
+ "tracing",
  "windows-sys 0.52.0",
 ]
 
