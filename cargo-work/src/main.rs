@@ -1,7 +1,3 @@
-use std::env;
-use std::ffi::OsString;
-use std::process::Command;
-
 use cargo_work::Build;
 use clap::{Parser, Subcommand};
 

@@ -53,7 +53,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if matches.get_flag("fg") {
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
-        handler.spawn(move || horsed::ui::run());
+        handler.spawn(move || async {
+            if let Err(err) = horsed::db::connect().await {
+                eprintln!("Failed to connect to database: {}", err);
+            }
+            horsed::ui::run().await;
+        });
 
         futures::executor::block_on(tm.future());
 
