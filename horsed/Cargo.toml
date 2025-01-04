@@ -9,11 +9,14 @@ clap.workspace = true
 futures.workspace = true
 tokio.workspace = true
 stable.workspace = true
+migration.workspace = true
 russh.workspace = true
 russh-keys.workspace = true
 ssh-key.workspace = true
 async-trait.workspace = true
 git2.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"

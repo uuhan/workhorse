@@ -4,6 +4,7 @@ use interprocess::local_socket::{
     tokio::{prelude::*, Stream},
     GenericNamespaced, ListenerOptions,
 };
+use migration::{Migrator, MigratorTrait};
 use stable::prelude::*;
 use std::io;
 use std::path::PathBuf;
@@ -51,12 +52,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("fg") {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_test_writer()
+            .init();
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
         handler.spawn(move || async {
-            if let Err(err) = horsed::db::connect().await {
-                eprintln!("Failed to connect to database: {}", err);
-            }
+            let Ok(db) = horsed::db::connect().await else {
+                eprintln!("Failed to connect to database!");
+                return;
+            };
+
+            Migrator::up(&db, None).await;
             horsed::ui::run().await;
         });
 

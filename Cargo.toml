@@ -1,15 +1,16 @@
 [workspace]
 resolver = "2"
 
-members = ["cargo-work", "horsed", "stable"]
+members = ["cargo-work", "horsed", "stable", "horsed/migration"]
 
 [workspace.dependencies]
+stable = { path = "./stable" }
+migration = { path = "./horsed/migration" }
 anyhow = "1.0"
 async-trait = "0.1.83"
 clap = { version = "4.5.23", features = ["cargo", "derive"] }
 russh = "0.49.2"
 russh-keys = "0.49.2"
-stable = { path = "./stable" }
 shell-escape = "0.1.5"
 ssh-key = "0.6.7"
 futures = "0.3.31"
