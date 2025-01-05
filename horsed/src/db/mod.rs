@@ -1,9 +1,10 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::time::Duration;
+use crate::prelude::*;
 
 pub mod entity;
 
-pub async fn connect() -> Result<DatabaseConnection, sea_orm::DbErr> {
+pub async fn connect() -> HorseResult<DatabaseConnection> {
     let mut opt = ConnectOptions::new("sqlite://horsed.db3?mode=rwc");
     opt.connect_timeout(Duration::from_secs(8))
         .acquire_timeout(Duration::from_secs(8))

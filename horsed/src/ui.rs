@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::db::entity::prelude::User;
+use crate::prelude::*;
 use rand_core::OsRng;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
@@ -10,6 +12,7 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 use russh::keys::ssh_key::PublicKey;
 use russh::server::*;
 use russh::{Channel, ChannelId, Pty};
+use sea_orm::{DatabaseConnection, EntityTrait};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::Mutex;
 
@@ -74,17 +77,20 @@ impl std::io::Write for TerminalHandle {
 struct AppServer {
     clients: Arc<Mutex<HashMap<usize, (SshTerminal, App)>>>,
     id: usize,
+    db: DatabaseConnection,
 }
 
 impl AppServer {
-    pub fn new() -> Self {
-        Self {
+    pub async fn new() -> HorseResult<Self> {
+        let db = crate::db::connect().await?;
+        Ok(Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             id: 0,
-        }
+            db,
+        })
     }
 
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self) -> HorseResult<()> {
         let clients = self.clients.clone();
         tokio::spawn(async move {
             loop {
@@ -142,13 +148,13 @@ impl Server for AppServer {
 
 #[async_trait::async_trait]
 impl Handler for AppServer {
-    type Error = anyhow::Error;
+    type Error = HorseError;
 
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
         session: &mut Session,
-    ) -> Result<bool, Self::Error> {
+    ) -> HorseResult<bool> {
         let terminal_handle = TerminalHandle::start(session.handle(), channel.id()).await;
 
         let backend = CrosstermBackend::new(terminal_handle);
@@ -167,7 +173,13 @@ impl Handler for AppServer {
         Ok(true)
     }
 
-    async fn auth_publickey(&mut self, _: &str, _: &PublicKey) -> Result<Auth, Self::Error> {
+    async fn auth_publickey(&mut self, _: &str, pk: &PublicKey) -> HorseResult<Auth> {
+        let Some(user) = User::find_by_id(pk.to_openssh()?).one(&self.db).await? else {
+            return Ok(Auth::Reject {
+                proceed_with_methods: None,
+            });
+        };
+        println!("{:?}", user);
         Ok(Auth::Accept)
     }
 
@@ -176,7 +188,7 @@ impl Handler for AppServer {
         channel: ChannelId,
         data: &[u8],
         session: &mut Session,
-    ) -> Result<(), Self::Error> {
+    ) -> HorseResult<()> {
         match data {
             // Pressing 'q' closes the connection.
             b"q" => {
@@ -205,7 +217,7 @@ impl Handler for AppServer {
         _: u32,
         _: u32,
         _: &mut Session,
-    ) -> Result<(), Self::Error> {
+    ) -> HorseResult<()> {
         let rect = Rect {
             x: 0,
             y: 0,
@@ -235,7 +247,7 @@ impl Handler for AppServer {
         _: u32,
         _: &[(Pty, u32)],
         session: &mut Session,
-    ) -> Result<(), Self::Error> {
+    ) -> HorseResult<()> {
         let rect = Rect {
             x: 0,
             y: 0,
@@ -264,7 +276,8 @@ impl Drop for AppServer {
     }
 }
 
-pub async fn run() {
-    let mut server = AppServer::new();
+pub async fn run() -> HorseResult<()> {
+    let mut server = AppServer::new().await?;
     server.run().await.expect("Failed running server");
+    Ok(())
 }

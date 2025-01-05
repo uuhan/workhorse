@@ -1557,9 +1557,10 @@ dependencies = [
 name = "horsed"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
+ "base64",
  "clap",
+ "displaydoc",
  "futures",
  "git2",
  "interprocess",
@@ -1571,6 +1572,7 @@ dependencies = [
  "sea-orm",
  "ssh-key",
  "stable",
+ "thiserror 2.0.9",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2290,7 +2292,7 @@ dependencies = [
  "delegate",
  "futures",
  "rand",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "windows",
 ]
@@ -2827,7 +2829,7 @@ dependencies = [
  "ssh-encoding",
  "ssh-key",
  "subtle",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -2891,7 +2893,7 @@ dependencies = [
  "spki",
  "ssh-encoding",
  "ssh-key",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "typenum",
@@ -2911,7 +2913,7 @@ dependencies = [
  "flurry",
  "log",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-util",
 ]
@@ -3084,7 +3086,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strum",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tracing",
  "url",
@@ -3183,7 +3185,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.94",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3490,7 +3492,7 @@ dependencies = [
  "sha2",
  "smallvec",
  "sqlformat",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tokio",
  "tokio-stream",
@@ -3579,7 +3581,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tracing",
  "uuid",
@@ -3623,7 +3625,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tracing",
  "uuid",
@@ -3845,7 +3847,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f072643fd0190df67a8bab670c20ef5d8737177d6ac6b2e9a236cb096206b2cc"
+dependencies = [
+ "thiserror-impl 2.0.9",
 ]
 
 [[package]]
@@ -3853,6 +3864,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.94",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
 dependencies = [
  "proc-macro2",
  "quote",
