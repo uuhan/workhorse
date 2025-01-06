@@ -2,4 +2,5 @@
 
 pub mod prelude;
 
+pub mod ssh_auth;
 pub mod user;

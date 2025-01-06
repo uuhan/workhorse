@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::db::entity::prelude::User;
+use crate::db::entity::prelude::{SshAuth, User};
 use crate::prelude::*;
 use rand_core::OsRng;
 use ratatui::backend::CrosstermBackend;
@@ -12,7 +12,7 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 use russh::keys::ssh_key::PublicKey;
 use russh::server::*;
 use russh::{Channel, ChannelId, Pty};
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::Mutex;
 
@@ -174,13 +174,25 @@ impl Handler for AppServer {
     }
 
     async fn auth_publickey(&mut self, user_name: &str, pk: &PublicKey) -> HorseResult<Auth> {
-        let Some(user) = User::find_by_id(pk.to_openssh()?).one(&self.db).await? else {
+        #[allow(deprecated)]
+        let data = base64::encode(&pk.to_bytes()?);
+
+        let Some(sa) = SshAuth::find_by_id((pk.algorithm().to_string(), data))
+            .one(&self.db)
+            .await?
+        else {
             return Ok(Auth::Reject {
                 proceed_with_methods: None,
             });
         };
+
+        let Some(user) = sa.find_related(User).one(&self.db).await? else {
+            return Ok(Auth::Reject {
+                proceed_with_methods: None,
+            });
+        };
+
         tracing::info!("{user_name}: {:?}", user);
-        println!("{:?}", user);
         Ok(Auth::Accept)
     }
 
