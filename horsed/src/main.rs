@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Not printing testing lists...");
             }
 
-            horsed::command::ls::run(matches);
+            horsed::command::task::run(matches);
         }
         None => {}
     }
