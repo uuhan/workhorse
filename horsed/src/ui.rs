@@ -173,7 +173,7 @@ impl Handler for AppServer {
         Ok(true)
     }
 
-    async fn auth_publickey(&mut self, user_name: &str, pk: &PublicKey) -> HorseResult<Auth> {
+    async fn auth_publickey(&mut self, action: &str, pk: &PublicKey) -> HorseResult<Auth> {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes()?);
 
@@ -192,7 +192,7 @@ impl Handler for AppServer {
             });
         };
 
-        tracing::info!("{user_name}: {:?}", user);
+        tracing::info!("Action: {action}, Login As: {}", user.name);
         Ok(Auth::Accept)
     }
 
