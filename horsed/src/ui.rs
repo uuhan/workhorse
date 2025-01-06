@@ -173,12 +173,13 @@ impl Handler for AppServer {
         Ok(true)
     }
 
-    async fn auth_publickey(&mut self, _: &str, pk: &PublicKey) -> HorseResult<Auth> {
+    async fn auth_publickey(&mut self, user_name: &str, pk: &PublicKey) -> HorseResult<Auth> {
         let Some(user) = User::find_by_id(pk.to_openssh()?).one(&self.db).await? else {
             return Ok(Auth::Reject {
                 proceed_with_methods: None,
             });
         };
+        tracing::info!("{user_name}: {:?}", user);
         println!("{:?}", user);
         Ok(Auth::Accept)
     }

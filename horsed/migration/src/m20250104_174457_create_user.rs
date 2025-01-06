@@ -11,7 +11,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(User::Table)
                     .if_not_exists()
-                    .col(string(User::PubKey).primary_key())
+                    .col(pk_auto(User::Id))
                     .col(string(User::Name))
                     .col(string_null(User::Email))
                     .to_owned(),
@@ -27,10 +27,9 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum User {
+pub enum User {
     Table,
-    #[sea_orm(primary_key)]
-    PubKey,
+    Id,
     Name,
     Email,
 }
