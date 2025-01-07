@@ -1565,6 +1565,7 @@ dependencies = [
  "git2",
  "interprocess",
  "migration",
+ "once_cell",
  "rand_core",
  "ratatui",
  "russh",

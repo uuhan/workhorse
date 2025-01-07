@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if matches.get_flag("fg") {
         tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
+            .with_max_level(tracing::Level::INFO)
             .with_test_writer()
             .init();
         let mut tm = TaskManager::default();
@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             Migrator::up(&db, None).await;
-            horsed::ui::run().await;
+            horsed::git::run().await;
         });
 
         futures::executor::block_on(tm.future());
