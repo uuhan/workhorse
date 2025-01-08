@@ -6,14 +6,10 @@ use crate::key::KEY;
 use crate::prelude::*;
 use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::server::*;
-use russh::{Channel, ChannelId, Pty, Sig};
+use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
-use std::process::{ExitStatus, Stdio};
+use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    process::Command,
-};
 
 mod handle;
 use handle::ChannelHandle;
@@ -25,12 +21,11 @@ struct AppServer {
 }
 
 impl AppServer {
-    pub async fn new() -> HorseResult<Self> {
-        let db = crate::db::connect().await?;
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
-            db,
-        })
+            db: DB.clone(),
+        }
     }
 
     pub async fn handle(&mut self, channel_id: ChannelId) -> ChannelHandle {
@@ -55,7 +50,8 @@ impl AppServer {
 
 impl Server for AppServer {
     type Handler = Self;
-    fn new_client(&mut self, _: Option<std::net::SocketAddr>) -> Self {
+    fn new_client(&mut self, peer: Option<std::net::SocketAddr>) -> Self {
+        tracing::info!("New Client: {:?}", peer);
         self.clone()
     }
 }
@@ -162,9 +158,10 @@ impl Handler for AppServer {
     }
 
     /// Called when authentication succeeds for a session.
-    async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
-        Ok(())
-    }
+    // async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
+    //     tracing::info!("Auth Succeeded");
+    //     Ok(())
+    // }
 
     /// The client requests an X11 connection.
     async fn x11_request(
@@ -185,22 +182,24 @@ impl Handler for AppServer {
     /// environment to be set.
     async fn env_request(
         &mut self,
-        _channel: ChannelId,
-        _variable_name: &str,
-        _variable_value: &str,
-        _session: &mut Session,
+        channel: ChannelId,
+        key: &str,
+        value: &str,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
-        // session.channel_success(channel);
+        tracing::info!("[{channel}] ssh env request: {key}={value}");
+        session.channel_success(channel)?;
         Ok(())
     }
 
     /// The client requests a shell.
     async fn shell_request(
         &mut self,
-        _channel: ChannelId,
-        _session: &mut Session,
+        channel: ChannelId,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
-        // session.channel_success(channel);
+        tracing::info!("ssh shell request");
+        session.channel_success(channel)?;
         Ok(())
     }
 
@@ -309,8 +308,14 @@ impl Handler for AppServer {
     }
 }
 
+impl Drop for AppServer {
+    fn drop(&mut self) {
+        tracing::info!("Drop AppServer");
+    }
+}
+
 pub async fn run() -> HorseResult<()> {
-    let mut server = AppServer::new().await?;
+    let mut server = AppServer::new();
     server.run().await.expect("Failed running server");
     Ok(())
 }

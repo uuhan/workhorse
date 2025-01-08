@@ -8,6 +8,7 @@ pub mod ssh;
 pub mod ui;
 
 pub mod prelude {
+    pub(crate) use super::db::DB;
     pub(crate) use super::key::KEY;
 
     pub use super::error::Error as HorseError;

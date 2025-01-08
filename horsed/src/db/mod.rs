@@ -1,11 +1,14 @@
 use crate::prelude::*;
+use anyhow::Context;
+use once_cell::sync::Lazy;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::time::Duration;
 
 pub mod entity;
 
-pub async fn connect() -> HorseResult<DatabaseConnection> {
-    let mut opt = ConnectOptions::new("sqlite://horsed.db3?mode=rwc");
+pub static DB: Lazy<DatabaseConnection> = Lazy::new(|| {
+    let url = "sqlite://horsed.db3?mode=rwc";
+    let mut opt = ConnectOptions::new(url);
     opt.connect_timeout(Duration::from_secs(8))
         .acquire_timeout(Duration::from_secs(8))
         .idle_timeout(Duration::from_secs(8))
@@ -13,7 +16,11 @@ pub async fn connect() -> HorseResult<DatabaseConnection> {
         .sqlx_logging(true)
         .set_schema_search_path("my_schema"); // Setting default PostgreSQL schema
 
-    let db = Database::connect(opt).await?;
+    futures::executor::block_on(Database::connect(opt))
+        .context(format!("DB URL: {}", url))
+        .expect("Failed to connect to database")
+});
 
-    Ok(db)
+pub fn db() -> DatabaseConnection {
+    DB.clone()
 }

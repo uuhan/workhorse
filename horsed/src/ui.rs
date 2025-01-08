@@ -82,13 +82,12 @@ struct AppServer {
 }
 
 impl AppServer {
-    pub async fn new() -> HorseResult<Self> {
-        let db = crate::db::connect().await?;
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             id: 0,
-            db,
-        })
+            db: DB.clone(),
+        }
     }
 
     pub async fn get_channel(&mut self, channel_id: usize) -> (SshTerminal, App, Channel<Msg>) {
@@ -351,10 +350,9 @@ impl Handler for AppServer {
     /// The client requests a shell.
     async fn shell_request(
         &mut self,
-        _channel: ChannelId,
-        _session: &mut Session,
+        channel: ChannelId,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
-        // session.channel_success(channel);
         Ok(())
     }
 
@@ -563,7 +561,7 @@ impl Drop for AppServer {
 }
 
 pub async fn run() -> HorseResult<()> {
-    let mut server = AppServer::new().await?;
+    let mut server = AppServer::new();
     server.run().await.expect("Failed running server");
     Ok(())
 }

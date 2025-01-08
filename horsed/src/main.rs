@@ -59,11 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
         handler.spawn(move || async {
-            let Ok(db) = horsed::db::connect().await else {
-                eprintln!("Failed to connect to database!");
-                return;
-            };
-
+            let db = horsed::db::db();
             Migrator::up(&db, None).await;
             horsed::ssh::run().await;
         });
