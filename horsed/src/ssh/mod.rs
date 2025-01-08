@@ -89,6 +89,7 @@ impl Handler for AppServer {
     /// `config.auth_rejection_time`, except if this method takes more
     /// than that.
     async fn auth_password(&mut self, action: &str, _password: &str) -> Result<Auth, Self::Error> {
+        tracing::info!("尝试使用密码执行: {action}");
         Ok(Auth::Reject {
             proceed_with_methods: None,
         })
