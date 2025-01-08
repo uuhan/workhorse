@@ -13,6 +13,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(User::Id))
                     .col(string(User::Name))
+                    .col(string_null(User::Nick))
                     .col(string_null(User::Email))
                     .to_owned(),
             )
@@ -31,5 +32,6 @@ pub enum User {
     Table,
     Id,
     Name,
+    Nick,
     Email,
 }
