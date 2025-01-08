@@ -80,6 +80,11 @@ impl ChannelHandle {
                             }
                         },
                         Err(e) => {
+                            // FIXME: 如果应用已经关闭了输入, 需要直接退出
+                            use std::io::ErrorKind;
+                            if e.kind() == ErrorKind::BrokenPipe {
+                                break;
+                            }
                             tracing::error!("receive data error: {}", e);
                             break;
                         }

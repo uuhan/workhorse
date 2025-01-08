@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::db::entity::prelude::{SshAuth, User};
 use crate::key::KEY;
 use crate::prelude::*;
+use anyhow::Context;
 use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::server::*;
 use russh::{Channel, ChannelId, Sig};
@@ -14,23 +15,36 @@ use tokio::sync::Mutex;
 mod handle;
 use handle::ChannelHandle;
 
-#[derive(Clone)]
 struct AppServer {
+    /// 一些共享数据
     clients: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
+    /// 数据库连接
     db: DatabaseConnection,
+    /// 当前 Client 的 ChannelHandle
+    handle: Option<ChannelHandle>,
+    /// 当前 Client 的用户名
+    action: String,
+}
+
+impl Clone for AppServer {
+    fn clone(&self) -> Self {
+        Self {
+            clients: self.clients.clone(),
+            db: DB.clone(),
+            handle: None,
+            action: String::new(),
+        }
+    }
 }
 
 impl AppServer {
     pub fn new() -> Self {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
+            handle: None,
+            action: String::new(),
             db: DB.clone(),
         }
-    }
-
-    pub async fn handle(&mut self, channel_id: ChannelId) -> ChannelHandle {
-        let mut clients = self.clients.lock().await;
-        clients.remove(&channel_id).unwrap()
     }
 
     pub async fn run(&mut self) -> HorseResult<()> {
@@ -65,8 +79,7 @@ impl Handler for AppServer {
         channel: Channel<Msg>,
         session: &mut Session,
     ) -> HorseResult<bool> {
-        let mut clients = self.clients.lock().await;
-        clients.insert(channel.id(), ChannelHandle::from(channel, session));
+        self.handle.replace(ChannelHandle::from(channel, session));
 
         Ok(true)
     }
@@ -75,7 +88,7 @@ impl Handler for AppServer {
     /// makes sure rejection happens in time
     /// `config.auth_rejection_time`, except if this method takes more
     /// than that.
-    async fn auth_password(&mut self, user: &str, _password: &str) -> Result<Auth, Self::Error> {
+    async fn auth_password(&mut self, action: &str, _password: &str) -> Result<Auth, Self::Error> {
         Ok(Auth::Reject {
             proceed_with_methods: None,
         })
@@ -121,6 +134,8 @@ impl Handler for AppServer {
                 proceed_with_methods: None,
             });
         };
+
+        self.action = action.to_string();
 
         tracing::info!("Action: {action}, Login As: {}", user.name);
         Ok(Auth::Accept)
@@ -211,30 +226,49 @@ impl Handler for AppServer {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        // git clone ssh://git@127.0.0.1:2222/repos/a
-        // git-upload-pack '/repos/a'
-        let command = String::from_utf8_lossy(data);
-        tracing::info!("EXEC: {}", command);
-        let handle = self.handle(channel_id).await;
+        match &self.action[..] {
+            "git" => {
+                // git clone ssh://git@127.0.0.1:2222/repos/a
+                // git-upload-pack '/repos/a'
+                let command = String::from_utf8_lossy(data);
+                tracing::info!("GIT: {}", command);
+                let handle = self.handle.take().context("FIXME: no handle").unwrap();
 
-        if command.starts_with("git-upload-pack") {
-            tokio::spawn(async move {
-                if let Err(err) = handle
-                    .exec(Command::new("git").arg("upload-pack").arg("./repos/a"))
-                    .await
-                {
-                    tracing::error!("Exec Error: {}", err);
+                if command.starts_with("git-upload-pack") {
+                    tokio::spawn(async move {
+                        if let Err(err) = handle
+                            .exec(Command::new("git").arg("upload-pack").arg("./repos/a"))
+                            .await
+                        {
+                            tracing::error!("Exec Error: {}", err);
+                        }
+                    });
+                } else if command.starts_with("git-receive-pack") {
+                    tokio::spawn(async move {
+                        if let Err(err) = handle
+                            .exec(Command::new("git").arg("receive-pack").arg("./repos/a"))
+                            .await
+                        {
+                            tracing::error!("Exec Error: {}", err);
+                        }
+                    });
                 }
-            });
-        } else if command.starts_with("git-receive-pack") {
-            tokio::spawn(async move {
-                if let Err(err) = handle
-                    .exec(Command::new("git").arg("receive-pack").arg("./repos/a"))
-                    .await
-                {
-                    tracing::error!("Exec Error: {}", err);
-                }
-            });
+            }
+            "cmd" => {
+                let command = String::from_utf8_lossy(data).to_string();
+                tracing::info!("CMD: {}", command);
+                let handle = self.handle.take().context("FIXME: no handle").unwrap();
+                tokio::spawn(async move {
+                    if let Err(err) = handle.exec(Command::new("sh").arg("-c").arg(command)).await {
+                        tracing::error!("command failed: {}", err);
+                    }
+                });
+            }
+            other => {
+                tracing::warn!("Unknown action: {other}");
+                session.channel_failure(channel_id)?;
+                return Ok(());
+            }
         }
 
         session.channel_success(channel_id)?;
