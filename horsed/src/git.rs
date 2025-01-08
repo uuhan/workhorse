@@ -8,13 +8,16 @@ use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::server::*;
 use russh::{Channel, ChannelId, Pty, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
-use std::process::Stdio;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::process::{ExitStatus, Stdio};
 use tokio::sync::Mutex;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    process::Command,
+};
 
 #[derive(Clone)]
 struct AppServer {
-    clients: Arc<Mutex<HashMap<ChannelId, Channel<Msg>>>>,
+    clients: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
     db: DatabaseConnection,
 }
 
@@ -27,7 +30,7 @@ impl AppServer {
         })
     }
 
-    pub async fn get_channel(&mut self, channel_id: ChannelId) -> Channel<Msg> {
+    pub async fn handle(&mut self, channel_id: ChannelId) -> ChannelHandle {
         let mut clients = self.clients.lock().await;
         clients.remove(&channel_id).unwrap()
     }
@@ -64,7 +67,7 @@ impl Handler for AppServer {
         session: &mut Session,
     ) -> HorseResult<bool> {
         let mut clients = self.clients.lock().await;
-        clients.insert(channel.id(), channel);
+        clients.insert(channel.id(), ChannelHandle::from(channel, session));
 
         Ok(true)
     }
@@ -210,103 +213,29 @@ impl Handler for AppServer {
         // git-upload-pack '/repos/a'
         let command = String::from_utf8_lossy(data);
         tracing::info!("EXEC: {}", command);
-
-        let mut channel = self.get_channel(channel_id).await;
-        let handle = session.handle();
+        let handle = self.handle(channel_id).await;
 
         if command.starts_with("git-upload-pack") {
             tokio::spawn(async move {
-                let mut channel = channel;
-                let mut handle = handle;
-                let mut git = tokio::process::Command::new("git")
-                    .arg("upload-pack")
-                    .arg("./repos/a")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                let mut stdout = git.stdout.take().unwrap();
-                let mut stdin = git.stdin.take().unwrap();
-                let mut cout = channel.make_writer();
-
-                tokio::spawn(async move {
-                    while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
-                        tracing::info!("send data: {}", len);
-                        if len == 0 {
-                            break;
-                        }
-                    }
-                });
-
-                tokio::spawn(async move {
-                    let mut cin = channel.make_reader();
-                    while let Ok(len) = tokio::io::copy(&mut cin, &mut stdin).await {
-                        tracing::info!("receive data: {}", len);
-                        if len == 0 {
-                            break;
-                        }
-                    }
-                });
-
-                if let Err(err) = git.wait().await {
-                    tracing::error!("git error: {}", err);
+                if let Err(err) = handle
+                    .exec(Command::new("git").arg("upload-pack").arg("./repos/a"))
+                    .await
+                {
+                    tracing::error!("Exec Error: {}", err);
                 }
-
-                tracing::info!("git exit");
-
-                handle.exit_status_request(channel_id, 0).await.unwrap();
-                handle.eof(channel_id).await;
-                handle.close(channel_id).await;
-
-                Result::<(), HorseError>::Ok(())
             });
         } else if command.starts_with("git-receive-pack") {
             tokio::spawn(async move {
-                let mut channel = channel;
-                let mut handle = handle;
-                // 处理 git-receive-pack 命令（通常是推送）
-                let mut git = tokio::process::Command::new("git")
-                    .arg("receive-pack")
-                    .arg("./repos/a")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-
-                let mut stdout = git.stdout.take().unwrap();
-                let mut stdin = git.stdin.take().unwrap();
-                let mut cout = channel.make_writer();
-                tokio::spawn(async move {
-                    while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
-                        tracing::info!("send data: {}", len);
-                        if len == 0 {
-                            break;
-                        }
-                    }
-                });
-
-                tokio::spawn(async move {
-                    let mut cin = channel.make_reader();
-                    while let Ok(len) = tokio::io::copy(&mut cin, &mut stdin).await {
-                        tracing::info!("receive data: {}", len);
-                        if len == 0 {
-                            break;
-                        }
-                    }
-                });
-
-                if let Err(err) = git.wait().await {
-                    tracing::error!("git error: {}", err);
+                if let Err(err) = handle
+                    .exec(Command::new("git").arg("receive-pack").arg("./repos/a"))
+                    .await
+                {
+                    tracing::error!("Exec Error: {}", err);
                 }
-                tracing::info!("git exit");
-
-                handle.exit_status_request(channel_id, 0).await.unwrap();
-                handle.eof(channel_id).await;
-                handle.close(channel_id).await;
-
-                Result::<(), HorseError>::Ok(())
             });
         }
 
-        session.channel_success(channel_id);
+        session.channel_success(channel_id)?;
 
         Ok(())
     }
@@ -352,7 +281,7 @@ impl Handler for AppServer {
         data: &[u8],
         _session: &mut Session,
     ) -> HorseResult<()> {
-        tracing::info!("Recv Data: {}", data.len());
+        tracing::debug!("Recv Data: {}", data.len());
         Ok(())
     }
 

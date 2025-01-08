@@ -17,6 +17,7 @@ git2.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 once_cell.workspace = true
+anyhow.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"

@@ -21,5 +21,6 @@ pub enum Error {
     /// DB Error: {0}
     DbError(#[from] DbErr),
     /// 其他错误: {0}
-    Other(&'static str),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
