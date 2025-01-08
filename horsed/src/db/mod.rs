@@ -1,6 +1,6 @@
+use crate::prelude::*;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::time::Duration;
-use crate::prelude::*;
 
 pub mod entity;
 
