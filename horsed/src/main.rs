@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             Migrator::up(&db, None).await;
-            horsed::git::run().await;
+            horsed::ssh::run().await;
         });
 
         futures::executor::block_on(tm.future());
