@@ -250,8 +250,12 @@ impl Handler for AppServer {
                 if let Err(err) = git.wait().await {
                     tracing::error!("git error: {}", err);
                 }
+
                 tracing::info!("git exit");
-                handle.channel_success(channel_id).await;
+
+                handle.exit_status_request(channel_id, 0).await.unwrap();
+                handle.eof(channel_id).await;
+                handle.close(channel_id).await;
 
                 Result::<(), HorseError>::Ok(())
             });
@@ -293,7 +297,10 @@ impl Handler for AppServer {
                     tracing::error!("git error: {}", err);
                 }
                 tracing::info!("git exit");
-                handle.channel_success(channel_id).await;
+
+                handle.exit_status_request(channel_id, 0).await.unwrap();
+                handle.eof(channel_id).await;
+                handle.close(channel_id).await;
 
                 Result::<(), HorseError>::Ok(())
             });
