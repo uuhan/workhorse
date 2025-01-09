@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshAuth, User};
 use crate::prelude::*;
-use git2::{FetchOptions, ObjectType, PushOptions, Remote, Repository};
 use rand_core::OsRng;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
@@ -139,57 +138,57 @@ impl AppServer {
         Ok(())
     }
 
-    fn git_upload_pack(&self, repo_path: &str) -> HorseResult<String> {
-        // 使用 git2 库执行 'git-upload-pack' 操作（拉取）
-        let repo = Repository::open(repo_path).unwrap();
-
-        // 获取远程仓库
-        let mut remote = repo.find_remote("origin").unwrap();
-
-        // 配置 fetch 选项
-        let mut fetch_opts = FetchOptions::new();
-        let mut remote_callbacks = git2::RemoteCallbacks::new();
-        remote_callbacks.transfer_progress(|progress| {
-            println!("Progress: {}%", progress.received_objects());
-            true
-        });
-        fetch_opts.remote_callbacks(remote_callbacks);
-
-        // 执行 fetch 操作
-        remote
-            .fetch(&["refs/heads/main"], Some(&mut fetch_opts), None)
-            .unwrap();
-
-        // 获取拉取后的信息并通过 channel 返回
-        let head = repo.head().unwrap();
-        let object = repo
-            .find_object(head.target().unwrap(), Some(ObjectType::Commit))
-            .unwrap();
-        let commit = object.peel_to_commit().unwrap();
-
-        let commit_msg = format!(
-            "Latest commit: {}",
-            commit.message().unwrap_or("No message")
-        );
-
-        Ok(commit_msg)
-    }
-
-    fn git_receive_pack(&self, repo_path: &str) -> HorseResult<()> {
-        // 使用 git2 库执行 'git-receive-pack' 操作（推送）
-        let repo = Repository::open(repo_path).unwrap();
-
-        // 设置推送选项
-        let mut push_opts = PushOptions::new();
-        let mut remote = repo.find_remote("origin").unwrap();
-
-        // 执行推送操作（将本地更改推送到远程）
-        remote
-            .push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts))
-            .unwrap();
-
-        Ok(())
-    }
+    // fn git_upload_pack(&self, repo_path: &str) -> HorseResult<String> {
+    //     // 使用 git2 库执行 'git-upload-pack' 操作（拉取）
+    //     let repo = Repository::open(repo_path).unwrap();
+    //
+    //     // 获取远程仓库
+    //     let mut remote = repo.find_remote("origin").unwrap();
+    //
+    //     // 配置 fetch 选项
+    //     let mut fetch_opts = FetchOptions::new();
+    //     let mut remote_callbacks = git2::RemoteCallbacks::new();
+    //     remote_callbacks.transfer_progress(|progress| {
+    //         println!("Progress: {}%", progress.received_objects());
+    //         true
+    //     });
+    //     fetch_opts.remote_callbacks(remote_callbacks);
+    //
+    //     // 执行 fetch 操作
+    //     remote
+    //         .fetch(&["refs/heads/main"], Some(&mut fetch_opts), None)
+    //         .unwrap();
+    //
+    //     // 获取拉取后的信息并通过 channel 返回
+    //     let head = repo.head().unwrap();
+    //     let object = repo
+    //         .find_object(head.target().unwrap(), Some(ObjectType::Commit))
+    //         .unwrap();
+    //     let commit = object.peel_to_commit().unwrap();
+    //
+    //     let commit_msg = format!(
+    //         "Latest commit: {}",
+    //         commit.message().unwrap_or("No message")
+    //     );
+    //
+    //     Ok(commit_msg)
+    // }
+    //
+    // fn git_receive_pack(&self, repo_path: &str) -> HorseResult<()> {
+    //     // 使用 git2 库执行 'git-receive-pack' 操作（推送）
+    //     let repo = Repository::open(repo_path).unwrap();
+    //
+    //     // 设置推送选项
+    //     let mut push_opts = PushOptions::new();
+    //     let mut remote = repo.find_remote("origin").unwrap();
+    //
+    //     // 执行推送操作（将本地更改推送到远程）
+    //     remote
+    //         .push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts))
+    //         .unwrap();
+    //
+    //     Ok(())
+    // }
 }
 
 impl Server for AppServer {
