@@ -12,6 +12,7 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     try_join,
 };
+use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = command!()
@@ -52,8 +53,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("fg") {
+        let env_filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
         tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
+            .with_env_filter(env_filter)
             .with_test_writer()
             .init();
         let mut tm = TaskManager::default();

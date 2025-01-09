@@ -6,7 +6,7 @@ use crate::key::KEY;
 use crate::prelude::*;
 use anyhow::Context;
 use russh::keys::ssh_key::{Certificate, PublicKey};
-use russh::server::*;
+use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use tokio::process::Command;
@@ -64,9 +64,15 @@ impl AppServer {
 
 impl Server for AppServer {
     type Handler = Self;
+    /// 创建新连接
     fn new_client(&mut self, peer: Option<std::net::SocketAddr>) -> Self {
         tracing::info!("New Client: {:?}", peer);
         self.clone()
+    }
+
+    /// 处理会话错误
+    fn handle_session_error(&mut self, error: <Self::Handler as Handler>::Error) {
+        tracing::error!("会话错误: {:?}", error);
     }
 }
 
@@ -121,18 +127,20 @@ impl Handler for AppServer {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes()?);
 
-        let Some(sa) = SshAuth::find_by_id((pk.algorithm().to_string(), data))
+        let Some(sa) = SshAuth::find_by_id((pk.algorithm().to_string(), data.to_owned()))
             .one(&self.db)
             .await?
         else {
+            tracing::error!("公钥未记录: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: None,
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
+            tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: None,
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 
@@ -260,6 +268,14 @@ impl Handler for AppServer {
                 tracing::info!("CMD: {}", command);
                 let handle = self.handle.take().context("FIXME: no handle").unwrap();
                 tokio::spawn(async move {
+                    #[cfg(windows)]
+                    if let Err(err) = handle
+                        .exec(Command::new("cmd.exe").arg("/C").arg(command))
+                        .await
+                    {
+                        tracing::error!("command failed: {}", err);
+                    }
+                    #[cfg(not(windows))]
                     if let Err(err) = handle.exec(Command::new("sh").arg("-c").arg(command)).await {
                         tracing::error!("command failed: {}", err);
                     }
