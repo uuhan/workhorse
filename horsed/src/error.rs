@@ -3,15 +3,12 @@ use displaydoc::Display as DocDisplay;
 use russh::Error as SshError;
 use sea_orm::DbErr;
 use ssh_key::Error as SshKeyError;
-use std::process::ExitStatusError;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, DocDisplay, ThisError)]
 pub enum Error {
     /// IO 错误: {0}
     IO(#[from] std::io::Error),
-    /// 命令执行错误: {0}
-    CmdError(#[from] ExitStatusError),
     /// Base64 解码错误: {0}
     Base64DecodeError(#[from] DecodeError),
     /// Ssh 错误: {0}
