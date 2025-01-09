@@ -188,7 +188,7 @@ impl AppServer {
             }
             #[cfg(not(windows))]
             if let Err(err) = handle
-                .exec(Command::new("sh").arg("-c").args(command))
+                .exec(Command::new("sh").arg("-c").arg(command.join(" ")))
                 .await
             {
                 tracing::error!("command failed: {}", err);
