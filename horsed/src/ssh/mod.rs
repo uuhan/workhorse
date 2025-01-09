@@ -67,6 +67,141 @@ impl AppServer {
             .await?;
         Ok(())
     }
+
+    /// 服务端 git 命令处理
+    pub async fn git(&mut self, command: Vec<String>) -> HorseResult<()> {
+        // git clone ssh://git@127.0.0.1:2222/repos/a
+        // git-upload-pack '/repos/a'
+        tracing::info!("GIT: {}", command.join(" "));
+        let handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))
+            .unwrap();
+
+        let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
+        let repo = &command.get(1).context("FIXME: GIT PUSH/CLONE")?;
+
+        let mut repo_path = PathBuf::from(repo);
+        repo_path = repo_path
+            .strip_prefix("/")
+            .context("Repo strip_prefix")?
+            .into();
+        // 清理路径
+        repo_path = repo_path.clean();
+
+        // 如果提供的地址包含 .. 等路径，则拒绝请求
+        if repo_path.components().next() == Some(std::path::Component::ParentDir) {}
+
+        if let Some(fst) = repo_path.components().next() {
+            if fst == std::path::Component::ParentDir {
+                handle.finish().await?;
+                return Ok(());
+            }
+
+            let parent = fst
+                .as_os_str()
+                .to_str()
+                .context(format!("目录名非法: {:?}", repo_path))
+                .unwrap();
+
+            let path = std::env::current_dir()?;
+
+            // 仓库存放在 repos 目录下
+            if parent != "repos" {
+                repo_path = path.join("repos").join(repo_path);
+            } else {
+                repo_path = path.join(repo_path);
+            }
+
+            repo_path.clean();
+        }
+
+        // 仓库名称统一添加 .git 后缀
+        if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+            tracing::error!("无效仓库路径: {:?}", repo_path);
+            handle.finish().await?;
+            return Ok(());
+        }
+
+        tracing::info!("GIT REPO: {}", repo_path.display());
+        let mut repo = Repo::from(repo_path);
+
+        match git.as_str() {
+            // git clone
+            "git-upload-pack" => {
+                // TODO: 需要对仓库进行检查
+                if !repo.exists() {
+                    tracing::warn!("克隆仓库不存在: {:?}", repo.path().display());
+                    handle.finish().await?;
+                    return Ok(());
+                }
+
+                tokio::spawn(async move {
+                    if let Err(err) = handle
+                        .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
+                        .await
+                    {
+                        tracing::error!("Exec Error: {}", err);
+                    }
+                });
+            }
+            // git push
+            "git-receive-pack" => {
+                // 如果仓库目录不存在
+                if !repo.exists() {
+                    repo.init_bare().await?;
+                }
+
+                tokio::spawn(async move {
+                    if let Err(err) = handle
+                        .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
+                        .await
+                    {
+                        tracing::error!("Exec Error: {}", err);
+                    }
+                });
+            }
+            unkonwn => {
+                tracing::error!("不支持的GIT命令: {unkonwn}");
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 服务端执行命令
+    pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
+        tracing::info!("CMD: {}", command.join(" "));
+        let handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+        tokio::spawn(async move {
+            #[cfg(windows)]
+            if let Err(err) = handle
+                .exec(Command::new("cmd.exe").arg("/C").args(command))
+                .await
+            {
+                tracing::error!("command failed: {}", err);
+            }
+            #[cfg(not(windows))]
+            if let Err(err) = handle
+                .exec(Command::new("sh").arg("-c").args(command))
+                .await
+            {
+                tracing::error!("command failed: {}", err);
+            }
+        });
+
+        Ok(())
+    }
+
+    /// 服务端 just 指令
+    pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
+        todo!()
+    }
 }
 
 impl Server for AppServer {
@@ -246,132 +381,11 @@ impl Handler for AppServer {
         let command = split(command).context(format!("无效命令: {command}"))?;
 
         match &self.action[..] {
-            "git" => {
-                // git clone ssh://git@127.0.0.1:2222/repos/a
-                // git-upload-pack '/repos/a'
-                tracing::info!("GIT: {}", command.join(" "));
-                let handle = self
-                    .handle
-                    .take()
-                    .context("FIXME: NO HANDLE".color(Color::Red))
-                    .unwrap();
-
-                let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
-                let repo = &command.get(1).context("FIXME: GIT PUSH/CLONE")?;
-
-                let mut repo_path = PathBuf::from(repo);
-                repo_path = repo_path
-                    .strip_prefix("/")
-                    .context("Repo strip_prefix")?
-                    .into();
-                // 清理路径
-                repo_path = repo_path.clean();
-
-                // 如果提供的地址包含 .. 等路径，则拒绝请求
-                if repo_path.components().next() == Some(std::path::Component::ParentDir) {}
-
-                if let Some(fst) = repo_path.components().next() {
-                    if fst == std::path::Component::ParentDir {
-                        handle.finish().await?;
-                        return Ok(());
-                    }
-
-                    let parent = fst
-                        .as_os_str()
-                        .to_str()
-                        .context(format!("目录名非法: {:?}", repo_path))
-                        .unwrap();
-
-                    let path = std::env::current_dir()?;
-
-                    // 仓库存放在 repos 目录下
-                    if parent != "repos" {
-                        repo_path = path.join("repos").join(repo_path);
-                    } else {
-                        repo_path = path.join(repo_path);
-                    }
-
-                    repo_path.clean();
-                }
-
-                // 仓库名称统一添加 .git 后缀
-                if repo_path.extension() != Some(OsStr::new("git"))
-                    && !repo_path.set_extension("git")
-                {
-                    tracing::error!("无效仓库路径: {:?}", repo_path);
-                    handle.finish().await?;
-                    return Ok(());
-                }
-
-                tracing::info!("GIT REPO: {}", repo_path.display());
-                let mut repo = Repo::from(repo_path);
-
-                match git.as_str() {
-                    // git clone
-                    "git-upload-pack" => {
-                        // TODO: 需要对仓库进行检查
-                        if !repo.exists() {
-                            tracing::warn!("克隆仓库不存在: {:?}", repo.path().display());
-                            handle.finish().await?;
-                            return Ok(());
-                        }
-
-                        tokio::spawn(async move {
-                            if let Err(err) = handle
-                                .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
-                                .await
-                            {
-                                tracing::error!("Exec Error: {}", err);
-                            }
-                        });
-                    }
-                    // git push
-                    "git-receive-pack" => {
-                        // 如果仓库目录不存在
-                        if !repo.exists() {
-                            repo.init_bare().await?;
-                        }
-
-                        tokio::spawn(async move {
-                            if let Err(err) = handle
-                                .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
-                                .await
-                            {
-                                tracing::error!("Exec Error: {}", err);
-                            }
-                        });
-                    }
-                    unkonwn => {
-                        tracing::error!("不支持的GIT命令: {unkonwn}");
-                        return Ok(());
-                    }
-                }
-            }
-            "cmd" => {
-                tracing::info!("CMD: {}", command.join(" "));
-                let handle = self
-                    .handle
-                    .take()
-                    .context("FIXME: NO HANDLE".color(Color::Red))?;
-                tokio::spawn(async move {
-                    #[cfg(windows)]
-                    if let Err(err) = handle
-                        .exec(Command::new("cmd.exe").arg("/C").args(command))
-                        .await
-                    {
-                        tracing::error!("command failed: {}", err);
-                    }
-                    #[cfg(not(windows))]
-                    if let Err(err) = handle
-                        .exec(Command::new("sh").arg("-c").args(command))
-                        .await
-                    {
-                        tracing::error!("command failed: {}", err);
-                    }
-                });
-            }
+            "git" => self.git(command).await?,
+            "cmd" => self.cmd(command).await?,
+            "just" => self.just(command).await?,
             other => {
-                tracing::warn!("Unknown action: {other}");
+                tracing::warn!("未知命令: {other}");
                 session.channel_failure(channel_id)?;
                 return Ok(());
             }
