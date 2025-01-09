@@ -31,6 +31,8 @@ struct AppServer {
     handle: Option<ChannelHandle>,
     /// 当前 Client 的用户名
     action: String,
+    /// 当前的环境变量
+    env: HashMap<String, String>,
 }
 
 impl Clone for AppServer {
@@ -40,6 +42,7 @@ impl Clone for AppServer {
             db: DB.clone(),
             handle: None,
             action: String::new(),
+            env: HashMap::new(),
         }
     }
 }
@@ -49,8 +52,9 @@ impl AppServer {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             handle: None,
-            action: String::new(),
             db: DB.clone(),
+            action: String::new(),
+            env: HashMap::new(),
         }
     }
 
@@ -73,11 +77,7 @@ impl AppServer {
         // git clone ssh://git@127.0.0.1:2222/repos/a
         // git-upload-pack '/repos/a'
         tracing::info!("GIT: {}", command.join(" "));
-        let handle = self
-            .handle
-            .take()
-            .context("FIXME: NO HANDLE".color(Color::Red))
-            .unwrap();
+        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
 
         let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
         let repo = &command.get(1).context("FIXME: GIT PUSH/CLONE")?;
@@ -114,7 +114,7 @@ impl AppServer {
                 repo_path = path.join(repo_path);
             }
 
-            repo_path.clean();
+            repo_path = repo_path.clean();
         }
 
         // 仓库名称统一添加 .git 后缀
@@ -201,6 +201,64 @@ impl AppServer {
     /// 服务端 just 指令
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
         todo!()
+    }
+
+    /// ## 服务端构建
+    ///
+    /// 1. 从 repos 目录下 clone 仓库
+    /// 2. clone 仓库到 workspace 目录下
+    /// 3. 执行 cargo build
+    ///
+    /// ### 需要环境变量
+    ///
+    /// - REPO: 仓库名称
+    /// - BRANCH: 分支名称
+    ///
+    /// ### 示例
+    ///
+    /// ```bash
+    /// ssh -o SetEnv="REPO=workhorse BRANCH=main" build@xxx.xxx.xxx.xxx -- -p horsed
+    /// ```
+    pub async fn build(&mut self, command: Vec<String>) -> HorseResult<()> {
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+
+        tracing::info!("BUILD: {}", command.join(" "));
+        let mut repo_path = std::env::current_dir()?.join("repos").join(env_repo);
+        repo_path.set_extension("git");
+        repo_path = repo_path.clean();
+
+        let repo = Repo::from(repo_path);
+
+        if !repo.exists() {
+            tracing::error!("仓库不存在: {}", repo.path().display());
+        }
+
+        let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
+        work_path = work_path.clean();
+
+        // 编译目录
+        let work_repo = Repo::clone(repo.path(), work_path, Some(env_branch))
+            .await
+            .context("克隆仓库失败")?;
+
+        let mut cmd = Command::new("cargo");
+        cmd.current_dir(work_repo.path());
+        cmd.arg("build");
+        cmd.arg("--color=always");
+        cmd.arg("--manifest-path");
+        cmd.arg(work_repo.path().join("Cargo.toml"));
+        cmd.args(command);
+
+        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+
+        tokio::spawn(async move {
+            if let Err(err) = handle.exec(&mut cmd).await {
+                tracing::error!("Exec Error: {}", err);
+            }
+        });
+
+        Ok(())
     }
 }
 
@@ -354,7 +412,9 @@ impl Handler for AppServer {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("[{channel}] ssh env request: {key}={value}");
-        session.channel_success(channel)?;
+        self.env
+            .insert(key.to_uppercase().to_string(), value.to_string());
+        // session.channel_success(channel)?;
         Ok(())
     }
 
@@ -365,7 +425,7 @@ impl Handler for AppServer {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("ssh shell request");
-        session.channel_success(channel)?;
+        // session.channel_success(channel)?;
         Ok(())
     }
 
@@ -384,6 +444,7 @@ impl Handler for AppServer {
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
             "just" => self.just(command).await?,
+            "build" => self.build(command).await?,
             other => {
                 tracing::warn!("未知命令: {other}");
                 session.channel_failure(channel_id)?;

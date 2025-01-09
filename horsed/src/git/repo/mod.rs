@@ -54,9 +54,15 @@ impl Repo {
     }
 
     /// 从远程仓库克隆代码
-    pub async fn clone(from: impl AsRef<Path>, to: impl AsRef<Path>) -> HorseResult<Self> {
+    pub async fn clone(
+        from: impl AsRef<Path>,
+        to: impl AsRef<Path>,
+        branch: Option<&str>,
+    ) -> HorseResult<Self> {
         Command::new("git")
             .arg("clone")
+            .arg("--branch")
+            .arg(branch.unwrap_or("master"))
             .arg(from.as_ref().to_str().unwrap())
             .arg(to.as_ref().to_str().unwrap())
             .output()
