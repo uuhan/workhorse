@@ -28,3 +28,4 @@ once_cell = { version = "1.20.2", features = ["parking_lot"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 git2 = { version = "0.19", features = ["zlib-ng-compat"] }
+colored = "3"
