@@ -24,7 +24,15 @@ impl ChannelHandle {
     }
 
     pub fn make_io_pair<'a>(&'a mut self) -> (impl AsyncWrite, impl AsyncRead + 'a) {
-        (self.ch.make_writer(), self.ch.make_reader())
+        (self.make_writer(), self.make_reader())
+    }
+
+    pub fn make_writer(&self) -> impl AsyncWrite {
+        self.ch.make_writer()
+    }
+
+    pub fn make_reader<'a>(&'a mut self) -> impl AsyncRead + 'a {
+        self.ch.make_reader()
     }
 
     pub async fn eof(&mut self) -> HorseResult<()> {
@@ -58,10 +66,13 @@ impl ChannelHandle {
     pub async fn exec(mut self, cmd: &mut Command) -> HorseResult<()> {
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
         let mut cmd = cmd.spawn()?;
 
-        let mut stdout = cmd.stdout.take().unwrap();
         let mut stdin = cmd.stdin.take().unwrap();
+        let mut stdout = cmd.stdout.take().unwrap();
+        let mut stderr = cmd.stderr.take().unwrap();
+        let mut eout = self.make_writer();
         let (mut cout, mut cin) = self.make_io_pair();
 
         let mut i_ready = false;
@@ -100,6 +111,20 @@ impl ChannelHandle {
                         },
                         Err(e) => {
                             tracing::error!("send data error: {}", e);
+                            break;
+                        }
+                    }
+                },
+                e = tokio::io::copy(&mut stderr, &mut eout) => {
+                    match e {
+                        Ok(len) => {
+                            tracing::debug!("send stderr data: {}", len);
+                            if len == 0 {
+                                o_ready = true;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("send stderr data error: {}", e);
                             break;
                         }
                     }
