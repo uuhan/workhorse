@@ -7,6 +7,8 @@ use clap::{Parser, Subcommand};
 pub enum Opt {
     #[command(name = "build", alias = "b")]
     Build(Build),
+    #[command(name = "push", alias = "p")]
+    Push,
 }
 
 #[derive(Debug, Parser)]
@@ -28,6 +30,7 @@ fn main() -> anyhow::Result<()> {
     match cli {
         Cli::Opt(opt) | Cli::Cargo(opt) => match opt {
             Opt::Build(build) => println!("{:?}", build),
+            Opt::Push => println!("git push"),
         },
     }
 
