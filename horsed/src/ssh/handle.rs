@@ -67,11 +67,13 @@ impl ChannelHandle {
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+
         let mut cmd = cmd.spawn()?;
 
         let mut stdin = cmd.stdin.take().unwrap();
         let mut stdout = cmd.stdout.take().unwrap();
         let mut stderr = cmd.stderr.take().unwrap();
+
         let mut eout = self.make_writer();
         let (mut cout, mut cin) = self.make_io_pair();
 

@@ -7,37 +7,53 @@ pub struct Repo {
 }
 
 impl Repo {
-    pub async fn from(path: impl AsRef<Path>) -> HorseResult<Self> {
+    pub fn from(path: impl AsRef<Path>) -> Self {
         // TODO 仓库配置
-        Ok(Repo {
+        Repo {
             dir: path.as_ref().to_path_buf(),
-        })
+        }
     }
 
+    pub fn path(&self) -> &Path {
+        self.dir.as_ref()
+    }
+
+    pub fn exists(&self) -> bool {
+        self.dir.exists()
+    }
+
+    pub async fn init_bare(&mut self) -> HorseResult<()> {
+        let _ = Repo::create_bare(&self.dir).await?;
+        Ok(())
+    }
+
+    /// 创建一个裸仓库, 用于存放代码
     pub async fn create_bare(path: impl AsRef<Path>) -> HorseResult<Repo> {
+        tracing::debug!("CREATE BARE REPO: {}", path.as_ref().display());
         Command::new("git")
             .arg("init")
             .arg("--bare")
-            .current_dir(path.as_ref())
+            .arg(path.as_ref())
             .output()
             .await?
             .status
             .exit_ok()?;
 
-        Command::new("git")
-            .current_dir(path.as_ref())
-            .arg("branch")
-            .arg("-m")
-            .arg("master")
-            .output()
-            .await?
-            .status
-            .exit_ok()?;
+        // Command::new("git")
+        //     .current_dir(path.as_ref())
+        //     .arg("branch")
+        //     .arg("-m")
+        //     .arg("master")
+        //     .output()
+        //     .await?
+        //     .status
+        //     .exit_ok()?;
 
         let dir = path.as_ref().to_path_buf();
         Ok(Repo { dir })
     }
 
+    /// 从远程仓库克隆代码
     pub async fn clone(from: impl AsRef<Path>, to: impl AsRef<Path>) -> HorseResult<Self> {
         Command::new("git")
             .arg("clone")
@@ -48,7 +64,7 @@ impl Repo {
             .status
             .exit_ok()?;
 
-        Repo::from(to).await
+        Ok(Repo::from(to))
     }
 
     pub async fn push_changes(&self, message: impl AsRef<str>) -> HorseResult<()> {

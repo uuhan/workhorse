@@ -1,14 +1,21 @@
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::path::PathBuf;
+use std::str::from_utf8;
 use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshAuth, User};
+use crate::git::repo::Repo;
 use crate::key::KEY;
 use crate::prelude::*;
 use anyhow::Context;
+use clean_path::Clean;
+use colored::{Color, Colorize};
 use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
+use shellwords::split;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -66,7 +73,7 @@ impl Server for AppServer {
     type Handler = Self;
     /// 创建新连接
     fn new_client(&mut self, peer: Option<std::net::SocketAddr>) -> Self {
-        tracing::info!("New Client: {:?}", peer);
+        tracing::info!("新建连接: {:?}", peer);
         self.clone()
     }
 
@@ -235,48 +242,131 @@ impl Handler for AppServer {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        let command = from_utf8(data).context(format!("无效请求(前20字节): {:?}", &data[..20]))?;
+        let command = split(command).context(format!("无效命令: {command}"))?;
+
         match &self.action[..] {
             "git" => {
                 // git clone ssh://git@127.0.0.1:2222/repos/a
                 // git-upload-pack '/repos/a'
-                let command = String::from_utf8_lossy(data);
-                tracing::info!("GIT: {}", command);
-                let handle = self.handle.take().context("FIXME: no handle").unwrap();
+                tracing::info!("GIT: {}", command.join(" "));
+                let handle = self
+                    .handle
+                    .take()
+                    .context("FIXME: NO HANDLE".color(Color::Red))
+                    .unwrap();
 
-                if command.starts_with("git-upload-pack") {
-                    tokio::spawn(async move {
-                        if let Err(err) = handle
-                            .exec(Command::new("git").arg("upload-pack").arg("./repos/a"))
-                            .await
-                        {
-                            tracing::error!("Exec Error: {}", err);
+                let git = &command
+                    .first()
+                    .context("FIXME: GIT PUSH/CLONE".color(Color::Red))?;
+                let repo = &command
+                    .get(1)
+                    .context("FIXME: GIT PUSH/CLONE".color(Color::Red))?;
+
+                let mut repo_path = PathBuf::from(repo);
+                repo_path = repo_path.strip_prefix("/").context("QED.")?.into();
+                // 清理路径
+                repo_path = repo_path.clean();
+
+                // 如果提供的地址包含 .. 等路径，则拒绝请求
+                if repo_path.components().next() == Some(std::path::Component::ParentDir) {}
+
+                if let Some(fst) = repo_path.components().next() {
+                    if fst == std::path::Component::ParentDir {
+                        handle.finish().await?;
+                        return Ok(());
+                    }
+
+                    let parent = fst
+                        .as_os_str()
+                        .to_str()
+                        .context(format!("目录名非法: {:?}", repo_path))
+                        .unwrap();
+
+                    let path = std::env::current_dir()?;
+
+                    // 仓库存放在 repos 目录下
+                    if parent != "repos" {
+                        repo_path = path.join("repos").join(repo_path);
+                    } else {
+                        repo_path = path.join(repo_path);
+                    }
+
+                    repo_path.clean();
+                }
+
+                // 仓库名称统一添加 .git 后缀
+                if repo_path.extension() != Some(OsStr::new("git"))
+                    && !repo_path.set_extension("git")
+                {
+                    tracing::error!("无效仓库路径: {:?}", repo_path);
+                    handle.finish().await?;
+                    return Ok(());
+                }
+
+                tracing::info!("GIT REPO: {}", repo_path.display());
+                let mut repo = Repo::from(repo_path);
+
+                match git.as_str() {
+                    // git clone
+                    "git-upload-pack" => {
+                        // TODO: 需要对仓库进行检查
+                        if !repo.exists() {
+                            tracing::warn!("克隆仓库不存在: {:?}", repo.path().display());
+                            handle.finish().await?;
+                            return Ok(());
                         }
-                    });
-                } else if command.starts_with("git-receive-pack") {
-                    tokio::spawn(async move {
-                        if let Err(err) = handle
-                            .exec(Command::new("git").arg("receive-pack").arg("./repos/a"))
-                            .await
-                        {
-                            tracing::error!("Exec Error: {}", err);
+
+                        tokio::spawn(async move {
+                            if let Err(err) = handle
+                                .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
+                                .await
+                            {
+                                tracing::error!("Exec Error: {}", err);
+                            }
+                        });
+                    }
+                    // git push
+                    "git-receive-pack" => {
+                        // 如果仓库目录不存在
+                        if !repo.exists() {
+                            repo.init_bare().await?;
                         }
-                    });
+
+                        tokio::spawn(async move {
+                            if let Err(err) = handle
+                                .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
+                                .await
+                            {
+                                tracing::error!("Exec Error: {}", err);
+                            }
+                        });
+                    }
+                    unkonwn => {
+                        tracing::error!("不支持的GIT命令: {unkonwn}");
+                        return Ok(());
+                    }
                 }
             }
             "cmd" => {
-                let command = String::from_utf8_lossy(data).to_string();
-                tracing::info!("CMD: {}", command);
-                let handle = self.handle.take().context("FIXME: no handle").unwrap();
+                tracing::info!("CMD: {}", command.join(" "));
+                let handle = self
+                    .handle
+                    .take()
+                    .context("FIXME: NO HANDLE".color(Color::Red))?;
                 tokio::spawn(async move {
                     #[cfg(windows)]
                     if let Err(err) = handle
-                        .exec(Command::new("cmd.exe").arg("/C").arg(command))
+                        .exec(Command::new("cmd.exe").arg("/C").args(command))
                         .await
                     {
                         tracing::error!("command failed: {}", err);
                     }
                     #[cfg(not(windows))]
-                    if let Err(err) = handle.exec(Command::new("sh").arg("-c").arg(command)).await {
+                    if let Err(err) = handle
+                        .exec(Command::new("sh").arg("-c").args(command))
+                        .await
+                    {
                         tracing::error!("command failed: {}", err);
                     }
                 });

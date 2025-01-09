@@ -31,3 +31,5 @@ thiserror = "2.0.9"
 displaydoc = "0.2.5"
 base64 = "0.22.1"
 colored.workspace = true
+shellwords = "1.1.0"
+clean-path = "0.2.1"
