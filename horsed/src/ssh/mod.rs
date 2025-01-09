@@ -256,15 +256,14 @@ impl Handler for AppServer {
                     .context("FIXME: NO HANDLE".color(Color::Red))
                     .unwrap();
 
-                let git = &command
-                    .first()
-                    .context("FIXME: GIT PUSH/CLONE".color(Color::Red))?;
-                let repo = &command
-                    .get(1)
-                    .context("FIXME: GIT PUSH/CLONE".color(Color::Red))?;
+                let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
+                let repo = &command.get(1).context("FIXME: GIT PUSH/CLONE")?;
 
                 let mut repo_path = PathBuf::from(repo);
-                repo_path = repo_path.strip_prefix("/").context("QED.")?.into();
+                repo_path = repo_path
+                    .strip_prefix("/")
+                    .context("Repo strip_prefix")?
+                    .into();
                 // 清理路径
                 repo_path = repo_path.clean();
 
