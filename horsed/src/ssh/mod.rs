@@ -242,7 +242,7 @@ impl Handler for AppServer {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        let command = from_utf8(data).context(format!("无效请求(前20字节): {:?}", &data[..20]))?;
+        let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
         let command = split(command).context(format!("无效命令: {command}"))?;
 
         match &self.action[..] {
