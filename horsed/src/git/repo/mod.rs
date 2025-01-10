@@ -73,6 +73,22 @@ impl Repo {
         Ok(Repo::from(to))
     }
 
+    /// 从远程仓库检出代码
+    pub async fn checkout(&self, to: impl AsRef<Path>, branch: Option<&str>) -> HorseResult<Self> {
+        Command::new("git")
+            .current_dir(&self.dir)
+            .arg("--work-tree")
+            .arg(to.as_ref())
+            .arg("checkout")
+            .arg("-f")
+            .arg(branch.unwrap_or("master"))
+            .output()
+            .await?
+            .status
+            .exit_ok()?;
+
+        Ok(Repo::from(to))
+    }
     pub async fn push_changes(&self, message: impl AsRef<str>) -> HorseResult<()> {
         Command::new("git")
             .current_dir(&self.dir)

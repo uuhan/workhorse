@@ -239,16 +239,17 @@ impl AppServer {
         work_path = work_path.clean();
 
         // 编译目录
-        let work_repo = Repo::clone(repo.path(), work_path, Some(env_branch))
-            .await
-            .context("克隆仓库失败")?;
+        repo.checkout(&work_path, Some(env_branch)).await?;
+        // let work_repo = Repo::clone(repo.path(), work_path, Some(env_branch))
+        //     .await
+        //     .context("克隆仓库失败")?;
 
         let mut cmd = Command::new("cargo");
-        cmd.current_dir(work_repo.path());
+        cmd.current_dir(&work_path);
         cmd.arg("build");
         cmd.arg("--color=always");
         cmd.arg("--manifest-path");
-        cmd.arg(work_repo.path().join("Cargo.toml"));
+        cmd.arg(work_path.join("Cargo.toml"));
         cmd.args(command);
 
         cmd.stdout(Stdio::piped());
