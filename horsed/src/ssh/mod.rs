@@ -237,6 +237,9 @@ impl AppServer {
 
         let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
         work_path = work_path.clean();
+        if !work_path.exists() {
+            std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
+        }
 
         // 编译目录
         repo.checkout(&work_path, Some(env_branch)).await?;
