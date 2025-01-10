@@ -78,7 +78,7 @@ impl AppServer {
         // git clone ssh://git@127.0.0.1:2222/repos/a
         // git-upload-pack '/repos/a'
         tracing::info!("GIT: {}", command.join(" "));
-        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
 
         let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
         let repo = &command.get(1).context("FIXME: GIT PUSH/CLONE")?;
@@ -139,11 +139,18 @@ impl AppServer {
                 }
 
                 tokio::spawn(async move {
-                    if let Err(err) = handle
+                    match handle
                         .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
                         .await
                     {
-                        tracing::error!("Exec Error: {}", err);
+                        Ok(mut cmd) => {
+                            handle.exit(cmd.wait().await?).await?;
+                            Result::<_, HorseError>::Ok(())
+                        }
+                        Err(err) => {
+                            tracing::error!("git upload-pack failed: {}", err);
+                            Ok(())
+                        }
                     }
                 });
             }
@@ -155,11 +162,18 @@ impl AppServer {
                 }
 
                 tokio::spawn(async move {
-                    if let Err(err) = handle
+                    match handle
                         .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
                         .await
                     {
-                        tracing::error!("Exec Error: {}", err);
+                        Ok(mut cmd) => {
+                            handle.exit(cmd.wait().await?).await?;
+                            Result::<_, HorseError>::Ok(())
+                        }
+                        Err(err) => {
+                            tracing::error!("git receive-pack: {}", err);
+                            Ok(())
+                        }
                     }
                 });
             }
@@ -175,33 +189,243 @@ impl AppServer {
     /// 服务端执行命令
     pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
-        let handle = self
+        let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         tokio::spawn(async move {
             #[cfg(windows)]
-            if let Err(err) = handle
+            match handle
                 .exec(Command::new("cmd.exe").arg("/C").args(command))
                 .await
             {
-                tracing::error!("command failed: {}", err);
+                Ok(mut cmd) => {
+                    handle.exit(cmd.wait().await?).await?;
+                    Result::<_, HorseError>::Ok(())
+                }
+                Err(err) => {
+                    tracing::error!("command failed: {}", err);
+                    Ok(())
+                }
             }
             #[cfg(not(windows))]
-            if let Err(err) = handle
+            match handle
                 .exec(Command::new("sh").arg("-c").arg(command.join(" ")))
                 .await
             {
-                tracing::error!("command failed: {}", err);
+                Ok(mut cmd) => {
+                    handle.exit(cmd.wait().await?).await?;
+                    Result::<_, HorseError>::Ok(())
+                }
+                Err(err) => {
+                    tracing::error!("command failed: {}", err);
+                    Ok(())
+                }
             }
         });
 
         Ok(())
     }
 
-    /// 服务端 just 指令
+    /// ### 服务端 just 指令
+    ///
+    /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
+    /// 目前主要用于跟 git 工作流配合
+    ///
+    /// FIXME: git push 会主动断开
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
-        todo!()
+        // git push ssh://just@127.0.0.1:2222/repo-name
+        // git-upload-pack '/repo-name'
+        tracing::info!("GIT: {}", command.join(" "));
+        let env_git = &command.first().context("FIXME: GIT ARGS")?;
+        let env_repo = &command.get(1).context("FIXME: GIT ARGS")?;
+
+        let mut repo_path = PathBuf::from(env_repo);
+        repo_path = repo_path
+            .strip_prefix("/")
+            .context("REPO STRIP_PREFIX")?
+            .into();
+        // 清理路径
+        repo_path = repo_path.clean();
+        let repo_path_origin = repo_path.clone();
+
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
+
+        if let Some(fst) = repo_path.components().next() {
+            // 如果提供的地址包含 .. 等路径，则拒绝请求
+            if fst == std::path::Component::ParentDir {
+                tracing::warn!("拒绝仓库请求, 路径不合法: {}", repo_path.display());
+                handle.finish().await?;
+                return Ok(());
+            }
+
+            let parent = fst
+                .as_os_str()
+                .to_str()
+                .context(format!("目录名非法: {:?}", repo_path))?;
+
+            let current_dir = std::env::current_dir()?;
+
+            // 仓库存放在 repos 目录下
+            if parent != "repos" {
+                repo_path = current_dir.join("repos").join(repo_path);
+            } else {
+                repo_path = current_dir.join(repo_path);
+            }
+
+            repo_path = repo_path.clean();
+        }
+
+        // 裸仓库名称统一添加 .git 后缀
+        if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+            tracing::error!("无效仓库路径: {:?}", repo_path);
+            handle.finish().await?;
+            return Ok(());
+        }
+
+        let mut repo = Repo::from(&repo_path);
+        tracing::info!("GIT REPO: {}", repo.path().display());
+
+        match env_git.as_str() {
+            // 响应 git clone/pull/fetch 请求
+            // just 命令在拉取的时候单纯返回 pack
+            "git-upload-pack" => {
+                // TODO: 需要对仓库进行检查
+                if !repo.exists() {
+                    // TODO: 通知客户端失败原因
+                    tracing::warn!("克隆仓库不存在: {}", repo.path().display());
+                    handle.finish().await?;
+                    return Ok(());
+                }
+
+                tokio::spawn(async move {
+                    match handle
+                        .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
+                        .await
+                    {
+                        Ok(mut cmd) => {
+                            handle.exit(cmd.wait().await?).await?;
+                            Result::<_, HorseError>::Ok(())
+                        }
+                        Err(err) => {
+                            tracing::error!("git upload-pack failed: {}", err);
+                            Ok(())
+                        }
+                    }
+                });
+            }
+
+            // 响应 git push 请求
+            // just 命令此时会
+            // 1. 收集 pack 入库
+            // 2. 检出代码用于构建
+            // 3. 执行项目的 just 命令, 项目必须包含 justfile 文件
+            "git-receive-pack" => {
+                // 如果仓库目录不存在
+                if !repo.exists() {
+                    repo.init_bare().await?;
+                }
+
+                tokio::spawn(async move {
+                    match handle
+                        .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
+                        .await
+                    {
+                        Ok(mut cmd) => {
+                            // 收集 pack 入库
+                            cmd.wait().await?;
+
+                            let work_path = std::env::current_dir()?
+                                .join("workspace")
+                                .join(repo_path_origin);
+                            if !work_path.exists() {
+                                tracing::info!("CREATE DIR: {}", work_path.display());
+                                std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
+                            }
+
+                            // 编译目录
+                            repo.checkout(&work_path, Some("HEAD"))
+                                .await
+                                .context("检出代码失败")
+                                .unwrap();
+
+                            let mut cmd = Command::new("just");
+                            cmd.current_dir(&work_path);
+                            cmd.arg("-f");
+                            cmd.arg(work_path.join("justfile"));
+                            cmd.arg("build");
+
+                            cmd.stdout(Stdio::piped());
+                            cmd.stderr(Stdio::piped());
+
+                            // TODO: 需要有更好的方式处理命令调用
+                            tokio::spawn(async move {
+                                let mut cmd = cmd.spawn()?;
+
+                                let mut stdout = cmd.stdout.take().unwrap();
+                                let mut stderr = cmd.stderr.take().unwrap();
+
+                                let mut o_output = handle.make_writer();
+                                let mut e_output = handle.make_writer();
+
+                                let mut o_ready = false;
+                                let mut e_ready = false;
+                                loop {
+                                    tokio::select! {
+                                        o = tokio::io::copy(&mut stdout, &mut o_output), if !o_ready => {
+                                            match o {
+                                                Ok(len) => {
+                                                    tracing::debug!("send data: {}", len);
+                                                    if len == 0 {
+                                                        o_ready = true;
+                                                    }
+                                                },
+                                                Err(e) => {
+                                                    tracing::error!("send data error: {}", e);
+                                                    break;
+                                                }
+                                            }
+                                        },
+                                            e = tokio::io::copy(&mut stderr, &mut e_output), if !e_ready => {
+                                                match e {
+                                                    Ok(len) => {
+                                                        tracing::debug!("send stderr data: {}", len);
+                                                        if len == 0 {
+                                                            e_ready = true;
+                                                        }
+                                                    },
+                                                    Err(e) => {
+                                                        tracing::error!("send stderr data error: {}", e);
+                                                        break;
+                                                    }
+                                                }
+                                            },
+                                            else => {
+                                                break;
+                                            }
+                                    }
+                                }
+
+                                handle.exit(cmd.wait().await?).await?;
+                                Result::<_, HorseError>::Ok(())
+                            });
+
+                            Ok(())
+                        }
+                        Err(err) => {
+                            tracing::error!("git receive-pack failed: {}", err);
+                            Result::<_, HorseError>::Ok(())
+                        }
+                    }
+                });
+            }
+            unkonwn => {
+                tracing::error!("不支持的GIT命令: {unkonwn}");
+                return Ok(());
+            }
+        }
+
+        Ok(())
     }
 
     /// ## 服务端构建
@@ -498,7 +722,7 @@ impl Handler for AppServer {
         let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
         let command = split(command).context(format!("无效命令: {command}"))?;
 
-        match &self.action[..] {
+        match self.action.as_str() {
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
             "just" => self.just(command).await?,

@@ -5,8 +5,11 @@ use russh::{
 };
 use std::process::ExitStatus;
 use std::process::Stdio;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::process::Command;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    process::Child,
+};
 
 pub struct ChannelHandle {
     pub(crate) handle: Handle,
@@ -63,7 +66,7 @@ impl ChannelHandle {
     }
 
     /// 调用远程命令, 并将输入输出流通过通道传输
-    pub async fn exec(mut self, cmd: &mut Command) -> HorseResult<()> {
+    pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
@@ -134,9 +137,6 @@ impl ChannelHandle {
             }
         }
 
-        drop((cout, cin));
-        self.exit(cmd.wait().await?).await?;
-
-        Ok(())
+        Ok(cmd)
     }
 }
