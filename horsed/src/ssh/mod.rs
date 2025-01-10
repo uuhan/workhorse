@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::process::Stdio;
 use std::str::from_utf8;
 use std::sync::Arc;
 
@@ -250,12 +251,65 @@ impl AppServer {
         cmd.arg(work_repo.path().join("Cargo.toml"));
         cmd.args(command);
 
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
         let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
 
         tokio::spawn(async move {
-            if let Err(err) = handle.exec(&mut cmd).await {
-                tracing::error!("Exec Error: {}", err);
+            // if let Err(err) = handle.exec(&mut cmd).await {
+            //     tracing::error!("Exec Error: {}", err);
+            // }
+
+            // Run the command
+            let mut cmd = cmd.spawn()?;
+
+            let mut stdout = cmd.stdout.take().unwrap();
+            let mut stderr = cmd.stderr.take().unwrap();
+
+            let mut o_output = handle.make_writer();
+            let mut e_output = handle.make_writer();
+
+            let mut o_ready = false;
+            let mut e_ready = false;
+            loop {
+                tokio::select! {
+                    o = tokio::io::copy(&mut stdout, &mut o_output), if !o_ready => {
+                        match o {
+                            Ok(len) => {
+                                tracing::debug!("send data: {}", len);
+                                if len == 0 {
+                                    o_ready = true;
+                                }
+                            },
+                            Err(e) => {
+                                tracing::error!("send data error: {}", e);
+                                break;
+                            }
+                        }
+                    },
+                    e = tokio::io::copy(&mut stderr, &mut e_output), if !e_ready => {
+                        match e {
+                            Ok(len) => {
+                                tracing::debug!("send stderr data: {}", len);
+                                if len == 0 {
+                                    e_ready = true;
+                                }
+                            },
+                            Err(e) => {
+                                tracing::error!("send stderr data error: {}", e);
+                                break;
+                            }
+                        }
+                    },
+                    else => {
+                        break;
+                    }
+                }
             }
+
+            handle.exit(cmd.wait().await?).await?;
+            Result::<_, HorseError>::Ok(())
         });
 
         Ok(())
