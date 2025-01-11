@@ -2,7 +2,7 @@ default:
   just --list
 
 build:
-  cargo build -p horsed --bin horsed --color=always
+  cargo build --color=always
 
 install-work:
   cargo install --path ./cargo-work --bin cargo-work
