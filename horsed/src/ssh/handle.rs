@@ -50,19 +50,11 @@ impl ChannelHandle {
     }
 
     /// `exec_request`, 发送请求状态，并结束通道
-    pub async fn exit(self, exit_status: ExitStatus) -> HorseResult<()> {
+    pub async fn exit(&self, exit_status: ExitStatus) -> HorseResult<()> {
         let _ = self
             .handle
             .exit_status_request(self.id, exit_status.code().unwrap_or(128) as _)
             .await;
-        self.finish().await?;
-        Ok(())
-    }
-
-    /// 结束通道，关闭通道和发送EOF
-    pub async fn finish(mut self) -> HorseResult<()> {
-        self.eof().await?;
-        self.close().await?;
         Ok(())
     }
 
@@ -187,6 +179,7 @@ impl ChannelHandle {
 
 impl Drop for ChannelHandle {
     fn drop(&mut self) {
-        tracing::info!("channel {} dropped", self.id);
+        tracing::debug!("channel {} dropped", self.id);
+        futures::executor::block_on(async move { self.eof().await; self.close().await;});
     }
 }

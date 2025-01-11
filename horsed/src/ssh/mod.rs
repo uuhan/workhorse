@@ -97,7 +97,6 @@ impl AppServer {
 
         if let Some(fst) = repo_path.components().next() {
             if fst == std::path::Component::ParentDir {
-                handle.finish().await?;
                 return Ok(());
             }
 
@@ -122,7 +121,6 @@ impl AppServer {
         // 仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
-            handle.finish().await?;
             return Ok(());
         }
 
@@ -135,7 +133,6 @@ impl AppServer {
                 // TODO: 需要对仓库进行检查
                 if !repo.exists() {
                     tracing::warn!("克隆仓库不存在: {:?}", repo.path().display());
-                    handle.finish().await?;
                     return Ok(());
                 }
 
@@ -257,7 +254,6 @@ impl AppServer {
             // 如果提供的地址包含 .. 等路径，则拒绝请求
             if fst == std::path::Component::ParentDir {
                 tracing::warn!("拒绝仓库请求, 路径不合法: {}", repo_path.display());
-                handle.finish().await?;
                 return Ok(());
             }
 
@@ -281,7 +277,6 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
-            handle.finish().await?;
             return Ok(());
         }
 
@@ -296,7 +291,6 @@ impl AppServer {
                 if !repo.exists() {
                     // TODO: 通知客户端失败原因
                     tracing::warn!("克隆仓库不存在: {}", repo.path().display());
-                    handle.finish().await?;
                     return Ok(());
                 }
 
