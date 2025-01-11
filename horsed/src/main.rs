@@ -15,6 +15,7 @@ use tokio::{
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    colored::control::set_override(true);
     let matches = command!()
         .arg(arg!(
             -f --fg "Run in the foreground"
