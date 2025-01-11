@@ -336,7 +336,7 @@ impl AppServer {
                         Ok(mut cmd) => {
                             // 收集 pack 入库
                             cmd.wait().await?;
-                            handle.info("代码推送成功, 开始构建...").await?;
+                            handle.info("代码推送成功...").await?;
 
                             let work_path = std::env::current_dir()?
                                 .join("workspace")
@@ -359,36 +359,25 @@ impl AppServer {
                             cmd.arg(work_path.join("justfile"));
                             cmd.arg("build");
 
-                            cmd.stdout(Stdio::piped());
                             cmd.stderr(Stdio::piped());
 
-                            // TODO: 需要有更好的方式处理命令调用
                             let mut cmd = cmd.spawn()?;
-                            handle.info("执行命令...").await?;
 
-                            let mut stdout = cmd.stdout.take().unwrap();
                             let mut stderr = cmd.stderr.take().unwrap();
 
                             let fut = async move {
-                                const BUF_SIZE: usize = 1024 * 32;
-                                let mut out_buf = [0u8; BUF_SIZE];
+                                const BUF_SIZE: usize = 1024 * 5;
+                                let mut buf = [0u8; BUF_SIZE];
+
                                 loop {
-                                    let read = stdout.read(&mut out_buf).await?;
+                                    let read = stderr.read(&mut buf).await?;
                                     if read == 0 {
                                         break;
                                     }
-                                    handle.log_raw(&out_buf[..read]).await?;
+                                    handle.log_raw(&buf[..read]).await?;
                                 }
 
-                                loop {
-                                    let read = stderr.read(&mut out_buf).await?;
-                                    if read == 0 {
-                                        break;
-                                    }
-                                    handle.log_raw(&out_buf[..read]).await?;
-                                }
-
-                                handle.info("🎉 构建完成").await?;
+                                handle.info("构建完成").await?;
                                 handle.exit(cmd.wait().await?).await?;
 
                                 Ok::<(), HorseError>(())
