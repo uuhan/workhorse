@@ -431,10 +431,13 @@ impl AppServer {
         repo_path.set_extension("git");
         repo_path = repo_path.clean();
 
+        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
         let repo = Repo::from(repo_path);
 
         if !repo.exists() {
             tracing::error!("仓库不存在: {}", repo.path().display());
+            handle.error("仓库不存在").await?;
+            return Ok(());
         }
 
         let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
@@ -459,8 +462,6 @@ impl AppServer {
 
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
-
-        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
 
         tokio::spawn(async move {
             // if let Err(err) = handle.exec(&mut cmd).await {
