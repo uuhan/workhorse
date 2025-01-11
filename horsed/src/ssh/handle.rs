@@ -1,7 +1,9 @@
 use crate::prelude::HorseResult;
+use anyhow::Context;
+use colored::{ColoredString, Colorize};
 use russh::{
     server::{Handle, Msg, Session},
-    Channel, ChannelId,
+    Channel, ChannelId, CryptoVec,
 };
 use std::process::ExitStatus;
 use std::process::Stdio;
@@ -138,5 +140,48 @@ impl ChannelHandle {
         }
 
         Ok(cmd)
+    }
+
+    #[allow(unused)]
+    pub async fn info(&self, text: impl AsRef<str>) -> HorseResult<()> {
+        self.log("HORSED".green(), text).await
+    }
+
+    #[allow(unused)]
+    pub async fn warn(&self, text: impl AsRef<str>) -> HorseResult<()> {
+        self.log("HORSED".yellow(), text).await
+    }
+
+    #[allow(unused)]
+    pub async fn error(&self, text: impl AsRef<str>) -> HorseResult<()> {
+        self.log("HORSED".red(), text).await
+    }
+
+    /// 发送消息告知客户端
+    /// 使用 SSH 协议的扩展数据传输: SSH_EXTENDED_DATA_STDERR = 1
+    /// 参考: https://datatracker.ietf.org/doc/html/rfc4254#section-5.2
+    async fn log(&self, title: ColoredString, text: impl AsRef<str>) -> HorseResult<()> {
+        let msg = format!(
+            "{}{}{} {}\n",
+            "[".bold(),
+            title.bold(),
+            "]".bold(),
+            text.as_ref(),
+        );
+        let msg = CryptoVec::from(msg);
+        if let Err(vec) = self.handle.extended_data(self.id, 1, msg).await {
+            return Err(anyhow::anyhow!("SEND MESSAGE: {:?}", vec))?;
+        }
+        Ok(())
+    }
+
+    /// 类似 `self.log` 方法, 但是输出 &[u8] 数据到前端
+    pub async fn log_raw(&self, raw: impl AsRef<[u8]>) -> HorseResult<()> {
+        let raw = CryptoVec::from(raw.as_ref());
+        if let Err(vec) = self.handle.extended_data(self.id, 1, raw).await {
+            return Err(anyhow::anyhow!("SEND MESSAGE: {:?}", vec))?;
+        }
+
+        Ok(())
     }
 }

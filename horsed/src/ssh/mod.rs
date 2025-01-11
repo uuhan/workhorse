@@ -17,6 +17,7 @@ use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -158,12 +159,13 @@ impl AppServer {
             "git-receive-pack" => {
                 // 如果仓库目录不存在
                 if !repo.exists() {
+                    handle.info("成功创建仓库, 接受第一次推送...").await?;
                     repo.init_bare().await?;
                 }
 
                 tokio::spawn(async move {
                     match handle
-                        .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
+                        .exec(Command::new("git-receive-pack").arg(repo.path()))
                         .await
                     {
                         Ok(mut cmd) => {
@@ -334,6 +336,7 @@ impl AppServer {
                         Ok(mut cmd) => {
                             // 收集 pack 入库
                             cmd.wait().await?;
+                            handle.info("代码推送成功, 开始构建...").await?;
 
                             let work_path = std::env::current_dir()?
                                 .join("workspace")
@@ -344,11 +347,12 @@ impl AppServer {
                             }
 
                             // 编译目录
+                            handle.info("检出代码到工作目录...").await?;
                             repo.checkout(&work_path, Some("HEAD"))
                                 .await
-                                .context("检出代码失败")
-                                .unwrap();
+                                .context("检出代码失败")?;
 
+                            handle.info("开始构建...").await?;
                             let mut cmd = Command::new("just");
                             cmd.current_dir(&work_path);
                             cmd.arg("-f");
@@ -359,57 +363,38 @@ impl AppServer {
                             cmd.stderr(Stdio::piped());
 
                             // TODO: 需要有更好的方式处理命令调用
-                            tokio::spawn(async move {
-                                let mut cmd = cmd.spawn()?;
+                            let mut cmd = cmd.spawn()?;
+                            handle.info("执行命令...").await?;
 
-                                let mut stdout = cmd.stdout.take().unwrap();
-                                let mut stderr = cmd.stderr.take().unwrap();
+                            let mut stdout = cmd.stdout.take().unwrap();
+                            let mut stderr = cmd.stderr.take().unwrap();
 
-                                let mut o_output = handle.make_writer();
-                                let mut e_output = handle.make_writer();
-
-                                let mut o_ready = false;
-                                let mut e_ready = false;
+                            let fut = async move {
+                                const BUF_SIZE: usize = 1024 * 32;
+                                let mut out_buf = [0u8; BUF_SIZE];
                                 loop {
-                                    tokio::select! {
-                                        o = tokio::io::copy(&mut stdout, &mut o_output), if !o_ready => {
-                                            match o {
-                                                Ok(len) => {
-                                                    tracing::debug!("send data: {}", len);
-                                                    if len == 0 {
-                                                        o_ready = true;
-                                                    }
-                                                },
-                                                Err(e) => {
-                                                    tracing::error!("send data error: {}", e);
-                                                    break;
-                                                }
-                                            }
-                                        },
-                                            e = tokio::io::copy(&mut stderr, &mut e_output), if !e_ready => {
-                                                match e {
-                                                    Ok(len) => {
-                                                        tracing::debug!("send stderr data: {}", len);
-                                                        if len == 0 {
-                                                            e_ready = true;
-                                                        }
-                                                    },
-                                                    Err(e) => {
-                                                        tracing::error!("send stderr data error: {}", e);
-                                                        break;
-                                                    }
-                                                }
-                                            },
-                                            else => {
-                                                break;
-                                            }
+                                    let read = stdout.read(&mut out_buf).await?;
+                                    if read == 0 {
+                                        break;
                                     }
+                                    handle.log_raw(&out_buf[..read]).await?;
                                 }
 
-                                handle.exit(cmd.wait().await?).await?;
-                                Result::<_, HorseError>::Ok(())
-                            });
+                                loop {
+                                    let read = stderr.read(&mut out_buf).await?;
+                                    if read == 0 {
+                                        break;
+                                    }
+                                    handle.log_raw(&out_buf[..read]).await?;
+                                }
 
+                                handle.info("🎉 构建完成").await?;
+                                handle.exit(cmd.wait().await?).await?;
+
+                                Ok::<(), HorseError>(())
+                            };
+
+                            tokio::spawn(fut);
                             Ok(())
                         }
                         Err(err) => {
