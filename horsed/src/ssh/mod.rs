@@ -328,7 +328,7 @@ impl AppServer {
                     repo.init_bare().await?;
                 }
 
-                tokio::spawn(async move {
+                let fut = async move {
                     match handle
                         .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
                         .await
@@ -338,9 +338,12 @@ impl AppServer {
                             cmd.wait().await?;
                             handle.info("代码推送成功...").await?;
 
-                            let work_path = std::env::current_dir()?
+                            let mut work_path = std::env::current_dir()?
                                 .join("workspace")
                                 .join(repo_path_origin);
+                            // 构建目录不包含 .git 后缀
+                            work_path.set_extension("");
+
                             if !work_path.exists() {
                                 tracing::info!("CREATE DIR: {}", work_path.display());
                                 std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
@@ -391,7 +394,9 @@ impl AppServer {
                             Result::<_, HorseError>::Ok(())
                         }
                     }
-                });
+                };
+
+                tokio::spawn(fut);
             }
             unkonwn => {
                 tracing::error!("不支持的GIT命令: {unkonwn}");

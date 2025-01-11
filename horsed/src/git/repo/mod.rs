@@ -81,7 +81,7 @@ impl Repo {
             .arg(to.as_ref())
             .arg("checkout")
             .arg("-f")
-            .arg(branch.unwrap_or("master"))
+            .arg(branch.unwrap_or("HEAD"))
             .output()
             .await?
             .status

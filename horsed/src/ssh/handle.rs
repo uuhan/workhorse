@@ -1,5 +1,4 @@
 use crate::prelude::HorseResult;
-use anyhow::Context;
 use colored::{ColoredString, Colorize};
 use russh::{
     server::{Handle, Msg, Session},
@@ -183,5 +182,11 @@ impl ChannelHandle {
         }
 
         Ok(())
+    }
+}
+
+impl Drop for ChannelHandle {
+    fn drop(&mut self) {
+        tracing::info!("channel {} dropped", self.id);
     }
 }
