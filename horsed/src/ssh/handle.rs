@@ -11,6 +11,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     process::Child,
 };
+use anyhow::Context;
 
 pub struct ChannelHandle {
     pub(crate) handle: Handle,
@@ -51,11 +52,10 @@ impl ChannelHandle {
 
     /// `exec_request`, 发送请求状态，并结束通道
     pub async fn exit(&self, exit_status: ExitStatus) -> HorseResult<()> {
-        let _ = self
-            .handle
+        self.handle
             .exit_status_request(self.id, exit_status.code().unwrap_or(128) as _)
-            .await;
-        Ok(())
+            .await
+            .map_err(|_| anyhow::anyhow!("EXIT STATUS REQUEST").into())
     }
 
     /// 调用远程命令, 并将输入输出流通过通道传输

@@ -329,7 +329,7 @@ impl AppServer {
                     {
                         Ok(mut cmd) => {
                             // 收集 pack 入库
-                            cmd.wait().await?;
+                            handle.exit(cmd.wait().await?).await?;
                             handle.info("代码推送成功...").await?;
 
                             let mut work_path = std::env::current_dir()?
@@ -345,9 +345,14 @@ impl AppServer {
 
                             // 编译目录
                             handle.info("检出代码到工作目录...").await?;
-                            repo.checkout(&work_path, Some("HEAD"))
+                            if let Err(err) = repo.checkout(&work_path, Some("HEAD"))
                                 .await
-                                .context("检出代码失败")?;
+                                .context("检出代码失败")
+                            {
+                                tracing::error!("{:?}", err);
+                                handle.error(err.to_string()).await?;
+                                return Ok(());
+                            }
 
                             handle.info("开始构建...").await?;
                             let mut cmd = Command::new("just");
