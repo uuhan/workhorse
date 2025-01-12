@@ -1,4 +1,5 @@
 use cargo_work::Build;
+use cargo_work::ssh::run;
 use clap::{Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::thread;
@@ -30,13 +31,14 @@ pub enum Cli {
     Cargo(Opt),
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli {
         Cli::Opt(opt) | Cli::Cargo(opt) => match opt {
             Opt::Build(build) => println!("{:?}", build),
-            Opt::Push => println!("git push"),
+            Opt::Push => run().await?,
             Opt::Pull => {
                 let mut downloaded = 0;
                 let total_size = 23123123;
