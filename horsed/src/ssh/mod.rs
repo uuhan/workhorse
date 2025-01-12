@@ -232,7 +232,7 @@ impl AppServer {
     /// 目前主要用于跟 git 工作流配合
     ///
     /// FIXME: git push 会主动断开
-    pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
+    pub async fn just(&mut self, command: Vec<String>, subaction: String) -> HorseResult<()> {
         // git push ssh://just@127.0.0.1:2222/repo-name
         // git-upload-pack '/repo-name'
         tracing::info!("GIT: {}", command.join(" "));
@@ -345,7 +345,8 @@ impl AppServer {
 
                             // 编译目录
                             handle.info("检出代码到工作目录...").await?;
-                            if let Err(err) = repo.checkout(&work_path, Some("HEAD"))
+                            if let Err(err) = repo
+                                .checkout(&work_path, Some("HEAD"))
                                 .await
                                 .context("检出代码失败")
                             {
@@ -354,12 +355,15 @@ impl AppServer {
                                 return Ok(());
                             }
 
-                            handle.info("开始构建...").await?;
+                            handle
+                                .info(format!("just {subaction}...").bold().to_string())
+                                .await?;
+
                             let mut cmd = Command::new("just");
                             cmd.current_dir(&work_path);
                             cmd.arg("-f");
                             cmd.arg(work_path.join("justfile"));
-                            cmd.arg("build");
+                            cmd.arg(subaction);
 
                             cmd.stderr(Stdio::piped());
 
@@ -704,10 +708,15 @@ impl Handler for AppServer {
         match self.action.as_str() {
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
-            "just" => self.just(command).await?,
-            "build" => self.build(command).await?,
-            other => {
-                tracing::warn!("未知命令: {other}");
+            "build" | "cargo" => self.build(command).await?,
+            // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
+            action if action.starts_with("just") => {
+                let subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
+                self.just(command, subaction).await?;
+            }
+            action => {
+                let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+                handle.error(format!("不支持的命令: {action}")).await?;
                 session.channel_failure(channel_id)?;
                 return Ok(());
             }
