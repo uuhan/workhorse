@@ -711,7 +711,10 @@ impl Handler for AppServer {
             "build" | "cargo" => self.build(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
             action if action.starts_with("just") => {
-                let subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
+                let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
+                if subaction.is_empty() {
+                    subaction = "build".to_owned();
+                }
                 self.just(command, subaction).await?;
             }
             action => {
