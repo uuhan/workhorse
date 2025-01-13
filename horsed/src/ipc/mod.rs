@@ -9,6 +9,7 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     try_join,
 };
+pub mod data;
 
 static IPC: &str = "horsed.sock";
 
