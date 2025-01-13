@@ -3,6 +3,7 @@ use super::{
     signal::{signal, Exit, Signal},
     tracing_unbounded, JoinFuture, TaskCondition, TracingUnboundedReceiver, TracingUnboundedSender,
 };
+use anyhow::Result;
 use core::panic;
 use futures::{
     future::{join_all, pending, select, Either},
@@ -34,25 +35,22 @@ pub struct SpawnEssentialTaskHandle {
 }
 
 impl SpawnTaskHandle {
-    pub fn spawn<T, B>(&self, task_builder: B) -> TaskHandler
+    pub fn spawn<T>(&self, task: T) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner::<T, B>(task_builder, TaskType::Async)
+        self.spawn_inner::<T>(task, TaskType::Async)
     }
 
-    pub fn spawn_blocking<T, B>(&self, task_builder: B) -> TaskHandler
+    pub fn spawn_blocking<T>(&self, task: T) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner::<T, B>(task_builder, TaskType::Block)
+        self.spawn_inner::<T>(task, TaskType::Block)
     }
-    fn spawn_inner<T, B>(&self, task_builder: B, tt: TaskType) -> TaskHandler
+    fn spawn_inner<T>(&self, task: T, tt: TaskType) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
         // 任务管理器关闭时，不允许新任务被创建
         if self.task_notifier.is_closed() {
@@ -72,10 +70,7 @@ impl SpawnTaskHandle {
         let mut on_exit = self.on_exit.clone();
 
         let task = async move {
-            let task = {
-                let inner = task_builder();
-                panic::AssertUnwindSafe(inner).catch_unwind()
-            };
+            let task = { panic::AssertUnwindSafe(task).catch_unwind() };
 
             futures::pin_mut!(task);
 
@@ -93,7 +88,7 @@ impl SpawnTaskHandle {
 
                     // std::panic::resume_unwind(pc);
                 }
-                Either::Right((Ok(()), _)) => {
+                Either::Right((Ok(_), _)) => {
                     // 任务正常退出
                 }
             }
@@ -122,32 +117,29 @@ impl SpawnTaskHandle {
 }
 
 impl SpawnEssentialTaskHandle {
-    pub fn spawn<T, B>(&self, task_builder: B) -> TaskHandler
+    pub fn spawn<T>(&self, task: T) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner(task_builder, TaskType::Async)
+        self.spawn_inner(task, TaskType::Async)
     }
 
-    pub fn spawn_blocking<T, B>(&self, task_builder: B) -> TaskHandler
+    pub fn spawn_blocking<T>(&self, task: T) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner(task_builder, TaskType::Block)
+        self.spawn_inner(task, TaskType::Block)
     }
 
-    fn spawn_inner<T, B>(&self, task_builder: B, tt: TaskType) -> TaskHandler
+    fn spawn_inner<T>(&self, task: T, tt: TaskType) -> TaskHandler
     where
-        T: Future<Output = ()> + Send + 'static,
-        B: Fn() -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
     {
         let essential_failed = self.essential_failed_tx.clone();
         self.inner.spawn_inner(
-            move || {
+            async move {
                 let essential_failed = essential_failed.clone();
-                std::panic::AssertUnwindSafe(task_builder())
+                std::panic::AssertUnwindSafe(task)
                     .catch_unwind()
                     .map(move |res| match res {
                         Err(pc) => {
@@ -165,6 +157,8 @@ impl SpawnEssentialTaskHandle {
                             let _ = essential_failed.close_channel();
                         }
                     })
+                    .await;
+                Ok(())
             },
             tt,
         )
@@ -229,7 +223,7 @@ impl TaskManager {
         }
     }
 
-    // pub fn collect(mut self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+    // pub fn collect(mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> {
     //     self.task_notifier.close_channel();
     //
     //     Box::pin(async move {
@@ -249,7 +243,7 @@ impl TaskManager {
     //     })
     // }
 
-    pub fn future<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+    pub fn future<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
             let mut t1 = self.essential_failed_rx.next().fuse();
             let mut t2 = self.on_exit.clone().fuse();
@@ -270,10 +264,11 @@ impl TaskManager {
                 // 子服务退出，但是这里会永远 pending
                 _ = t3 => {}
             }
+            Ok(())
         })
     }
 
-    pub fn clean_shutdown(mut self) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+    pub fn clean_shutdown(mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> {
         self.terminate();
         let children_shutdowns = self.child_tasks.into_iter().map(|x| x.clean_shutdown());
         let completion_future = self.completion_future;
@@ -281,6 +276,7 @@ impl TaskManager {
         Box::pin(async move {
             join_all(children_shutdowns).await;
             completion_future.await;
+            Ok(())
         })
     }
 

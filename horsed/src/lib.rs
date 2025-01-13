@@ -2,6 +2,7 @@ pub mod command;
 pub mod db;
 pub mod error;
 pub mod git;
+pub mod ipc;
 pub mod key;
 pub mod ssh;
 pub mod ui;

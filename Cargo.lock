@@ -3782,6 +3782,7 @@ dependencies = [
 name = "stable"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "futures",
  "once_cell",
  "parking_lot",

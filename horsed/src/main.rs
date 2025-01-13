@@ -63,10 +63,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .init();
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
-        handler.spawn(move || async {
+        handler.spawn(async move {
             let db = horsed::db::db();
             Migrator::up(&db, None).await;
             horsed::ssh::run().await;
+            Ok(())
+        });
+
+        handler.spawn(async move {
+            use horsed::ipc::*;
+            tracing::info!("IPC Server Running...");
+
+            loop {
+                let conn = match listen().await?.accept().await {
+                    Ok(c) => c,
+                    Err(err) => {
+                        tracing::info!("Error while accepting connection: {err}");
+                        continue;
+                    }
+                };
+
+                // tokio::spawn(async move {
+                //     if let Err(err) = handle_conn(conn).await {
+                //         tracing::error!("Error while handling connection: {err}");
+                //     }
+                // });
+            }
         });
 
         futures::executor::block_on(tm.future());
