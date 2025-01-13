@@ -1,0 +1,18 @@
+#!/bin/bash
+# pre-receive 钩子：检查推送的分支并执行操作
+while read oldrev newrev refname; do
+    # 获取分支名
+    branch_name="$refname"
+    
+    echo "推送分支: $branch_name"
+    
+    # 如果是推送 main 分支
+    if [[ "$branch_name" == "main" ]]; then
+        # echo "Direct pushes to 'main' are not allowed."
+        exit 0
+    fi
+
+done
+
+exit 0
+
