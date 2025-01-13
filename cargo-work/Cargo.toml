@@ -17,3 +17,4 @@ russh.workspace = true
 shell-escape.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+colored.workspace = true

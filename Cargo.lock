@@ -567,6 +567,7 @@ dependencies = [
  "cargo-config2",
  "cargo-options",
  "clap",
+ "colored",
  "indicatif",
  "paste",
  "russh",

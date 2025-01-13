@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use colored::Colorize;
 use key::PrivateKeyWithHashAlg;
 use russh::keys::*;
 use russh::*;
@@ -16,10 +17,18 @@ use tokio::net::ToSocketAddrs;
 
 pub async fn run() -> Result<()> {
     // Session is a wrapper around a russh client, defined down below
+    let mut sk = PathBuf::from(std::env::var("HOME")?)
+        .join(".ssh")
+        .join("id_rsa");
+    if !sk.exists() {
+        sk = PathBuf::from(std::env::var("HOME")?)
+            .join(".ssh")
+            .join("id_ed25519");
+    }
     let mut ssh = Session::connect(
-        PathBuf::from(std::env::var("HOME")?).join(".ssh").join("id_rsa"),
+        sk,
         "cmd",
-        "127.0.0.1:2222",
+        std::env::var("HORSED").unwrap_or("127.0.0.1:2222".to_owned()),
     )
     .await?;
 
@@ -32,9 +41,6 @@ pub async fn run() -> Result<()> {
 
 struct Client {}
 
-// More SSH event handlers
-// can be defined in this trait
-// In this example, we're only using Channel, so these aren't needed.
 #[async_trait]
 impl client::Handler for Client {
     type Error = russh::Error;
@@ -42,6 +48,23 @@ impl client::Handler for Client {
     async fn check_server_key(&mut self, spk: &ssh_key::PublicKey) -> Result<bool, Self::Error> {
         println!("{:?}", spk);
         Ok(true)
+    }
+
+    async fn auth_banner(
+        &mut self,
+        banner: &str,
+        _session: &mut russh::client::Session,
+    ) -> Result<(), Self::Error> {
+        for banner in banner.lines() {
+            println!(
+                "{}{}{} {}",
+                "[".bold(),
+                "HORSED".green(),
+                "]".bold(),
+                banner.yellow()
+            );
+        }
+        Ok(())
     }
 }
 
@@ -107,8 +130,7 @@ impl Session {
                 _ => {}
             }
         }
-        // Ok(code.expect("program did not exit cleanly"))
-        Ok(0)
+        Ok(code.expect("program did not exit cleanly"))
     }
 
     async fn close(&mut self) -> Result<()> {
