@@ -10,6 +10,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use colored::Colorize;
 use key::PrivateKeyWithHashAlg;
+use russh::client::{self, DisconnectReason};
 use russh::keys::*;
 use russh::*;
 use tokio::io::AsyncWriteExt;
@@ -64,6 +65,46 @@ impl client::Handler for Client {
                 banner.yellow()
             );
         }
+        Ok(())
+    }
+
+    /// Called when the server sent a disconnect message
+    ///
+    /// If reason is an Error, this function should re-return the error so the join can also evaluate it
+    async fn disconnected(
+        &mut self,
+        reason: DisconnectReason<Self::Error>,
+    ) -> Result<(), Self::Error> {
+        match reason {
+            DisconnectReason::ReceivedDisconnect(_) => Ok(()),
+            DisconnectReason::Error(e) => Err(e),
+        }
+    }
+
+    /// Called when the server sends us data. The `extended_code`
+    /// parameter is a stream identifier, `None` is usually the
+    /// standard output, and `Some(1)` is the standard error. See
+    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-5.2).
+    async fn data(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Called when the server sends us data. The `extended_code`
+    /// parameter is a stream identifier, `None` is usually the
+    /// standard output, and `Some(1)` is the standard error. See
+    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-5.2).
+    async fn extended_data(
+        &mut self,
+        channel: ChannelId,
+        ext: u32,
+        data: &[u8],
+        session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 }
