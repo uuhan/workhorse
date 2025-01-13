@@ -155,8 +155,12 @@ impl SpawnEssentialTaskHandle {
                             }
                             let _ = essential_failed.close_channel();
                         }
-                        Ok(_) => {
-                            tracing::debug!("Essential task exited. Exiting...");
+                        Ok(Ok(_)) => {
+                            tracing::warn!("必要任务正常退出, 结束运行!");
+                            let _ = essential_failed.close_channel();
+                        }
+                        Ok(Err(err)) => {
+                            tracing::error!("必要任务异常: {:?}", err);
                             let _ = essential_failed.close_channel();
                         }
                     })
@@ -259,9 +263,7 @@ impl TaskManager {
             .fuse();
 
             futures::select! {
-                _ = t1 => {
-                    tracing::debug!("Essential task failed.");
-                }
+                _ = t1 => {}
                 // 接收到退出信号, 等待任务退出
                 _ = t2 => {}
                 // 子服务退出，但是这里会永远 pending
