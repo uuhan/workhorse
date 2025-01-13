@@ -17,6 +17,7 @@ use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
+use stable::task::TaskManager;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,6 +28,8 @@ use handle::ChannelHandle;
 struct AppServer {
     /// 一些共享数据
     clients: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
+    /// 任务管理器
+    tm: TaskManager,
     /// 数据库连接
     db: DatabaseConnection,
     /// 当前 Client 的 ChannelHandle
@@ -41,6 +44,7 @@ impl Clone for AppServer {
     fn clone(&self) -> Self {
         Self {
             clients: self.clients.clone(),
+            tm: TaskManager::default(),
             db: DB.clone(),
             handle: None,
             action: String::new(),
@@ -53,6 +57,7 @@ impl AppServer {
     pub fn new() -> Self {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
+            tm: TaskManager::default(),
             handle: None,
             db: DB.clone(),
             action: String::new(),
@@ -128,6 +133,7 @@ impl AppServer {
 
         tracing::info!("GIT REPO: {}", repo_path.display());
         let mut repo = Repo::from(repo_path);
+        let h = self.tm.spawn_handle();
 
         match git.as_str() {
             // git clone
@@ -138,20 +144,19 @@ impl AppServer {
                     return Ok(());
                 }
 
-                tokio::spawn(async move {
+                h.spawn(async move {
                     match handle
                         .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
                         .await
                     {
                         Ok(mut cmd) => {
                             handle.exit(cmd.wait().await?).await?;
-                            Result::<_, HorseError>::Ok(())
                         }
                         Err(err) => {
                             tracing::error!("git upload-pack failed: {}", err);
-                            Ok(())
                         }
                     }
+                    Ok(())
                 });
             }
             // git push
@@ -162,20 +167,19 @@ impl AppServer {
                     repo.init_bare().await?;
                 }
 
-                tokio::spawn(async move {
+                h.spawn(async move {
                     match handle
                         .exec(Command::new("git-receive-pack").arg(repo.path()))
                         .await
                     {
                         Ok(mut cmd) => {
                             handle.exit(cmd.wait().await?).await?;
-                            Result::<_, HorseError>::Ok(())
                         }
                         Err(err) => {
                             tracing::error!("git receive-pack: {}", err);
-                            Ok(())
                         }
                     }
+                    Ok(())
                 });
             }
             unkonwn => {
@@ -194,7 +198,8 @@ impl AppServer {
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
-        tokio::spawn(async move {
+        let h = self.tm.spawn_handle();
+        h.spawn(async move {
             #[cfg(windows)]
             match handle
                 .exec(Command::new("cmd.exe").arg("/C").args(command))
@@ -202,11 +207,9 @@ impl AppServer {
             {
                 Ok(mut cmd) => {
                     handle.exit(cmd.wait().await?).await?;
-                    Result::<_, HorseError>::Ok(())
                 }
                 Err(err) => {
                     tracing::error!("command failed: {}", err);
-                    Ok(())
                 }
             }
             #[cfg(not(windows))]
@@ -216,13 +219,12 @@ impl AppServer {
             {
                 Ok(mut cmd) => {
                     handle.exit(cmd.wait().await?).await?;
-                    Result::<_, HorseError>::Ok(())
                 }
                 Err(err) => {
                     tracing::error!("command failed: {}", err);
-                    Ok(())
                 }
             }
+            Ok(())
         });
 
         Ok(())
@@ -284,6 +286,7 @@ impl AppServer {
 
         let mut repo = Repo::from(&repo_path);
         tracing::info!("GIT REPO: {}", repo.path().display());
+        let h = self.tm.spawn_handle();
 
         match env_git.as_str() {
             // 响应 git clone/pull/fetch 请求
@@ -296,20 +299,19 @@ impl AppServer {
                     return Ok(());
                 }
 
-                tokio::spawn(async move {
+                h.spawn(async move {
                     match handle
                         .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
                         .await
                     {
                         Ok(mut cmd) => {
                             handle.exit(cmd.wait().await?).await?;
-                            Result::<_, HorseError>::Ok(())
                         }
                         Err(err) => {
                             tracing::error!("git upload-pack failed: {}", err);
-                            Ok(())
                         }
                     }
+                    Ok(())
                 });
             }
 
@@ -324,6 +326,7 @@ impl AppServer {
                     repo.init_bare().await?;
                 }
 
+                let h2 = h.clone();
                 let fut = async move {
                     match handle
                         .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
@@ -387,21 +390,19 @@ impl AppServer {
 
                                 handle.info("构建完成").await?;
                                 handle.exit(cmd.wait().await?).await?;
-
-                                Ok::<(), HorseError>(())
+                                Ok(())
                             };
 
-                            tokio::spawn(fut);
-                            Ok(())
+                            h2.spawn(fut);
                         }
                         Err(err) => {
                             tracing::error!("git receive-pack failed: {}", err);
-                            Result::<_, HorseError>::Ok(())
                         }
                     }
+                    Ok(())
                 };
 
-                tokio::spawn(fut);
+                h.spawn(fut);
             }
             unkonwn => {
                 tracing::error!("不支持的GIT命令: {unkonwn}");

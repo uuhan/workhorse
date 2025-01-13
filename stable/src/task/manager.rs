@@ -91,6 +91,9 @@ impl SpawnTaskHandle {
                 Either::Right((Ok(_), _)) => {
                     // 任务正常退出
                 }
+                Either::Right((Err(err), _)) => {
+                    tracing::error!("任务异常: {:?}", err);
+                }
             }
 
             cd.dec();
