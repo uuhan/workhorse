@@ -63,6 +63,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .init();
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
+        let h = tm.spawn_handle();
+
         handler.spawn(async move {
             let db = horsed::db::db();
             Migrator::up(&db, None).await;
@@ -74,8 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             use horsed::ipc::*;
             tracing::info!("IPC Server Running...");
 
+            let listener = listen().await?;
             loop {
-                let conn = match listen().await?.accept().await {
+                let conn = match listener.accept().await {
                     Ok(c) => c,
                     Err(err) => {
                         tracing::info!("Error while accepting connection: {err}");
@@ -83,15 +86,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
-                // tokio::spawn(async move {
-                //     if let Err(err) = handle_conn(conn).await {
-                //         tracing::error!("Error while handling connection: {err}");
-                //     }
-                // });
+                tracing::info!("IPC 新连接");
+
+                h.spawn(async move {
+                    let mut recver = BufReader::new(&conn);
+
+                    // Allocate a sizeable buffer for receiving. This size should be big enough and easy to
+                    // find for the allocator.
+                    let mut buffer = String::with_capacity(128);
+
+                    // Describe the receive operation as receiving a line into our big buffer.
+                    let recv = recver.read_line(&mut buffer).await?;
+
+                    tracing::info!("接收 IPC 消息: [{recv}] {}", buffer.trim());
+                    Ok(())
+                });
             }
         });
 
-        futures::executor::block_on(tm.future());
+        futures::executor::block_on(tm.future())?;
 
         return Ok(());
     }
