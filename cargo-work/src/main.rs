@@ -1,66 +1,13 @@
-use cargo_work::ssh::{build, cmd};
-use cargo_work::Build;
+use cargo_work::{
+    options::*,
+    ssh::{build, cmd},
+};
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 use std::{cmp::min, fmt::Write};
-
-/// 命令行参数
-#[derive(Clone, Debug, Parser)]
-#[clap(
-    version,
-    name = "cargo-work",
-    styles = cargo_options::styles(),
-    disable_help_subcommand = true,
-)]
-pub struct Cli {
-    #[clap(short, long, help = "显示详细信息")]
-    verbose: bool,
-
-    #[clap(flatten)]
-    horse: HorseOptions,
-
-    #[clap(subcommand)]
-    commands: Commands,
-}
-
-#[derive(Clone, Debug, Args)]
-pub struct HorseOptions {
-    #[clap(short, long = "ssh-key", help = "指定私钥文件路径")]
-    key: Option<PathBuf>,
-}
-
-#[derive(Clone, Debug, Subcommand)]
-#[command(version, display_order = 1)]
-pub enum Commands {
-    #[command(name = "work", about = "cargo work")]
-    Work(WorkOptions),
-    #[command(flatten)]
-    Cargo(Options),
-}
-
-#[derive(Clone, Debug, Parser)]
-pub struct WorkOptions {
-    #[clap(flatten)]
-    horse: HorseOptions,
-
-    #[clap(subcommand)]
-    commands: Options,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Clone, Debug, Subcommand)]
-#[command(version, display_order = 1)]
-pub enum Options {
-    #[command(name = "build", alias = "b", about = "编译项目")]
-    Build(Build),
-    #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
-    Push,
-    #[command(name = "pull", alias = "l", about = "拉取编译资产")]
-    Pull,
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

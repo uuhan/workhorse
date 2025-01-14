@@ -11,7 +11,7 @@ macro_rules! cargo_command {
                 use anyhow::{Context, Result};
                 use clap::Parser;
 
-                use crate::options::WorkOptions;
+                use crate::options::HorseOptions;
 
                 #[derive(Clone, Debug, Default, Parser)]
                 #[command(
@@ -24,7 +24,7 @@ macro_rules! cargo_command {
                     pub cargo: cargo_options::$command,
 
                     #[command(flatten)]
-                    pub work: WorkOptions,
+                    pub horse: HorseOptions,
                 }
 
                 impl $command {

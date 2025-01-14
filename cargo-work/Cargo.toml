@@ -3,10 +3,13 @@ name = "cargo-work"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+
 [dependencies]
 cargo-config2 = "0.1.31"
 indicatif = "0.17.9"
 paste = "1.0.15"
+url = "2.5.4"
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -19,3 +22,4 @@ tracing.workspace = true
 colored.workspace = true
 serde_json.workspace = true
 cargo-options.workspace = true
+git2.workspace = true
