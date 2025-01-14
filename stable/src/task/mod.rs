@@ -17,16 +17,20 @@ pub mod signal;
 pub use executor::TaskExecutor;
 pub use manager::{SpawnEssentialTaskHandle, SpawnTaskHandle, TaskManager};
 
-pub(self) type TracingUnboundedSender<T> = UnboundedSender<T>;
-pub(self) type TracingUnboundedReceiver<T> = UnboundedReceiver<T>;
+type TracingUnboundedSender<T> = UnboundedSender<T>;
+type TracingUnboundedReceiver<T> = UnboundedReceiver<T>;
 
-pub(self) type JoinFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
-pub(self) type SomeFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
+type JoinFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
+type SomeFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
 /// 任务运行限制，比如限制同时运行的任务数量
-pub(self) struct TaskCondition(Mutex<usize>, Condvar);
+struct TaskCondition(Mutex<usize>, Condvar);
 
 static RUNTIME: Lazy<Runtime> = Lazy::new(build_multi_thread);
+
+pub fn handle() -> &'static tokio::runtime::Handle {
+    RUNTIME.handle()
+}
 
 impl TaskCondition {
     pub fn new() -> Self {

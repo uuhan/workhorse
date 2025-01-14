@@ -8,5 +8,6 @@ pub mod prelude {
         SpawnTaskHandle,
         TaskExecutor,
         TaskManager,
+        handle,
     };
 }

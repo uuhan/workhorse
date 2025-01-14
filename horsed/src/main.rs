@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        futures::executor::block_on(tm.future())?;
+        stable::prelude::handle().block_on(tm.future())?;
 
         return Ok(());
     }
