@@ -1,4 +1,5 @@
 use crate::prelude::HorseResult;
+use anyhow::Context;
 use colored::{ColoredString, Colorize};
 use russh::{
     server::{Handle, Msg, Session},
@@ -11,7 +12,6 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     process::Child,
 };
-use anyhow::Context;
 
 pub struct ChannelHandle {
     pub(crate) handle: Handle,
@@ -179,7 +179,11 @@ impl ChannelHandle {
 
 impl Drop for ChannelHandle {
     fn drop(&mut self) {
+        use stable::prelude::handle;
         tracing::debug!("channel {} dropped", self.id);
-        futures::executor::block_on(async move { self.eof().await; self.close().await;});
+        handle().block_on(async move {
+            let _ = self.eof().await;
+            let _ = self.close().await;
+        });
     }
 }

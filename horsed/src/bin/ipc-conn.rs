@@ -1,14 +1,15 @@
 use horsed::ipc::*;
 use interprocess::local_socket::tokio::prelude::*;
+use stable::prelude::handle;
 use stable::task::TaskManager;
 use tokio::io::AsyncWriteExt;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let mut tm = TaskManager::default();
     let handler = tm.spawn_essential_handle();
 
     handler.spawn(async move {
-        let conn = connect().await.unwrap();
+        let conn = connect().await?;
 
         let (_, mut sender) = conn.split();
 
@@ -21,14 +22,10 @@ fn main() {
                 .unwrap()
                 .as_bytes(),
             )
-            .await;
-
-        sender
-            .write_all(serde_json::to_string(&data::Data::Exit).unwrap().as_bytes())
-            .await;
-
+            .await?;
         Ok(())
     });
 
-    futures::executor::block_on(tm.future());
+    handle().block_on(tm.future())?;
+    Ok(())
 }

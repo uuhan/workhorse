@@ -102,6 +102,7 @@ mod tests {
         tokio::{prelude::*, Stream},
         GenericFilePath, GenericNamespaced,
     };
+    use stable::prelude::handle;
     use stable::task::TaskManager;
     use tokio::{
         io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -163,6 +164,6 @@ mod tests {
             }
         });
 
-        futures::executor::block_on(tm.future());
+        let _ = handle().block_on(tm.future());
     }
 }

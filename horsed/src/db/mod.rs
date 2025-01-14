@@ -1,7 +1,7 @@
-use crate::prelude::*;
 use anyhow::Context;
 use once_cell::sync::Lazy;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use stable::prelude::handle;
 use std::time::Duration;
 
 pub mod entity;
@@ -16,7 +16,8 @@ pub static DB: Lazy<DatabaseConnection> = Lazy::new(|| {
         .sqlx_logging(true)
         .set_schema_search_path("my_schema"); // Setting default PostgreSQL schema
 
-    futures::executor::block_on(Database::connect(opt))
+    handle()
+        .block_on(Database::connect(opt))
         .context(format!("DB URL: {}", url))
         .expect("Failed to connect to database")
 });

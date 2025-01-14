@@ -40,7 +40,9 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
             ChannelMsg::ExitStatus { exit_status } => {
                 code = Some(exit_status);
             }
-            _ => {}
+            e => {
+                eprintln!("unexpected message: {:?}", e);
+            }
         }
     }
 
