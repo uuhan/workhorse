@@ -556,6 +556,7 @@ checksum = "7488e41578691cf26aa5c8eccd183cb31752fcb68b9c5b1e88e6727a83c78171"
 dependencies = [
  "anstyle",
  "clap",
+ "serde",
 ]
 
 [[package]]
@@ -571,6 +572,7 @@ dependencies = [
  "indicatif",
  "paste",
  "russh",
+ "serde_json",
  "shell-escape",
  "stable",
  "tokio",
@@ -1579,6 +1581,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64",
+ "cargo-options",
  "casbin",
  "clap",
  "clean-path",

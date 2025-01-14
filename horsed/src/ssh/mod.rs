@@ -133,7 +133,7 @@ impl AppServer {
 
         tracing::info!("GIT REPO: {}", repo_path.display());
         let mut repo = Repo::from(repo_path);
-        let h = self.tm.spawn_handle();
+        let task = self.tm.spawn_handle();
 
         match git.as_str() {
             // git clone
@@ -144,7 +144,7 @@ impl AppServer {
                     return Ok(());
                 }
 
-                h.spawn(async move {
+                task.spawn(async move {
                     match handle
                         .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
                         .await
@@ -167,7 +167,7 @@ impl AppServer {
                     repo.init_bare().await?;
                 }
 
-                h.spawn(async move {
+                task.spawn(async move {
                     match handle
                         .exec(Command::new("git-receive-pack").arg(repo.path()))
                         .await
@@ -198,8 +198,8 @@ impl AppServer {
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
-        let h = self.tm.spawn_handle();
-        h.spawn(async move {
+        let task = self.tm.spawn_handle();
+        task.spawn(async move {
             #[cfg(windows)]
             match handle
                 .exec(Command::new("cmd.exe").arg("/C").args(command))
@@ -286,7 +286,7 @@ impl AppServer {
 
         let mut repo = Repo::from(&repo_path);
         tracing::info!("GIT REPO: {}", repo.path().display());
-        let h = self.tm.spawn_handle();
+        let task = self.tm.spawn_handle();
 
         match env_git.as_str() {
             // 响应 git clone/pull/fetch 请求
@@ -299,7 +299,7 @@ impl AppServer {
                     return Ok(());
                 }
 
-                h.spawn(async move {
+                task.spawn(async move {
                     match handle
                         .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
                         .await
@@ -326,7 +326,7 @@ impl AppServer {
                     repo.init_bare().await?;
                 }
 
-                let h2 = h.clone();
+                let task2 = task.clone();
                 let fut = async move {
                     match handle
                         .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
@@ -377,7 +377,7 @@ impl AppServer {
                             let mut stderr = cmd.stderr.take().unwrap();
 
                             let fut = async move {
-                                const BUF_SIZE: usize = 1024 * 5;
+                                const BUF_SIZE: usize = 1024 * 32;
                                 let mut buf = [0u8; BUF_SIZE];
 
                                 loop {
@@ -393,7 +393,7 @@ impl AppServer {
                                 Ok(())
                             };
 
-                            h2.spawn(fut);
+                            task2.spawn(fut);
                         }
                         Err(err) => {
                             tracing::error!("git receive-pack failed: {}", err);
@@ -402,7 +402,7 @@ impl AppServer {
                     Ok(())
                 };
 
-                h.spawn(fut);
+                task.spawn(fut);
             }
             unkonwn => {
                 tracing::error!("不支持的GIT命令: {unkonwn}");
@@ -429,16 +429,16 @@ impl AppServer {
     /// ```bash
     /// ssh -o SetEnv="REPO=workhorse BRANCH=main" build@xxx.xxx.xxx.xxx -- -p horsed
     /// ```
-    pub async fn build(&mut self, command: Vec<String>) -> HorseResult<()> {
+    pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
         let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
-        tracing::info!("BUILD: {}", command.join(" "));
         let mut repo_path = std::env::current_dir()?.join("repos").join(env_repo);
         repo_path.set_extension("git");
         repo_path = repo_path.clean();
 
         let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+        let task = self.tm.spawn_handle();
         let repo = Repo::from(repo_path);
 
         if !repo.exists() {
@@ -459,72 +459,76 @@ impl AppServer {
         //     .await
         //     .context("克隆仓库失败")?;
 
-        let mut cmd = Command::new("cargo");
-        cmd.current_dir(&work_path);
-        cmd.arg("build");
-        cmd.arg("--color=always");
-        cmd.arg("--manifest-path");
-        cmd.arg(work_path.join("Cargo.toml"));
-        cmd.args(command);
+        match command.first().context("FIXME: CARGO COMMAND")?.as_str() {
+            // cargo build
+            "build" => {
+                use cargo_options::Build;
+                tracing::info!("[cargo] build...");
+                let env_cargo_build = self
+                    .env
+                    .get("CARGO_BUILD")
+                    .context("CARGO_BUILD 环境变量未设置")?;
+                let mut build: Build = serde_json::from_str::<Build>(env_cargo_build)
+                    .context("CARGO_BUILD 格式错误!")?;
 
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
+                // 始终显示颜色
+                build.color = Some("always".into());
+                build.manifest_path = Some(work_path.join("Cargo.toml"));
 
-        tokio::spawn(async move {
-            // if let Err(err) = handle.exec(&mut cmd).await {
-            //     tracing::error!("Exec Error: {}", err);
-            // }
+                let mut cmd = build.command();
 
-            // Run the command
-            let mut cmd = cmd.spawn()?;
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
 
-            let mut stdout = cmd.stdout.take().unwrap();
-            let mut stderr = cmd.stderr.take().unwrap();
+                task.spawn_blocking(async move {
+                    use std::io::Read;
+                    // Run the command
+                    let mut cmd = cmd.spawn().context("cargo build failed")?;
 
-            let mut o_output = handle.make_writer();
-            let mut e_output = handle.make_writer();
+                    let mut stdout = cmd.stdout.take().unwrap();
+                    let mut stderr = cmd.stderr.take().unwrap();
 
-            let mut o_ready = false;
-            let mut e_ready = false;
-            loop {
-                tokio::select! {
-                    o = tokio::io::copy(&mut stdout, &mut o_output), if !o_ready => {
-                        match o {
-                            Ok(len) => {
-                                tracing::debug!("send data: {}", len);
-                                if len == 0 {
-                                    o_ready = true;
-                                }
-                            },
-                            Err(e) => {
-                                tracing::error!("send data error: {}", e);
-                                break;
-                            }
+                    let mut o_output = handle.make_writer();
+                    let mut e_output = handle.make_writer();
+
+                    const BUF_SIZE: usize = 1024 * 32;
+                    let mut buf = [0u8; BUF_SIZE];
+
+                    while let Ok(len) = stdout.read(&mut buf) {
+                        // eof
+                        if len == 0 {
+                            break;
                         }
-                    },
-                    e = tokio::io::copy(&mut stderr, &mut e_output), if !e_ready => {
-                        match e {
-                            Ok(len) => {
-                                tracing::debug!("send stderr data: {}", len);
-                                if len == 0 {
-                                    e_ready = true;
-                                }
-                            },
-                            Err(e) => {
-                                tracing::error!("send stderr data error: {}", e);
-                                break;
-                            }
-                        }
-                    },
-                    else => {
-                        break;
+
+                        tokio::io::copy(&mut &buf[..len], &mut o_output).await?;
                     }
-                }
-            }
 
-            handle.exit(cmd.wait().await?).await?;
-            Result::<_, HorseError>::Ok(())
-        });
+                    while let Ok(len) = stderr.read(&mut buf) {
+                        // eof
+                        if len == 0 {
+                            break;
+                        }
+
+                        tokio::io::copy(&mut &buf[..len], &mut e_output).await?;
+                    }
+
+                    handle.exit(cmd.wait()?).await?;
+                    Ok(())
+                });
+            }
+            "install" => {
+                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+            }
+            "test" => {
+                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+            }
+            "check" => {
+                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+            }
+            _ => {
+                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+            }
+        }
 
         Ok(())
     }
@@ -682,7 +686,6 @@ impl Handler for AppServer {
         tracing::info!("[{channel}] ssh env request: {key}={value}");
         self.env
             .insert(key.to_uppercase().to_string(), value.to_string());
-        // session.channel_success(channel)?;
         Ok(())
     }
 
@@ -707,11 +710,12 @@ impl Handler for AppServer {
     ) -> Result<(), Self::Error> {
         let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
         let command = split(command).context(format!("无效命令: {command}"))?;
+        tracing::info!("EXEC: {}", command.join(" "));
 
         match self.action.as_str() {
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
-            "build" | "cargo" => self.build(command).await?,
+            "cargo" => self.cargo(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
             action if action.starts_with("just") => {
                 let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");

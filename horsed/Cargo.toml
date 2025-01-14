@@ -20,6 +20,7 @@ anyhow.workspace = true
 colored.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+cargo-options.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"
