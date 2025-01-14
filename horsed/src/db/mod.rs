@@ -16,8 +16,7 @@ pub static DB: Lazy<DatabaseConnection> = Lazy::new(|| {
         .sqlx_logging(true)
         .set_schema_search_path("my_schema"); // Setting default PostgreSQL schema
 
-    handle()
-        .block_on(Database::connect(opt))
+    futures::executor::block_on(Database::connect(opt))
         .context(format!("DB URL: {}", url))
         .expect("Failed to connect to database")
 });

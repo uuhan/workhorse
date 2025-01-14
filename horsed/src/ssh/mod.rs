@@ -71,7 +71,7 @@ impl AppServer {
             auth_rejection_time: std::time::Duration::from_secs(3),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
             // TODO: 服务端配置 banner
-            auth_banner: Some("参考: https://xxx.yyy.zzz"),
+            auth_banner: Some("参考: https://xxx.yyy.zzz\n"),
             keys: vec![KEY.clone()],
             ..Default::default()
         };

@@ -179,9 +179,8 @@ impl ChannelHandle {
 
 impl Drop for ChannelHandle {
     fn drop(&mut self) {
-        use stable::prelude::handle;
         tracing::debug!("channel {} dropped", self.id);
-        handle().block_on(async move {
+        futures::executor::block_on(async move {
             let _ = self.eof().await;
             let _ = self.close().await;
         });
