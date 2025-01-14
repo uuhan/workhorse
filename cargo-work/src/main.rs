@@ -1,4 +1,4 @@
-use cargo_work::ssh::run;
+use cargo_work::ssh::cmd;
 use cargo_work::Build;
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -66,13 +66,38 @@ pub enum Options {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    let key = if let Some(key) = cli.horse.key.clone().take() {
+        key
+    } else {
+        #[cfg(not(windows))]
+        let home = std::env::var("HOME")?;
+        #[cfg(windows)]
+        let home = std::env::var("USERPROFILE")?;
+
+        let home_dir = PathBuf::from(home);
+        let path = home_dir.join(".ssh");
+
+        if path.join("id_rsa").exists() {
+            path.join("id_rsa")
+        } else if path.join("id_ed25519").exists() {
+            path.join("id_ed25519")
+        } else {
+            eprintln!("没有可以使用的私钥文件: {}", path.display());
+            return Ok(());
+        }
+    };
+
     match cli.commands {
         // 作为 cargo 子命令运行
         Commands::Work(w_opt) => {
             let _horse = w_opt.horse;
             match w_opt.commands {
                 Options::Build(build) => println!("{:?}", build),
-                Options::Push => run().await?,
+                Options::Push => {
+                    if let Err(err) = cmd::run(&key).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
                 Options::Pull => {
                     let mut downloaded = 0;
                     let total_size = 23123123;
@@ -98,7 +123,11 @@ async fn main() -> anyhow::Result<()> {
         // 直接调用 cargo 命令
         Commands::Cargo(opt) => match opt {
             Options::Build(build) => println!("{:?}", build),
-            Options::Push => run().await?,
+            Options::Push => {
+                if let Err(err) = cmd::run(&key).await {
+                    eprintln!("执行失败: {}", err);
+                }
+            }
             Options::Pull => {
                 let mut downloaded = 0;
                 let total_size = 23123123;
