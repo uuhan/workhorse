@@ -7,10 +7,10 @@ pub static KEY: Lazy<PrivateKey> = Lazy::new(|| {
     let key_file = Path::new("horsed.key");
 
     if key_file.exists() {
-        tracing::info!("载入密钥文件: {:?}", key_file);
+        tracing::info!("载入密钥文件: {}", key_file.display());
         russh_keys::PrivateKey::read_openssh_file(key_file).expect("无效的私钥文件")
     } else {
-        tracing::info!("生成密钥文件: {:?}", key_file);
+        tracing::info!("生成密钥文件: {}", key_file.display());
         let key = russh_keys::PrivateKey::random(&mut OsRng, ssh_key::Algorithm::Ed25519)
             .expect("无法生成私钥");
 

@@ -77,6 +77,7 @@ impl SpawnTaskHandle {
             match select(&mut on_exit, &mut task).await {
                 // 接收到退出信号, 任务退出
                 Either::Left(_) => {}
+                // Task Panics!
                 Either::Right((Err(pc), _)) => {
                     if let Some(message) = pc.downcast_ref::<&str>() {
                         tracing::error!("Panic occurred: {}", message);
@@ -88,10 +89,12 @@ impl SpawnTaskHandle {
 
                     // std::panic::resume_unwind(pc);
                 }
-                Either::Right((Ok(_), _)) => {
+                // Task Fine!
+                Either::Right((Ok(Ok(_)), _)) => {
                     // 任务正常退出
                 }
-                Either::Right((Err(err), _)) => {
+                // Task Error!
+                Either::Right((Ok(Err(err)), _)) => {
                     tracing::error!("任务异常: {:?}", err);
                 }
             }
@@ -145,6 +148,7 @@ impl SpawnEssentialTaskHandle {
                 std::panic::AssertUnwindSafe(task)
                     .catch_unwind()
                     .map(move |res| match res {
+                        // Task Panics!
                         Err(pc) => {
                             if let Some(message) = pc.downcast_ref::<&str>() {
                                 tracing::error!("Panic occurred: {}", message);
@@ -153,15 +157,16 @@ impl SpawnEssentialTaskHandle {
                             } else {
                                 tracing::error!("Panic occurred: {:#?}", pc);
                             }
-                            let _ = essential_failed.close_channel();
+                            essential_failed.close_channel();
                         }
+                        // Task Fine!
                         Ok(Ok(_)) => {
                             tracing::warn!("必要任务正常退出, 结束运行!");
-                            let _ = essential_failed.close_channel();
+                            essential_failed.close_channel();
                         }
                         Ok(Err(err)) => {
                             tracing::error!("必要任务异常: {:?}", err);
-                            let _ = essential_failed.close_channel();
+                            essential_failed.close_channel();
                         }
                     })
                     .await;
