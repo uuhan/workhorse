@@ -114,6 +114,8 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
             break;
         };
         match msg {
+            ChannelMsg::Success => {}
+
             // Write data to the terminal
             ChannelMsg::Data { ref data } => {
                 stdout.write_all(data).await?;
@@ -123,9 +125,11 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
             ChannelMsg::ExitStatus { exit_status } => {
                 code = Some(exit_status);
             }
-            e => {
-                eprintln!("unexpected message: {:?}", e);
+
+            ChannelMsg::Eof => {
+                break;
             }
+            e => {}
         }
     }
 

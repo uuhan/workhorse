@@ -480,6 +480,7 @@ impl AppServer {
                 cmd.stdout(Stdio::piped());
                 cmd.stderr(Stdio::piped());
 
+                let t2 = task.clone();
                 task.spawn_blocking(async move {
                     use std::io::Read;
                     // Run the command
@@ -491,17 +492,24 @@ impl AppServer {
                     let mut o_output = handle.make_writer();
                     let mut e_output = handle.make_writer();
 
-                    const BUF_SIZE: usize = 1024 * 32;
-                    let mut buf = [0u8; BUF_SIZE];
+                    t2.spawn_blocking(async move {
+                        const BUF_SIZE: usize = 1024 * 32;
+                        let mut buf = [0u8; BUF_SIZE];
 
-                    while let Ok(len) = stdout.read(&mut buf) {
-                        // eof
-                        if len == 0 {
-                            break;
+                        while let Ok(len) = stdout.read(&mut buf) {
+                            // eof
+                            if len == 0 {
+                                break;
+                            }
+
+                            tokio::io::copy(&mut &buf[..len], &mut o_output).await?;
                         }
 
-                        tokio::io::copy(&mut &buf[..len], &mut o_output).await?;
-                    }
+                        Ok(())
+                    });
+
+                    const BUF_SIZE: usize = 1024 * 32;
+                    let mut buf = [0u8; BUF_SIZE];
 
                     while let Ok(len) = stderr.read(&mut buf) {
                         // eof
