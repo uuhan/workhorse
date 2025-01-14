@@ -56,7 +56,10 @@ fn build_executor() -> TaskExecutor {
     (move |fut, tt| match tt {
         TaskType::Async => handler.spawn(fut).map(drop),
         TaskType::Block => handler
-            .spawn_blocking(move || futures::executor::block_on(fut))
+            .spawn_blocking(move || {
+                let rt = tokio::runtime::Handle::current();
+                rt.block_on(fut)
+            })
             .map(drop),
     })
     .into()

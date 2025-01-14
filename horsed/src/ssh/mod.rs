@@ -427,7 +427,7 @@ impl AppServer {
     /// ### 示例
     ///
     /// ```bash
-    /// ssh -o SetEnv="REPO=workhorse BRANCH=main" build@xxx.xxx.xxx.xxx -- -p horsed
+    /// ssh -o SetEnv="REPO=workhorse BRANCH=main CARGO_BUILD=yyy" cargo@xxx.xxx.xxx.xxx -- build
     /// ```
     pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
