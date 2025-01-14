@@ -5,6 +5,7 @@ use anyhow::Result;
 use git2::Remote;
 use git2::Repository;
 use russh::ChannelMsg;
+use std::net::SocketAddr;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 use url::{Host, Position, Url};
@@ -36,6 +37,18 @@ fn find_repo_name(options: &Build) -> Option<String> {
     None
 }
 
+fn find_host(options: &Build) -> Option<SocketAddr> {
+    options.horse.repo.as_ref().and_then(|s| extract_host(s))
+}
+
+fn extract_host(url: &str) -> Option<SocketAddr> {
+    let url = Url::parse(url).ok()?;
+
+    url.socket_addrs(|| Some(2222))
+        .ok()
+        .and_then(|addrs| addrs.first().copied())
+}
+
 fn extract_repo_name(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     url.path().strip_prefix("/").map(|s| s.to_string())
@@ -61,12 +74,23 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
             .context("获取 horsed 远程仓库 URL 失败")?
     };
 
-    let mut ssh = HorseClient::connect(
-        sk,
-        "cargo",
-        std::env::var("HORSED").unwrap_or("127.0.0.1:2222".to_owned()),
-    )
-    .await?;
+    let host = if let Ok(host) = std::env::var("HORSED") {
+        host.parse()
+            .context(format!("解析环境变量 HORSED 失败: {host}"))?
+    } else if let Some(host) = find_host(&options) {
+        host
+    } else {
+        let Some(horsed) = find_remote(&repo) else {
+            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+        };
+
+        horsed
+            .url()
+            .and_then(extract_host)
+            .context("获取 horsed 远程仓库 HOST 失败")?
+    };
+
+    let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
 
     let branch = head
         .shorthand()
