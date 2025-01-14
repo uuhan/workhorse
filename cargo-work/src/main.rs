@@ -1,45 +1,105 @@
-use cargo_work::Build;
 use cargo_work::ssh::run;
-use clap::{Parser, Subcommand};
+use cargo_work::Build;
+use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 use std::{cmp::min, fmt::Write};
 
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Subcommand)]
-#[command(version, display_order = 1)]
-pub enum Opt {
-    #[command(name = "build", alias = "b")]
-    Build(Build),
-    #[command(name = "push", alias = "p", about = "Push to remote repository")]
-    Push,
-    #[command(name = "pull", alias = "l", about = "Fetch artifacts from horsed")]
-    Pull,
-}
-
-#[derive(Debug, Parser)]
-#[command(
+/// 命令行参数
+#[derive(Clone, Debug, Parser)]
+#[clap(
     version,
     name = "cargo-work",
     styles = cargo_options::styles(),
+    disable_help_subcommand = true,
 )]
-pub enum Cli {
-    #[command(subcommand, name = "work")]
-    Opt(Opt),
+pub struct Cli {
+    #[clap(short, long, help = "显示详细信息")]
+    verbose: bool,
+
+    #[clap(flatten)]
+    horse: HorseOptions,
+
+    #[clap(subcommand)]
+    commands: Commands,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct HorseOptions {
+    #[clap(short, long = "ssh-key", help = "指定私钥文件路径")]
+    key: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, Subcommand)]
+#[command(version, display_order = 1)]
+pub enum Commands {
+    #[command(name = "work", about = "cargo work")]
+    Work(WorkOptions),
     #[command(flatten)]
-    Cargo(Opt),
+    Cargo(Options),
+}
+
+#[derive(Clone, Debug, Parser)]
+pub struct WorkOptions {
+    #[clap(flatten)]
+    horse: HorseOptions,
+
+    #[clap(subcommand)]
+    commands: Options,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug, Subcommand)]
+#[command(version, display_order = 1)]
+pub enum Options {
+    #[command(name = "build", alias = "b", about = "编译项目")]
+    Build(Build),
+    #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
+    Push,
+    #[command(name = "pull", alias = "l", about = "拉取编译资产")]
+    Pull,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match cli {
-        Cli::Opt(opt) | Cli::Cargo(opt) => match opt {
-            Opt::Build(build) => println!("{:?}", build),
-            Opt::Push => run().await?,
-            Opt::Pull => {
+    match cli.commands {
+        // 作为 cargo 子命令运行
+        Commands::Work(w_opt) => {
+            let _horse = w_opt.horse;
+            match w_opt.commands {
+                Options::Build(build) => println!("{:?}", build),
+                Options::Push => run().await?,
+                Options::Pull => {
+                    let mut downloaded = 0;
+                    let total_size = 23123123;
+
+                    let pb = ProgressBar::new(total_size);
+                    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+                    .unwrap()
+                    .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+                    .progress_chars("#>-"));
+
+                    while downloaded < total_size {
+                        let new = min(downloaded + 223211, total_size);
+                        downloaded = new;
+                        pb.set_position(new);
+                        thread::sleep(Duration::from_millis(8));
+                    }
+
+                    pb.finish_with_message("downloaded");
+                }
+            }
+        }
+
+        // 直接调用 cargo 命令
+        Commands::Cargo(opt) => match opt {
+            Options::Build(build) => println!("{:?}", build),
+            Options::Push => run().await?,
+            Options::Pull => {
                 let mut downloaded = 0;
                 let total_size = 23123123;
 
