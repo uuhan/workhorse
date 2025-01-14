@@ -1,16 +1,14 @@
+use super::HorseClient;
 use super::*;
-use crate::options::Build;
+use crate::options::JustOptions;
 use anyhow::Context;
 use anyhow::Result;
-use git2::Remote;
 use git2::Repository;
 use russh::ChannelMsg;
-use std::net::SocketAddr;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
-use url::Url;
 
-pub async fn run(sk: &Path, options: Build) -> Result<()> {
+pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -46,7 +44,7 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
 
-    let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
+    let mut ssh = HorseClient::connect(sk, "just", host).await?;
 
     let branch = head
         .shorthand()
@@ -57,9 +55,11 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
     channel.set_env(true, "REPO", repo_name).await?;
     channel.set_env(true, "BRANCH", branch).await?;
     channel
-        .set_env(true, "CARGO_BUILD", serde_json::to_string(&options.cargo)?)
+        .exec(
+            true,
+            options.command.unwrap_or("build".to_string()).as_bytes(),
+        )
         .await?;
-    channel.exec(true, "build").await?;
 
     let mut code = None;
     let mut stdout = tokio::io::stdout();

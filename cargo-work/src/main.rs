@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{build, cmd},
+    ssh::{build, just, cmd},
 };
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -44,6 +44,11 @@ async fn main() -> anyhow::Result<()> {
                         eprintln!("执行失败: {}", err);
                     }
                 }
+                Options::Just(options) => {
+                    if let Err(err) = just::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
                 Options::Push => {
                     if let Err(err) = cmd::run(&key).await {
                         eprintln!("执行失败: {}", err);
@@ -74,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
         // 直接调用 cargo 命令
         Commands::Cargo(opt) => match opt {
             Options::Build(build) => println!("{:?}", build.command()),
+            Options::Just(just) => println!("{:?}", just),
             Options::Push => {
                 if let Err(err) = cmd::run(&key).await {
                     eprintln!("执行失败: {}", err);

@@ -1,4 +1,4 @@
-use super::Build;
+pub use super::Build;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -58,8 +58,19 @@ pub struct WorkOptions {
 pub enum Options {
     #[command(name = "build", alias = "b", about = "编译项目")]
     Build(Build),
+    #[command(name = "just", alias = "j", about = "运行 just 任务")]
+    Just(JustOptions),
     #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
     Push,
     #[command(name = "pull", alias = "l", about = "拉取编译资产")]
     Pull,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct JustOptions {
+    #[clap(short, long, help = "指定配置文件")]
+    pub file: Option<String>,
+    pub command: Option<String>,
+    #[clap(flatten)]
+    pub horse: HorseOptions,
 }

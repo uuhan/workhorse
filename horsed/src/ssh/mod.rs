@@ -235,22 +235,21 @@ impl AppServer {
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
     /// 目前主要用于跟 git 工作流配合
     ///
-    /// FIXME: git push 会主动断开
-    pub async fn just(&mut self, command: Vec<String>, subaction: String) -> HorseResult<()> {
-        // git push ssh://just@127.0.0.1:2222/repo-name
-        // git-upload-pack '/repo-name'
-        tracing::info!("GIT: {}", command.join(" "));
-        let env_git = &command.first().context("FIXME: GIT ARGS")?;
-        let env_repo = &command.get(1).context("FIXME: GIT ARGS")?;
+    pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
+        tracing::info!("JUST: {}", command.join(" "));
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
         let mut repo_path = PathBuf::from(env_repo);
-        repo_path = repo_path
-            .strip_prefix("/")
-            .context("REPO STRIP_PREFIX")?
-            .into();
+        // 去除开头的 /
+        if repo_path.starts_with("/") {
+            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        }
+
         // 清理路径
         repo_path = repo_path.clean();
-        let repo_path_origin = repo_path.clone();
+        // 工作路径不包含 .git
+        let repo_work_path = repo_path.clone();
 
         let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
 
@@ -288,128 +287,75 @@ impl AppServer {
         tracing::info!("GIT REPO: {}", repo.path().display());
         let task = self.tm.spawn_handle();
 
-        match env_git.as_str() {
-            // 响应 git clone/pull/fetch 请求
-            // just 命令在拉取的时候单纯返回 pack
-            "git-upload-pack" => {
-                // TODO: 需要对仓库进行检查
-                if !repo.exists() {
-                    // TODO: 通知客户端失败原因
-                    tracing::warn!("克隆仓库不存在: {}", repo.path().display());
-                    return Ok(());
-                }
+        // 1. 检出代码用于构建
+        // 2. 执行项目的 just 命令, 项目必须包含 justfile 文件
 
-                task.spawn(async move {
-                    match handle
-                        .exec(Command::new("git").arg("upload-pack").arg(repo.path()))
-                        .await
-                    {
-                        Ok(mut cmd) => {
-                            handle.exit(cmd.wait().await?).await?;
-                        }
-                        Err(err) => {
-                            tracing::error!("git upload-pack failed: {}", err);
-                        }
-                    }
-                    Ok(())
-                });
-            }
-
-            // 响应 git push 请求
-            // just 命令此时会
-            // 1. 收集 pack 入库
-            // 2. 检出代码用于构建
-            // 3. 执行项目的 just 命令, 项目必须包含 justfile 文件
-            "git-receive-pack" => {
-                // 如果仓库目录不存在
-                if !repo.exists() {
-                    repo.init_bare().await?;
-                }
-
-                let task2 = task.clone();
-                let fut = async move {
-                    match handle
-                        .exec(Command::new("git").arg("receive-pack").arg(repo.path()))
-                        .await
-                    {
-                        Ok(mut cmd) => {
-                            // 收集 pack 入库
-                            handle.exit(cmd.wait().await?).await?;
-                            handle.info("代码推送成功...").await?;
-
-                            let mut work_path = std::env::current_dir()?
-                                .join("workspace")
-                                .join(repo_path_origin);
-                            // 构建目录不包含 .git 后缀
-                            work_path.set_extension("");
-
-                            if !work_path.exists() {
-                                tracing::info!("CREATE DIR: {}", work_path.display());
-                                std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
-                            }
-
-                            // 编译目录
-                            handle.info("检出代码到工作目录...").await?;
-                            if let Err(err) = repo
-                                .checkout(&work_path, Some("HEAD"))
-                                .await
-                                .context("检出代码失败")
-                            {
-                                tracing::error!("{:?}", err);
-                                handle.error(err.to_string()).await?;
-                                return Ok(());
-                            }
-
-                            handle
-                                .info(format!("just {subaction}...").bold().to_string())
-                                .await?;
-
-                            let mut cmd = Command::new("just");
-                            cmd.current_dir(&work_path);
-                            cmd.arg("-f");
-                            cmd.arg(work_path.join("justfile"));
-                            cmd.arg(subaction);
-
-                            cmd.stderr(Stdio::piped());
-
-                            let mut cmd = cmd.spawn()?;
-
-                            let mut stderr = cmd.stderr.take().unwrap();
-
-                            let fut = async move {
-                                const BUF_SIZE: usize = 1024 * 32;
-                                let mut buf = [0u8; BUF_SIZE];
-
-                                loop {
-                                    let read = stderr.read(&mut buf).await?;
-                                    if read == 0 {
-                                        break;
-                                    }
-                                    handle.log_raw(&buf[..read]).await?;
-                                }
-
-                                handle.info("构建完成").await?;
-                                handle.exit(cmd.wait().await?).await?;
-                                Ok(())
-                            };
-
-                            task2.spawn(fut);
-                        }
-                        Err(err) => {
-                            tracing::error!("git receive-pack failed: {}", err);
-                        }
-                    }
-                    Ok(())
-                };
-
-                task.spawn(fut);
-            }
-            unkonwn => {
-                tracing::error!("不支持的GIT命令: {unkonwn}");
-                return Ok(());
-            }
+        // 如果仓库目录不存在
+        if !repo.exists() {
+            handle.error("代码仓库不存在, 请先 push 代码").await?;
+            return Ok(());
         }
 
+        let mut work_path = std::env::current_dir()?
+            .join("workspace")
+            .join(repo_work_path);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
+
+        if !work_path.exists() {
+            tracing::info!("CREATE DIR: {}", work_path.display());
+            std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
+        }
+
+        // 执行命令
+        handle.info("检出代码到工作目录...").await?;
+        handle
+            .info(format!("当前仓库: {}", env_repo))
+            .await?;
+        handle.info(format!("检出分支: {}", env_branch)).await?;
+
+        if let Err(err) = repo
+            .checkout(&work_path, Some(env_branch))
+            .await
+            .context("检出代码失败")
+        {
+            tracing::error!("{:?}", err);
+            handle.error(err.to_string()).await?;
+            return Ok(());
+        }
+
+        handle
+            .info(format!("just {}...", command.join(" ")).bold().to_string())
+            .await?;
+
+        let mut cmd = Command::new("just");
+        cmd.current_dir(&work_path);
+        cmd.arg(command.join(" "));
+
+        cmd.stderr(Stdio::piped());
+
+        let mut cmd = cmd.spawn()?;
+
+        let mut stderr = cmd.stderr.take().unwrap();
+
+        let fut = async move {
+            const BUF_SIZE: usize = 1024 * 32;
+            let mut buf = [0u8; BUF_SIZE];
+
+            loop {
+                let read = stderr.read(&mut buf).await?;
+                if read == 0 {
+                    break;
+                }
+                handle.log_raw(&buf[..read]).await?;
+            }
+
+            handle.info("构建完成").await?;
+            handle.exit(cmd.wait().await?).await?;
+            Ok(())
+        };
+
+        task.spawn(fut);
         Ok(())
     }
 
@@ -725,13 +671,14 @@ impl Handler for AppServer {
             "cmd" => self.cmd(command).await?,
             "cargo" => self.cargo(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
-            action if action.starts_with("just") => {
-                let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
-                if subaction.is_empty() {
-                    subaction = "build".to_owned();
-                }
-                self.just(command, subaction).await?;
-            }
+            "just" => self.just(command).await?,
+            // action if action.starts_with("just") => {
+            //     let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
+            //     if subaction.is_empty() {
+            //         subaction = "build".to_owned();
+            //     }
+            //     self.just(command, subaction).await?;
+            // }
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle.error(format!("不支持的命令: {action}")).await?;

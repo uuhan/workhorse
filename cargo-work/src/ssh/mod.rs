@@ -1,20 +1,25 @@
 #![allow(unused_variables)]
-use anyhow::{Context, Result};
+use crate::options::HorseOptions;
+use anyhow::Result;
 use colored::Colorize;
+use git2::Remote;
+use git2::Repository;
 use russh::client::{self, DisconnectReason, Handle, Handler};
 use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::keys::*;
 use russh::*;
+use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
 use tokio::net::ToSocketAddrs;
+use url::Url;
 
 pub mod build;
 pub mod cmd;
+pub mod just;
 
 pub struct HorseClient {
     handle: Handle<Client>,
@@ -134,4 +139,48 @@ impl DerefMut for HorseClient {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.handle
     }
+}
+
+/// 获取默认的配置, 目前 `牛马` 设置远程仓库名为 `horsed` 或 `just-horsed`
+fn find_remote(repo: &Repository) -> Option<Remote<'_>> {
+    if let Ok(remote) = repo.find_remote("horsed") {
+        return Some(remote);
+    }
+
+    if let Ok(remote) = repo.find_remote("just-horsed") {
+        return Some(remote);
+    }
+
+    None
+}
+
+fn find_repo_name(options: &HorseOptions) -> Option<String> {
+    // 如果参数中指定了远程仓库, 则使用参数指定的仓库
+    if let Some(ref repo_name) = options.repo_name {
+        return Some(repo_name.to_string());
+    }
+
+    // 如果参数中指定了远程仓库的 URL, 则使用参数指定的 URL
+    if let Some(ref url) = options.repo {
+        return extract_repo_name(url);
+    }
+
+    None
+}
+
+fn find_host(options: &HorseOptions) -> Option<SocketAddr> {
+    options.repo.as_ref().and_then(|s| extract_host(s))
+}
+
+fn extract_host(url: &str) -> Option<SocketAddr> {
+    let url = Url::parse(url).ok()?;
+
+    url.socket_addrs(|| Some(2222))
+        .ok()
+        .and_then(|addrs| addrs.first().copied())
+}
+
+fn extract_repo_name(url: &str) -> Option<String> {
+    let url = Url::parse(url).ok()?;
+    url.path().strip_prefix("/").map(|s| s.to_string())
 }
