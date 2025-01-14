@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use anyhow::Context;
 use interprocess::local_socket::{
     tokio::{prelude::*, Listener, Stream},
     GenericNamespaced, ListenerOptions,
@@ -19,8 +20,32 @@ pub async fn listen() -> HorseResult<Listener> {
     let opts = ListenerOptions::new().name(ipc_name);
 
     let listener = match opts.create_tokio() {
+        // ipc 已被占用
         Err(err) if err.kind() == AddrInUse => {
-            // TODO: 程序没有正确退出, 导致 socket 文件残留
+            let stream = match connect().await {
+                Err(err) => {
+                    // FIXME: interprocess 库在 macOS 上退出不会自动清理 ipc 文件
+                    #[cfg(target_os = "macos")]
+                    {
+                        // 尝试连接 ipc, 如果失败, 则删除 ipc 文件
+                        let ipc_path = std::path::PathBuf::from("/tmp").join(IPC);
+                        if ipc_path.exists() {
+                            std::fs::remove_file(ipc_path)?;
+                        }
+
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        tracing::info!("尝试重新连接: {}", IPC);
+                        return Box::pin(listen()).await;
+                    }
+
+                    Err(err).context("FIXME: IPC 既无法创建, 也无法连接.")?
+                }
+                x => x?,
+            };
+
+            // TODO: 检查连接状态
+            let _ = stream;
+
             return Err(err.into());
         }
         x => x?,
