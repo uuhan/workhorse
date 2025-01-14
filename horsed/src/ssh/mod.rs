@@ -309,9 +309,7 @@ impl AppServer {
 
         // 执行命令
         handle.info("检出代码到工作目录...").await?;
-        handle
-            .info(format!("当前仓库: {}", env_repo))
-            .await?;
+        handle.info(format!("当前仓库: {}", env_repo)).await?;
         handle.info(format!("检出分支: {}", env_branch)).await?;
 
         if let Err(err) = repo
@@ -332,13 +330,27 @@ impl AppServer {
         cmd.current_dir(&work_path);
         cmd.arg(command.join(" "));
 
+        cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
         let mut cmd = cmd.spawn()?;
 
+        let mut stdout = cmd.stdout.take().unwrap();
         let mut stderr = cmd.stderr.take().unwrap();
 
-        let fut = async move {
+        let mut o_output = handle.make_writer();
+
+        task.spawn(async move {
+            while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
+                // eof
+                if len == 0 {
+                    break;
+                }
+            }
+            Ok(())
+        });
+
+        task.spawn(async move {
             const BUF_SIZE: usize = 1024 * 32;
             let mut buf = [0u8; BUF_SIZE];
 
@@ -353,9 +365,8 @@ impl AppServer {
             handle.info("构建完成").await?;
             handle.exit(cmd.wait().await?).await?;
             Ok(())
-        };
+        });
 
-        task.spawn(fut);
         Ok(())
     }
 

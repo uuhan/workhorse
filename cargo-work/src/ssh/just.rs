@@ -57,7 +57,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     channel
         .exec(
             true,
-            options.command.unwrap_or("build".to_string()).as_bytes(),
+            options.command.unwrap_or("default".to_string()).as_bytes(),
         )
         .await?;
 
