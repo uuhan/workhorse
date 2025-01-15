@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("daemon") {
-        let _cmd = std::process::Command::new(std::env::current_exe().unwrap())
+        let _cmd = std::process::Command::new(std::env::current_exe()?)
             .arg("-f")
             .arg("--dir")
             .arg(work_dir)
@@ -56,19 +56,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if matches.get_flag("fg") {
         let env_filter =
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-
+        let file_appender = tracing_appender::rolling::never(".", "horsed.log");
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
         tracing_subscriber::fmt()
             .with_env_filter(env_filter)
-            .with_test_writer()
+            .with_writer(non_blocking)
             .init();
+
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
         let h = tm.spawn_handle();
 
         handler.spawn(async move {
             let db = horsed::db::db();
-            Migrator::up(&db, None).await;
-            horsed::ssh::run().await;
+            if let Err(err) = Migrator::up(&db, None).await {
+                tracing::error!("数据库初始化失败: {err}");
+            }
+
+            horsed::ssh::run().await?;
             Ok(())
         });
 
