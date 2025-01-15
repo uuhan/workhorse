@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{build, just, cmd},
+    ssh::{build, cmd, just},
 };
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -73,6 +73,8 @@ async fn main() -> anyhow::Result<()> {
 
                     pb.finish_with_message("downloaded");
                 }
+
+                opt => println!("{:?}", opt),
             }
         }
 
@@ -104,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
 
                 pb.finish_with_message("downloaded");
             }
+            opt => println!("{:?}", opt),
         },
     }
 

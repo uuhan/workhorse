@@ -1,4 +1,8 @@
-pub use super::Build;
+pub use crate::mac::build::Build;
+pub use crate::mac::check::Check;
+pub use crate::mac::install::Install;
+pub use crate::mac::run::Run;
+pub use crate::mac::test::Test;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -56,8 +60,16 @@ pub struct WorkOptions {
 #[derive(Clone, Debug, Subcommand)]
 #[command(version, display_order = 1)]
 pub enum Options {
-    #[command(name = "build", alias = "b", about = "编译项目")]
+    #[command(name = "build", alias = "b", about = "构建项目")]
     Build(Build),
+    #[command(name = "check", alias = "c", about = "检查项目")]
+    Check(Check),
+    #[command(name = "install", alias = "i", about = "安装程序")]
+    Install(Install),
+    #[command(name = "test", alias = "t", about = "测试项目")]
+    Test(Test),
+    #[command(name = "run", alias = "r", about = "运行程序")]
+    Run(Run),
     #[command(name = "just", alias = "j", about = "运行 just 任务")]
     Just(JustOptions),
     #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]

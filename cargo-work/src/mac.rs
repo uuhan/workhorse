@@ -28,14 +28,6 @@ macro_rules! cargo_command {
                 }
 
                 impl $command {
-                    /// Create a new build from manifest path
-                    #[allow(clippy::field_reassign_with_default)]
-                    pub fn new(manifest_path: Option<PathBuf>) -> Self {
-                        let mut build = Self::default();
-                        build.manifest_path = manifest_path;
-                        build
-                    }
-
                     /// Execute cargo command
                     pub fn execute(&self) -> Result<()> {
                         let current_command = stringify!([<$command:lower>]);
@@ -84,3 +76,7 @@ macro_rules! cargo_command {
 }
 
 cargo_command!(Build);
+cargo_command!(Test);
+cargo_command!(Install);
+cargo_command!(Run);
+cargo_command!(Check);
