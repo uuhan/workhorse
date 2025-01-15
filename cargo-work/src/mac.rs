@@ -5,8 +5,8 @@ macro_rules! cargo_command {
         paste! {
             pub mod [<$command:lower>] {
                 use std::ops::{Deref, DerefMut};
-                use std::path::PathBuf;
-                use std::process::{self, Command};
+                use tokio::process::Command;
+                use std::process::ExitStatus;
 
                 use anyhow::{Context, Result};
                 use clap::Parser;
@@ -29,20 +29,16 @@ macro_rules! cargo_command {
 
                 impl $command {
                     /// Execute cargo command
-                    pub fn execute(&self) -> Result<()> {
+                    pub async fn execute(&self) -> Result<ExitStatus> {
                         let current_command = stringify!([<$command:lower>]);
                         let mut build = self.build_command()?;
                         let mut child = build.spawn().with_context(|| format!("Failed to run cargo {current_command}"))?;
-                        let status = child.wait().expect(&format!("Failed to wait on cargo {current_command} process"));
-                        if !status.success() {
-                            process::exit(status.code().unwrap_or(1));
-                        }
-                        Ok(())
+                        Ok(child.wait().await?)
                     }
 
                     /// Generate cargo subcommand
                     pub fn build_command(&self) -> Result<Command> {
-                        let mut build = self.cargo.command();
+                        let build = self.cargo.command();
                         Ok(build)
                     }
                 }

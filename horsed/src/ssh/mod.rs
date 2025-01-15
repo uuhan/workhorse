@@ -449,35 +449,25 @@ impl AppServer {
                     let mut o_output = handle.make_writer();
                     let mut e_output = handle.make_writer();
 
-                    t2.spawn_blocking(async move {
-                        const BUF_SIZE: usize = 1024 * 32;
-                        let mut buf = [0u8; BUF_SIZE];
-
-                        while let Ok(len) = stdout.read(&mut buf) {
+                    t2.spawn(async move {
+                        while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
                             // eof
                             if len == 0 {
                                 break;
                             }
-
-                            tokio::io::copy(&mut &buf[..len], &mut o_output).await?;
                         }
 
                         Ok(())
                     });
 
-                    const BUF_SIZE: usize = 1024 * 32;
-                    let mut buf = [0u8; BUF_SIZE];
-
-                    while let Ok(len) = stderr.read(&mut buf) {
+                    while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
                         // eof
                         if len == 0 {
                             break;
                         }
-
-                        tokio::io::copy(&mut &buf[..len], &mut e_output).await?;
                     }
 
-                    handle.exit(cmd.wait()?).await?;
+                    handle.exit(cmd.wait().await?).await?;
                     Ok(())
                 });
             }
