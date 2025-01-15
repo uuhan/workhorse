@@ -73,6 +73,7 @@ impl AppServer {
             // TODO: 服务端配置 banner
             auth_banner: Some("参考: https://xxx.yyy.zzz\n"),
             keys: vec![KEY.clone()],
+            keepalive_interval: Some(std::time::Duration::from_secs(5)),
             ..Default::default()
         };
 
