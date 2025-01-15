@@ -100,8 +100,6 @@ impl AppServer {
         repo_path = repo_path.clean();
 
         // 如果提供的地址包含 .. 等路径，则拒绝请求
-        if repo_path.components().next() == Some(std::path::Component::ParentDir) {}
-
         if let Some(fst) = repo_path.components().next() {
             if fst == std::path::Component::ParentDir {
                 return Ok(());
@@ -433,13 +431,13 @@ impl AppServer {
                 build.manifest_path = Some(work_path.join("Cargo.toml"));
 
                 let mut cmd = build.command();
+                cmd.kill_on_drop(true);
 
                 cmd.stdout(Stdio::piped());
                 cmd.stderr(Stdio::piped());
 
                 let t2 = task.clone();
-                task.spawn_blocking(async move {
-                    use std::io::Read;
+                task.spawn(async move {
                     // Run the command
                     let mut cmd = cmd.spawn().context("cargo build failed")?;
 
