@@ -36,5 +36,3 @@ git2 = { version = "0.20", default-features = false }
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "807968d" }
-russh = { path = "../russh/russh" }
-russh-keys = { path = "../russh/russh-keys" }
