@@ -184,3 +184,26 @@ fn extract_repo_name(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     url.path().strip_prefix("/").map(|s| s.to_string())
 }
+
+#[cfg(feature = "use-system-ssh")]
+fn run_system_ssh(
+    key: &Path,
+    env: String,
+    action: &str,
+    host: SocketAddr,
+    command: String,
+) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new("ssh");
+    cmd.arg("-i");
+    cmd.arg(key);
+    cmd.arg("-o");
+    cmd.arg(env);
+    cmd.arg(format!("{}@{}", action, host.ip()));
+    cmd.arg("-p");
+    cmd.arg(format!("{}", host.port()));
+    cmd.arg(command);
+
+    cmd.stdout(std::process::Stdio::piped());
+
+    cmd
+}
