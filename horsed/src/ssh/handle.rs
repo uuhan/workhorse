@@ -1,5 +1,4 @@
 use crate::prelude::HorseResult;
-use anyhow::Context;
 use colored::{ColoredString, Colorize};
 use russh::{
     server::{Handle, Msg, Session},
@@ -28,7 +27,7 @@ impl ChannelHandle {
         }
     }
 
-    pub fn make_io_pair<'a>(&'a mut self) -> (impl AsyncWrite, impl AsyncRead + 'a) {
+    pub fn make_io_pair(&mut self) -> (impl AsyncWrite, impl AsyncRead + '_) {
         (self.make_writer(), self.make_reader())
     }
 
@@ -36,7 +35,7 @@ impl ChannelHandle {
         self.ch.make_writer()
     }
 
-    pub fn make_reader<'a>(&'a mut self) -> impl AsyncRead + 'a {
+    pub fn make_reader(&mut self) -> impl AsyncRead + '_ {
         self.ch.make_reader()
     }
 

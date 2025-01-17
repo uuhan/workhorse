@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshAuth, User};
 use crate::prelude::*;
-use rand_core::OsRng;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
@@ -368,7 +367,7 @@ impl Handler for AppServer {
         use std::process::Stdio;
         let command = String::from_utf8_lossy(data);
         tracing::info!("EXEC: {}", command);
-        let (_, _, mut channel) = self.get_channel(self.id).await;
+        let (_, _, channel) = self.get_channel(self.id).await;
 
         if command.starts_with("git-upload-pack") {
             // 处理 git-upload-pack 命令（通常是克隆）

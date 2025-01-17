@@ -114,17 +114,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    match matches.subcommand_matches("ls") {
-        Some(matches) => {
-            if matches.get_flag("list") {
-                println!("Printing testing lists...");
-            } else {
-                println!("Not printing testing lists...");
-            }
-
-            horsed::command::task::run(matches);
+    if let Some(matches) = matches.subcommand_matches("ls") {
+        if matches.get_flag("list") {
+            println!("Printing testing lists...");
+        } else {
+            println!("Not printing testing lists...");
         }
-        None => {}
+
+        horsed::command::task::run(matches);
     }
 
     let cmd = std::process::Command::new(std::env::current_exe().unwrap())

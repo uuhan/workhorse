@@ -40,14 +40,14 @@ impl TaskCondition {
     /// 运行数加1
     pub fn inc(&self) {
         let mut count = self.0.lock();
-        *count = *count + 1;
+        *count += 1;
         self.1.notify_all();
     }
 
     /// 运行数减1
     pub fn dec(&self) {
         let mut count = self.0.lock();
-        *count = *count - 1;
+        *count -= 1;
         self.1.notify_all();
     }
 
@@ -89,8 +89,8 @@ where
     #[cfg(unix)]
     let (mut t1, mut t2) = {
         use tokio::signal::unix::{signal, SignalKind};
-        let mut t1 = signal(SignalKind::interrupt()).unwrap();
-        let mut t2 = signal(SignalKind::terminate()).unwrap();
+        let t1 = signal(SignalKind::interrupt()).unwrap();
+        let t2 = signal(SignalKind::terminate()).unwrap();
         (t1, t2)
     };
 

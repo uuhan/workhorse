@@ -58,7 +58,7 @@ impl SpawnTaskHandle {
 
             return TaskHandler {
                 condition: self.condition.clone(),
-                pool_size: self.pool_size.clone(),
+                pool_size: self.pool_size,
                 exiting: true,
             };
         }
@@ -116,7 +116,7 @@ impl SpawnTaskHandle {
 
         TaskHandler {
             condition: self.condition.clone(),
-            pool_size: self.pool_size.clone(),
+            pool_size: self.pool_size,
             exiting: false,
         }
     }

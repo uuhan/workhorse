@@ -1,6 +1,5 @@
 use super::*;
 use crate::options::CargoKind;
-use crate::options::Test;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;

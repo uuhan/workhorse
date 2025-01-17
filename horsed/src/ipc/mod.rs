@@ -6,10 +6,7 @@ use interprocess::local_socket::{
 };
 use std::io::ErrorKind::AddrInUse;
 
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    try_join,
-};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 pub mod data;
 
 static IPC: &str = "horsed.sock";
@@ -97,11 +94,8 @@ async fn handle_conn(conn: Stream) -> HorseResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{connect, listen, run, IPC};
-    use interprocess::local_socket::{
-        tokio::{prelude::*, Stream},
-        GenericFilePath, GenericNamespaced,
-    };
+    use super::{connect, listen, IPC};
+    use interprocess::local_socket::tokio::prelude::*;
     use stable::prelude::handle;
     use stable::task::TaskManager;
     use tokio::{

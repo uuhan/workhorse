@@ -1,13 +1,9 @@
-use super::HorseClient;
 use super::*;
 use crate::options::JustOptions;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
-use russh::ChannelMsg;
 use std::path::Path;
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
 
 pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let repo = Repository::discover(".")?;

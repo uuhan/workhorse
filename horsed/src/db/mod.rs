@@ -1,7 +1,6 @@
 use anyhow::Context;
 use once_cell::sync::Lazy;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
-use stable::prelude::handle;
 use std::time::Duration;
 
 pub mod entity;

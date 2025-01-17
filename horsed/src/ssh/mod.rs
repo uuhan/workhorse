@@ -250,7 +250,7 @@ impl AppServer {
         // 工作路径不包含 .git
         let repo_work_path = repo_path.clone();
 
-        let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
+        let handle = self.handle.take().context("FIXME: NO HANDLE")?;
 
         if let Some(fst) = repo_path.components().next() {
             // 如果提供的地址包含 .. 等路径，则拒绝请求
@@ -282,7 +282,7 @@ impl AppServer {
             return Ok(());
         }
 
-        let mut repo = Repo::from(&repo_path);
+        let repo = Repo::from(&repo_path);
         tracing::info!("GIT REPO: {}", repo.path().display());
         let task = self.tm.spawn_handle();
 
