@@ -1,8 +1,8 @@
 use cargo_work::{
     options::*,
-    ssh::{build, cmd, just},
+    ssh::{build, cmd, just, test},
 };
-use clap::{Args, Parser, Subcommand};
+use clap::Parser;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::path::PathBuf;
 use std::thread;
@@ -41,6 +41,11 @@ async fn main() -> anyhow::Result<()> {
             match w_opt.commands {
                 Options::Build(options) => {
                     if let Err(err) = build::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Test(options) => {
+                    if let Err(err) = test::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
                     }
                 }

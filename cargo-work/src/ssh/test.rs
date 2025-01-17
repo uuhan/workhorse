@@ -1,14 +1,11 @@
 use super::*;
-use crate::options::Build;
+use crate::options::Test;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
-use russh::ChannelMsg;
 use std::path::Path;
-use tokio::io::AsyncWriteExt;
-use url::Url;
 
-pub async fn run(sk: &Path, options: Build) -> Result<()> {
+pub async fn run(sk: &Path, options: Test) -> Result<()> {
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -54,14 +51,14 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
         let mut cmd = super::run_system_ssh(
             sk,
             format!(
-                "SetEnv REPO={} BRANCH={} CARGO_BUILD=\'{}\'",
+                "SetEnv REPO={} BRANCH={} CARGO_TEST=\'{}\'",
                 repo_name,
                 branch,
                 serde_json::to_string(&options.cargo)?
             ),
             "cargo",
             host,
-            "build".to_string(),
+            "test".to_string(),
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
@@ -76,6 +73,8 @@ pub async fn run(sk: &Path, options: Build) -> Result<()> {
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
+        use russh::ChannelMsg;
+        use tokio::io::AsyncWriteExt;
         let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
 
         let mut channel = ssh.channel_open_session().await?;

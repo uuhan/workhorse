@@ -424,14 +424,14 @@ impl AppServer {
                     .env
                     .get("CARGO_BUILD")
                     .context("CARGO_BUILD 环境变量未设置")?;
-                let mut build: Build = serde_json::from_str::<Build>(env_cargo_build)
+                let mut cargo = serde_json::from_str::<Build>(env_cargo_build)
                     .context("CARGO_BUILD 格式错误!")?;
 
                 // 始终显示颜色
-                build.color = Some("always".into());
-                build.manifest_path = Some(work_path.join("Cargo.toml"));
+                cargo.color = Some("always".into());
+                cargo.manifest_path = Some(work_path.join("Cargo.toml"));
 
-                let mut cmd = build.command();
+                let mut cmd = cargo.command();
                 cmd.kill_on_drop(true);
 
                 cmd.stdout(Stdio::piped());
@@ -474,7 +474,57 @@ impl AppServer {
                 tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
             }
             "test" => {
-                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+                use cargo_options::Test;
+                tracing::info!("[cargo] test...");
+                let env_cargo_test = self
+                    .env
+                    .get("CARGO_TEST")
+                    .context("CARGO_TEST 环境变量未设置")?;
+                let mut cargo =
+                    serde_json::from_str::<Test>(env_cargo_test).context("CARGO_TEST 格式错误!")?;
+
+                // 始终显示颜色
+                cargo.color = Some("always".into());
+                cargo.manifest_path = Some(work_path.join("Cargo.toml"));
+
+                let mut cmd = cargo.command();
+                cmd.kill_on_drop(true);
+
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
+
+                let t2 = task.clone();
+                task.spawn(async move {
+                    // Run the command
+                    let mut cmd = cmd.spawn().context("cargo test failed")?;
+
+                    let mut stdout = cmd.stdout.take().unwrap();
+                    let mut stderr = cmd.stderr.take().unwrap();
+
+                    let mut o_output = handle.make_writer();
+                    let mut e_output = handle.make_writer();
+
+                    t2.spawn(async move {
+                        while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
+                            // eof
+                            if len == 0 {
+                                break;
+                            }
+                        }
+
+                        Ok(())
+                    });
+
+                    while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
+                        // eof
+                        if len == 0 {
+                            break;
+                        }
+                    }
+
+                    handle.exit(cmd.wait().await?).await?;
+                    Ok(())
+                });
             }
             "check" => {
                 tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));

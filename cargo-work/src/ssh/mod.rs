@@ -20,6 +20,7 @@ use url::Url;
 pub mod build;
 pub mod cmd;
 pub mod just;
+pub mod test;
 
 pub struct HorseClient {
     handle: Handle<Client>,
