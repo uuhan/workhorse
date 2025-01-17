@@ -415,124 +415,82 @@ impl AppServer {
         //     .await
         //     .context("克隆仓库失败")?;
 
-        match command.first().context("FIXME: CARGO COMMAND")?.as_str() {
+        let env_cargo_options = self
+            .env
+            .get("CARGO_OPTIONS")
+            .context("CARGO_OPTIONS 环境变量未设置")?;
+        // let manifest_path = Some(work_path.join("Cargo.toml"));
+        let mut cmd = match command.first().context("FIXME: CARGO COMMAND")?.as_str() {
             // cargo build
             "build" => {
-                use cargo_options::Build;
-                tracing::info!("[cargo] build...");
-                let env_cargo_build = self
-                    .env
-                    .get("CARGO_BUILD")
-                    .context("CARGO_BUILD 环境变量未设置")?;
-                let mut cargo = serde_json::from_str::<Build>(env_cargo_build)
-                    .context("CARGO_BUILD 格式错误!")?;
-
-                // 始终显示颜色
-                cargo.color = Some("always".into());
-                cargo.manifest_path = Some(work_path.join("Cargo.toml"));
-
-                let mut cmd = cargo.command();
-                cmd.kill_on_drop(true);
-
-                cmd.stdout(Stdio::piped());
-                cmd.stderr(Stdio::piped());
-
-                let t2 = task.clone();
-                task.spawn(async move {
-                    // Run the command
-                    let mut cmd = cmd.spawn().context("cargo build failed")?;
-
-                    let mut stdout = cmd.stdout.take().unwrap();
-                    let mut stderr = cmd.stderr.take().unwrap();
-
-                    let mut o_output = handle.make_writer();
-                    let mut e_output = handle.make_writer();
-
-                    t2.spawn(async move {
-                        while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
-                            // eof
-                            if len == 0 {
-                                break;
-                            }
-                        }
-
-                        Ok(())
-                    });
-
-                    while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
-                        // eof
-                        if len == 0 {
-                            break;
-                        }
-                    }
-
-                    handle.exit(cmd.wait().await?).await?;
-                    Ok(())
-                });
-            }
-            "install" => {
-                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
-            }
-            "test" => {
-                use cargo_options::Test;
-                tracing::info!("[cargo] test...");
-                let env_cargo_test = self
-                    .env
-                    .get("CARGO_TEST")
-                    .context("CARGO_TEST 环境变量未设置")?;
-                let mut cargo =
-                    serde_json::from_str::<Test>(env_cargo_test).context("CARGO_TEST 格式错误!")?;
-
-                // 始终显示颜色
-                cargo.color = Some("always".into());
-                cargo.manifest_path = Some(work_path.join("Cargo.toml"));
-
-                let mut cmd = cargo.command();
-                cmd.kill_on_drop(true);
-
-                cmd.stdout(Stdio::piped());
-                cmd.stderr(Stdio::piped());
-
-                let t2 = task.clone();
-                task.spawn(async move {
-                    // Run the command
-                    let mut cmd = cmd.spawn().context("cargo test failed")?;
-
-                    let mut stdout = cmd.stdout.take().unwrap();
-                    let mut stderr = cmd.stderr.take().unwrap();
-
-                    let mut o_output = handle.make_writer();
-                    let mut e_output = handle.make_writer();
-
-                    t2.spawn(async move {
-                        while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
-                            // eof
-                            if len == 0 {
-                                break;
-                            }
-                        }
-
-                        Ok(())
-                    });
-
-                    while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
-                        // eof
-                        if len == 0 {
-                            break;
-                        }
-                    }
-
-                    handle.exit(cmd.wait().await?).await?;
-                    Ok(())
-                });
+                cargo_command!(build, env_cargo_options)
             }
             "check" => {
-                tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+                cargo_command!(check, env_cargo_options)
+            }
+            "clippy" => {
+                cargo_command!(clippy, env_cargo_options)
+            }
+            "doc" => {
+                cargo_command!(doc, env_cargo_options)
+            }
+            "install" => {
+                cargo_command!(install, env_cargo_options)
+            }
+            "metadata" => {
+                cargo_command!(metadata, env_cargo_options)
+            }
+            "run" => {
+                cargo_command!(run, env_cargo_options)
+            }
+            "rustc" => {
+                cargo_command!(rustc, env_cargo_options)
+            }
+            "test" => {
+                cargo_command!(test, env_cargo_options)
             }
             _ => {
                 tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+                return Ok(());
             }
-        }
+        };
+
+        cmd.kill_on_drop(true);
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+
+        let t2 = task.clone();
+        task.spawn(async move {
+            // Run the command
+            let mut cmd = cmd.spawn().context("cargo command failed")?;
+
+            let mut stdout = cmd.stdout.take().unwrap();
+            let mut stderr = cmd.stderr.take().unwrap();
+
+            let mut o_output = handle.make_writer();
+            let mut e_output = handle.make_writer();
+
+            t2.spawn(async move {
+                while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
+                    // eof
+                    if len == 0 {
+                        break;
+                    }
+                }
+
+                Ok(())
+            });
+
+            while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
+                // eof
+                if len == 0 {
+                    break;
+                }
+            }
+
+            handle.exit(cmd.wait().await?).await?;
+            Ok(())
+        });
 
         Ok(())
     }

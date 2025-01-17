@@ -17,10 +17,11 @@ use std::time::Duration;
 use tokio::net::ToSocketAddrs;
 use url::Url;
 
-pub mod build;
+// pub mod build;
+// pub mod test;
+pub mod cargo;
 pub mod cmd;
 pub mod just;
-pub mod test;
 
 pub struct HorseClient {
     handle: Handle<Client>,
@@ -192,7 +193,7 @@ fn run_system_ssh(
     env: String,
     action: &str,
     host: SocketAddr,
-    command: String,
+    command: &str,
 ) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.arg("-i");

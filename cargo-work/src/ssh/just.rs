@@ -58,7 +58,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
             format!("SetEnv REPO={} BRANCH={}", repo_name, branch),
             "just",
             host,
-            command.clone(),
+            &command,
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();

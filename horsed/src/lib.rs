@@ -1,3 +1,6 @@
+#[macro_use]
+mod mac;
+
 pub mod command;
 pub mod db;
 pub mod error;

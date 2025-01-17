@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{build, cmd, just, test},
+    ssh::{cargo, cmd, just},
 };
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -40,12 +40,47 @@ async fn main() -> anyhow::Result<()> {
             let _horse = w_opt.horse;
             match w_opt.commands {
                 Options::Build(options) => {
-                    if let Err(err) = build::run(&key, options).await {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Check(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Clippy(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Doc(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Install(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Metadata(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Run(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Rustc(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
                     }
                 }
                 Options::Test(options) => {
-                    if let Err(err) = test::run(&key, options).await {
+                    if let Err(err) = cargo::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
                     }
                 }
@@ -77,9 +112,7 @@ async fn main() -> anyhow::Result<()> {
                     }
 
                     pb.finish_with_message("downloaded");
-                }
-
-                opt => println!("{:?}", opt),
+                } // opt => println!("{:?}", opt),
             }
         }
 

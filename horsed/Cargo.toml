@@ -37,3 +37,4 @@ shellwords = "1.1.0"
 clean-path = "0.2.1"
 casbin = "2.7.0"
 tracing-appender.workspace = true
+paste.workspace = true

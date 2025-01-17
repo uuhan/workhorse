@@ -1,17 +1,24 @@
+use crate::options::HorseOptions;
 use paste::paste;
+
+pub trait CargoKind {
+    type Target: serde::Serialize;
+    fn cargo_options(&self) -> &Self::Target;
+    fn horse_options(&self) -> &HorseOptions;
+    fn name(&self) -> &str;
+}
 
 macro_rules! cargo_command {
     ($command: ident) => {
         paste! {
             pub mod [<$command:lower>] {
+                use $crate::mac::CargoKind;
                 use std::ops::{Deref, DerefMut};
                 use tokio::process::Command;
                 use std::process::ExitStatus;
 
                 use anyhow::{Context, Result};
                 use clap::Parser;
-
-                use crate::options::HorseOptions;
 
                 #[derive(Clone, Debug, Default, Parser)]
                 #[command(
@@ -24,7 +31,7 @@ macro_rules! cargo_command {
                     pub cargo: cargo_options::$command,
 
                     #[command(flatten)]
-                    pub horse: HorseOptions,
+                    pub horse: $crate::options::HorseOptions,
                 }
 
                 impl $command {
@@ -66,6 +73,18 @@ macro_rules! cargo_command {
                     }
                 }
 
+                impl CargoKind for $command {
+                    type Target = cargo_options::$command;
+                    fn cargo_options(&self) -> &Self::Target {
+                        &self.cargo
+                    }
+                    fn horse_options(&self) -> &$crate::options::HorseOptions {
+                        &self.horse
+                    }
+                    fn name(&self) -> &str {
+                        stringify!([<$command:lower>])
+                    }
+                }
             }
         }
     };
@@ -75,4 +94,8 @@ cargo_command!(Build);
 cargo_command!(Test);
 cargo_command!(Install);
 cargo_command!(Run);
+cargo_command!(Rustc);
 cargo_command!(Check);
+cargo_command!(Clippy);
+cargo_command!(Metadata);
+cargo_command!(Doc);

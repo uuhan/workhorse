@@ -1,8 +1,13 @@
 pub use crate::mac::build::Build;
 pub use crate::mac::check::Check;
+pub use crate::mac::clippy::Clippy;
+pub use crate::mac::doc::Doc;
 pub use crate::mac::install::Install;
+pub use crate::mac::metadata::Metadata;
 pub use crate::mac::run::Run;
+pub use crate::mac::rustc::Rustc;
 pub use crate::mac::test::Test;
+pub use crate::mac::CargoKind;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -64,8 +69,16 @@ pub enum Options {
     Build(Build),
     #[command(name = "check", alias = "c", about = "检查项目")]
     Check(Check),
+    #[command(name = "clippy", about = "检查项目")]
+    Clippy(Clippy),
+    #[command(name = "doc", about = "项目文档")]
+    Doc(Doc),
     #[command(name = "install", alias = "i", about = "安装程序")]
     Install(Install),
+    #[command(name = "metadata", about = "项目元数据")]
+    Metadata(Metadata),
+    #[command(name = "rustc", about = "编译器")]
+    Rustc(Rustc),
     #[command(name = "test", alias = "t", about = "测试项目")]
     Test(Test),
     #[command(name = "run", alias = "r", about = "运行程序")]

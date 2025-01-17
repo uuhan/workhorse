@@ -10,7 +10,6 @@ use-system-ssh = []
 [dependencies]
 cargo-config2 = "0.1.31"
 indicatif = "0.17.9"
-paste = "1.0.15"
 url = "2.5.4"
 
 anyhow.workspace = true
@@ -22,6 +21,8 @@ shell-escape.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 colored.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 cargo-options.workspace = true
 git2.workspace = true
+paste.workspace = true
