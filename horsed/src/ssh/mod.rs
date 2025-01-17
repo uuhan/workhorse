@@ -235,7 +235,7 @@ impl AppServer {
     /// 目前主要用于跟 git 工作流配合
     ///
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
-        tracing::info!("JUST: {}", command.join(" "));
+        tracing::info!("[just] {}", command.join(" "));
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
         let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
@@ -673,7 +673,6 @@ impl Handler for AppServer {
     ) -> Result<(), Self::Error> {
         let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
         let command = split(command).context(format!("无效命令: {command}"))?;
-        tracing::info!("EXEC: {}", command.join(" "));
 
         match self.action.as_str() {
             "git" => self.git(command).await?,
