@@ -456,6 +456,7 @@ impl AppServer {
         };
 
         cmd.kill_on_drop(true);
+        cmd.current_dir(&work_path);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
