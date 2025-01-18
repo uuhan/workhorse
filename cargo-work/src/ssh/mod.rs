@@ -9,6 +9,7 @@ use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::keys::*;
 use russh::*;
+use std::ffi::OsStr;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -188,22 +189,24 @@ fn extract_repo_name(url: &str) -> Option<String> {
 }
 
 #[cfg(feature = "use-system-ssh")]
-fn run_system_ssh(
+fn run_system_ssh<Arg, Args>(
     key: &Path,
     env: String,
     action: &str,
     host: SocketAddr,
-    command: &str,
-) -> tokio::process::Command {
+    args: Args,
+) -> tokio::process::Command
+where
+    Arg: AsRef<OsStr>,
+    Args: std::iter::IntoIterator<Item = Arg>,
+{
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.arg("-i");
     cmd.arg(key);
-    cmd.arg("-o");
-    cmd.arg(env);
     cmd.arg(format!("{}@{}", action, host.ip()));
     cmd.arg("-p");
     cmd.arg(format!("{}", host.port()));
-    cmd.arg(command);
+    cmd.args(args);
 
     cmd.stdout(std::process::Stdio::piped());
 

@@ -1,10 +1,15 @@
 use crate::options::HorseOptions;
+use cargo_options::{CargoOptions, CargoOptionsExt};
 use paste::paste;
+use serde::Serialize;
 
 pub trait CargoKind {
-    type Target: serde::Serialize;
+    type Target: Serialize + CargoOptionsExt;
     fn cargo_options(&self) -> &Self::Target;
     fn horse_options(&self) -> &HorseOptions;
+    fn options(&self) -> CargoOptions {
+        self.cargo_options().options()
+    }
     fn name(&self) -> &str;
 }
 

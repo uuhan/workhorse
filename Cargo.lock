@@ -551,7 +551,7 @@ dependencies = [
 [[package]]
 name = "cargo-options"
 version = "0.7.5"
-source = "git+https://github.com/uuhan/cargo-options?rev=dfd6a95#dfd6a955198288ba32a504581095f9d75e990c72"
+source = "git+https://github.com/uuhan/cargo-options?rev=0bfa57a#0bfa57a5a7887d39b976e8c8c5720a112c6b2954"
 dependencies = [
  "anstyle",
  "clap",

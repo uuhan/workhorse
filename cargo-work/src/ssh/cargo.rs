@@ -3,6 +3,7 @@ use crate::options::CargoKind;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
+use std::ffi::OsString;
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
@@ -49,17 +50,18 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     {
+        // ssh cargo@horsed build --
+        let mut args = vec![OsString::from(options.name())];
+        args.extend(options.options().into_iter());
         let mut cmd = super::run_system_ssh(
             sk,
             format!(
-                "SetEnv REPO={} BRANCH={} CARGO_OPTIONS=\'{}\'",
-                repo_name,
-                branch,
+                "SetEnv REPO={repo_name} BRANCH={branch} CARGO_OPTIONS=\'{}\'",
                 serde_json::to_string(options.cargo_options())?
             ),
             "cargo",
             host,
-            options.name(),
+            args,
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();

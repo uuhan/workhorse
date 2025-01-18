@@ -3,6 +3,7 @@ use crate::options::JustOptions;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
+use std::ffi::OsString;
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
@@ -51,10 +52,10 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     {
         let mut cmd = super::run_system_ssh(
             sk,
-            format!("SetEnv REPO={} BRANCH={}", repo_name, branch),
+            format!("SetEnv REPO={repo_name} BRANCH={branch}"),
             "just",
             host,
-            &command,
+            [OsString::from(command)],
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
