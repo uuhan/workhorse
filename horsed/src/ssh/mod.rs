@@ -386,6 +386,7 @@ impl AppServer {
     /// ssh -o SetEnv="REPO=workhorse BRANCH=main CARGO_BUILD=yyy" cargo@xxx.xxx.xxx.xxx -- build
     /// ```
     pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
+        tracing::info!("[cargo] {}", command.join(" "));
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
         let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 

@@ -60,7 +60,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
                 ("BRANCH", branch),
                 (
                     "CARGO_OPTIONS",
-                    serde_json::to_string(options.cargo_options())?,
+                    format!("\'{}\'", serde_json::to_string(options.cargo_options())?),
                 ),
             ],
             "cargo",

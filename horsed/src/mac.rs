@@ -2,7 +2,6 @@ macro_rules! cargo_command {
     ($command: ident, $options: ident) => {{
         paste::paste! {
             use cargo_options::[<$command:camel>];
-            tracing::info!("[cargo] {}...", stringify!($command));
 
             let mut cargo = serde_json::from_str::<[<$command:camel>]>($options)
                 .context("CARGO_OPTIONS 格式错误!")?;
