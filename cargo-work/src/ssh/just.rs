@@ -52,7 +52,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     {
         let mut cmd = super::run_system_ssh(
             sk,
-            format!("SetEnv REPO={repo_name} BRANCH={branch}"),
+            &[("REPO", repo_name), ("BRANCH", branch)],
             "just",
             host,
             [OsString::from(command)],

@@ -55,10 +55,14 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         args.extend(options.options().into_iter());
         let mut cmd = super::run_system_ssh(
             sk,
-            format!(
-                "SetEnv REPO={repo_name} BRANCH={branch} CARGO_OPTIONS=\'{}\'",
-                serde_json::to_string(options.cargo_options())?
-            ),
+            &[
+                ("REPO", repo_name),
+                ("BRANCH", branch),
+                (
+                    "CARGO_OPTIONS",
+                    serde_json::to_string(options.cargo_options())?,
+                ),
+            ],
             "cargo",
             host,
             args,

@@ -189,20 +189,30 @@ fn extract_repo_name(url: &str) -> Option<String> {
 }
 
 #[cfg(feature = "use-system-ssh")]
-fn run_system_ssh<Arg, Args>(
+fn run_system_ssh<K, V, Arg, Args>(
     key: &Path,
-    env: String,
+    env: &[(K, V)],
     action: &str,
     host: SocketAddr,
     args: Args,
 ) -> tokio::process::Command
 where
+    K: AsRef<str>,
+    V: AsRef<str>,
     Arg: AsRef<OsStr>,
     Args: std::iter::IntoIterator<Item = Arg>,
 {
     let mut cmd = tokio::process::Command::new("ssh");
     cmd.arg("-i");
     cmd.arg(key);
+    cmd.arg("-o");
+    cmd.arg(format!(
+        "SetEnv {}",
+        env.iter()
+            .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
+            .collect::<Vec<_>>()
+            .join(" ")
+    ));
     cmd.arg(format!("{}@{}", action, host.ip()));
     cmd.arg("-p");
     cmd.arg(format!("{}", host.port()));
