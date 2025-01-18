@@ -36,4 +36,4 @@ git2 = { version = "0.20", default-features = false }
 paste = "1.0.15"
 
 [patch.crates-io]
-cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "807968d" }
+cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "dfd6a95" }
