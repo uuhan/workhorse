@@ -59,46 +59,25 @@ impl ChannelHandle {
 
     /// 调用远程命令, 并将输入输出流通过通道传输
     pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
-        cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
         let mut cmd = cmd.spawn()?;
 
-        let mut stdin = cmd.stdin.take().unwrap();
         let mut stdout = cmd.stdout.take().unwrap();
         let mut stderr = cmd.stderr.take().unwrap();
 
         let mut eout = self.make_writer();
-        let (mut cout, mut cin) = self.make_io_pair();
+        let mut cout = self.make_writer();
 
-        let mut i_ready = false;
         let mut o_ready = false;
+        let mut e_ready = false;
         loop {
-            if i_ready && o_ready {
+            if o_ready && e_ready {
                 break;
             }
             tokio::select! {
-                i = tokio::io::copy(&mut cin, &mut stdin) => {
-                    match i {
-                        Ok(len) => {
-                            tracing::debug!("receive data: {}", len);
-                            if len == 0 {
-                                i_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            // FIXME: 如果应用已经关闭了输入, 需要直接退出
-                            use std::io::ErrorKind;
-                            if e.kind() == ErrorKind::BrokenPipe {
-                                break;
-                            }
-                            tracing::error!("receive data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                o = tokio::io::copy(&mut stdout, &mut cout) => {
+                o = tokio::io::copy(&mut stdout, &mut cout), if !o_ready => {
                     match o {
                         Ok(len) => {
                             tracing::debug!("send data: {}", len);
@@ -112,20 +91,22 @@ impl ChannelHandle {
                         }
                     }
                 },
-                e = tokio::io::copy(&mut stderr, &mut eout) => {
+                e = tokio::io::copy(&mut stderr, &mut eout), if !e_ready => {
                     match e {
                         Ok(len) => {
-                            tracing::debug!("send stderr data: {}", len);
                             if len == 0 {
-                                o_ready = true;
+                                e_ready = true;
                             }
                         },
                         Err(e) => {
-                            tracing::error!("send stderr data error: {}", e);
+                            tracing::error!("send data error: {}", e);
                             break;
                         }
                     }
                 },
+                else => {
+                    break;
+                }
             }
         }
 

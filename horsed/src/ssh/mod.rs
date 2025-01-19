@@ -191,7 +191,7 @@ impl AppServer {
     }
 
     /// 服务端执行命令
-    pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
+    pub async fn exec(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
         let mut handle = self
             .handle
@@ -677,7 +677,7 @@ impl Handler for AppServer {
 
         match self.action.as_str() {
             "git" => self.git(command).await?,
-            "cmd" => self.cmd(command).await?,
+            "exec" | "cmd" => self.exec(command).await?,
             "cargo" => self.cargo(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
             "just" => self.just(command).await?,

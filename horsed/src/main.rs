@@ -116,7 +116,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-
     } else {
         // 启动服务
         let cmd = std::process::Command::new(std::env::current_exe().unwrap())
