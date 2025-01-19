@@ -1605,6 +1605,7 @@ dependencies = [
 name = "horsed"
 version = "0.1.0"
 dependencies = [
+ "anstyle",
  "anyhow",
  "async-trait",
  "base64",

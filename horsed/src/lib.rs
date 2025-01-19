@@ -7,6 +7,7 @@ pub mod error;
 pub mod git;
 pub mod ipc;
 pub mod key;
+pub mod options;
 pub mod ssh;
 pub mod ui;
 

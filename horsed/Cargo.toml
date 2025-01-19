@@ -21,6 +21,8 @@ colored.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 cargo-options.workspace = true
+tracing-appender.workspace = true
+paste.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"
@@ -36,5 +38,4 @@ base64 = "0.22.1"
 shellwords = "1.1.0"
 clean-path = "0.2.1"
 casbin = "2.7.0"
-tracing-appender.workspace = true
-paste.workspace = true
+anstyle = "1.0.2"
