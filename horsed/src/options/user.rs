@@ -22,13 +22,13 @@ pub enum UserCommand {
 #[derive(Clone, Debug, Parser)]
 pub struct AddUser {
     #[clap(short, long, help = "用户名")]
-    name: String,
+    pub name: String,
     #[clap(long, help = "用户昵称")]
-    nick: Option<String>,
+    pub nick: Option<String>,
     #[clap(short, long, help = "用户邮箱")]
-    email: Option<String>,
+    pub email: Option<String>,
     #[clap(short, long, help = "用户密钥", value_parser = parse_user_key)]
-    key: Option<UserKey>,
+    pub key: Option<UserKey>,
 }
 
 fn parse_user_key(pk: &str) -> Result<UserKey, String> {

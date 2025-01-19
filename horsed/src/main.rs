@@ -99,6 +99,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(commands) = cli.commands {
+        use horsed::db::entity::{self, user::*};
+        use sea_orm::ActiveModelTrait;
+        use sea_orm::ActiveValue::{NotSet, Set, Unchanged};
         // 调用子命令
         match commands {
             Commands::User(sub) => {
@@ -106,8 +109,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     UserCommand::Add(user) => {
                         stable::prelude::handle().block_on(async move {
                             // TODO: 添加用户
-                            println!("添加用户: {user:?}");
                             let db = horsed::db::db();
+                            let user = entity::user::ActiveModel {
+                                name: Set(user.name),
+                                ..Default::default()
+                            };
+                            match user.insert(&db).await {
+                                Ok(user) => {
+                                    println!("用户添加成功: name: {}, id: {}", user.name, user.id);
+                                }
+                                Err(err) => {
+                                    eprintln!("添加用户失败: {err}");
+                                }
+                            }
                         });
                     }
                     UserCommand::Del(user) => {}

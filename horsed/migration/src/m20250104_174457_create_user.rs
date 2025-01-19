@@ -12,7 +12,7 @@ impl MigrationTrait for Migration {
                     .table(User::Table)
                     .if_not_exists()
                     .col(pk_auto(User::Id))
-                    .col(string(User::Name))
+                    .col(ColumnDef::new(User::Name).string().not_null().unique_key())
                     .col(string_null(User::Nick))
                     .col(string_null(User::Email))
                     .to_owned(),
@@ -31,6 +31,7 @@ impl MigrationTrait for Migration {
 pub enum User {
     Table,
     Id,
+    #[sea_orm(unique)]
     Name,
     Nick,
     Email,
