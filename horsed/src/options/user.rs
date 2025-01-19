@@ -4,19 +4,11 @@ use clap::{Args, Parser, Subcommand};
 #[command(version, display_order = 1)]
 pub struct User {
     #[clap(subcommand)]
-    pub commands: UserCommands,
-    // #[command(name = "add", about = "添加用户")]
-    // Add(AddUser),
-    // #[command(name = "del", about = "删除用户")]
-    // Del(DelUser),
-    // #[command(name = "mod", about = "修改用户")]
-    // Mod(ModUser),
-    // #[command(name = "list", about = "列出用户")]
-    // List(ListUser),
+    pub commands: UserCommand,
 }
 
 #[derive(Clone, Debug, Subcommand)]
-pub enum UserCommands {
+pub enum UserCommand {
     #[command(name = "add", about = "添加用户")]
     Add(AddUser),
     #[command(name = "del", about = "删除用户")]

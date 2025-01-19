@@ -1,13 +1,11 @@
 use anstyle::{AnsiColor, Effects};
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 pub mod user;
 
-use user::User;
+pub use user::*;
 
 pub fn styles() -> clap::builder::Styles {
-    use anstyle::{AnsiColor, Effects};
-
     clap::builder::styling::Styles::styled()
         .header(AnsiColor::Green.on_default().effects(Effects::BOLD))
         .usage(AnsiColor::Green.on_default().effects(Effects::BOLD))

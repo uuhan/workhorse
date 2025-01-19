@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use clap::Parser;
 use clap::{arg, command, value_parser, ArgAction, Command};
-use horsed::options::Cli;
+use horsed::options::*;
 use interprocess::local_socket::{
     tokio::{prelude::*, Stream},
     GenericNamespaced, ListenerOptions,
@@ -39,8 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let file_appender = tracing_appender::rolling::never(".", "horsed.log");
         let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-        let mut ts = tracing_subscriber::fmt()
-            .with_env_filter(env_filter);
+        let ts = tracing_subscriber::fmt().with_env_filter(env_filter);
 
         if cli.show_log {
             ts.init();
@@ -99,11 +98,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let cmd = std::process::Command::new(std::env::current_exe().unwrap())
-        .current_dir(work_dir)
-        .arg("--daemon")
-        .spawn()?
-        .wait();
+    if let Some(commands) = cli.commands {
+        // 调用子命令
+        match commands {
+            Commands::User(sub) => {
+                match sub.commands {
+                    UserCommand::Add(user) => {
+                        stable::prelude::handle().block_on(async move {
+                            // TODO: 添加用户
+                            println!("添加用户: {user:?}");
+                            let db = horsed::db::db();
+                        });
+                    }
+                    UserCommand::Del(user) => {}
+                    UserCommand::Mod(user) => {}
+                    UserCommand::List(user) => {}
+                }
+            }
+        }
+
+    } else {
+        // 启动服务
+        let cmd = std::process::Command::new(std::env::current_exe().unwrap())
+            .current_dir(work_dir)
+            .arg("--daemon")
+            .spawn()?
+            .wait();
+    }
 
     Ok(())
 }
