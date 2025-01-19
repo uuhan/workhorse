@@ -99,9 +99,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(commands) = cli.commands {
-        use horsed::db::entity::{self, user::*};
+        use horsed::db::entity::{self, prelude::*, user};
+        use sea_orm::entity::prelude::*;
         use sea_orm::ActiveModelTrait;
         use sea_orm::ActiveValue::{NotSet, Set, Unchanged};
+        use sea_orm::{EntityTrait, ModelTrait};
         // 调用子命令
         match commands {
             Commands::User(sub) => {
@@ -124,7 +126,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     }
-                    UserCommand::Del(user) => {}
+                    UserCommand::Del(user) => {
+                        stable::prelude::handle().block_on(async move {
+                            let db = horsed::db::db();
+                            match User::find()
+                                .filter(user::Column::Name.eq(&user.name))
+                                .one(&db)
+                                .await
+                            {
+                                Ok(Some(user)) => {
+                                    let id = user.id;
+                                    match user.delete(&db).await {
+                                        Ok(_) => {
+                                            println!("用户删除成功: {}", id);
+                                        }
+                                        Err(err) => {
+                                            eprintln!("删除用户失败: {err}");
+                                        }
+                                    }
+                                }
+                                Ok(None) => {
+                                    eprintln!("用户不存在: {}", user.name);
+                                }
+                                Err(err) => {
+                                    eprintln!("查找用户失败: {err}");
+                                }
+                            }
+                        });
+                    }
                     UserCommand::Mod(user) => {}
                     UserCommand::List(user) => {}
                 }

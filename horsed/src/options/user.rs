@@ -61,7 +61,9 @@ pub struct UserKey {
 }
 
 #[derive(Clone, Debug, Parser)]
-pub struct DelUser {}
+pub struct DelUser {
+    pub name: String,
+}
 
 #[derive(Clone, Debug, Parser)]
 pub struct ModUser {}
