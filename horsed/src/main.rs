@@ -38,10 +38,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
         let file_appender = tracing_appender::rolling::never(".", "horsed.log");
         let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .with_writer(non_blocking)
-            .init();
+
+        let mut ts = tracing_subscriber::fmt()
+            .with_env_filter(env_filter);
+
+        if cli.show_log {
+            ts.init();
+        } else {
+            ts.with_writer(non_blocking).init();
+        }
 
         let mut tm = TaskManager::default();
         let handler = tm.spawn_essential_handle();
