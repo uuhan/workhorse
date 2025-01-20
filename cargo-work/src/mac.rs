@@ -1,6 +1,5 @@
 use crate::options::HorseOptions;
 use cargo_options::{CargoOptions, CargoOptionsExt};
-use paste::paste;
 use serde::Serialize;
 
 pub trait CargoKind {
@@ -16,7 +15,7 @@ pub trait CargoKind {
 
 macro_rules! cargo_command {
     ($command: ident) => {
-        paste! {
+        paste::paste! {
             pub mod [<$command:lower>] {
                 use $crate::mac::CargoKind;
                 use std::ops::{Deref, DerefMut};
@@ -111,3 +110,89 @@ cargo_command!(Check);
 cargo_command!(Clippy);
 cargo_command!(Metadata);
 cargo_command!(Doc);
+
+pub mod zigbuild {
+    use crate::mac::CargoKind;
+    use crate::options::HorseOptions;
+    use cargo_options::{CargoOptions, CargoOptionsExt};
+    use std::ops::{Deref, DerefMut};
+    use std::process::ExitStatus;
+    use tokio::process::Command;
+
+    use anyhow::{Context, Result};
+    use clap::Parser;
+
+    #[derive(Clone, Debug, Default, Parser)]
+    #[command(
+        display_order = 1,
+        about = "Run cargo zigbuild command",
+        after_help = "Run `cargo zigbuild --help` for more detailed information."
+    )]
+    pub struct Zigbuild {
+        #[command(flatten)]
+        pub cargo: cargo_options::Build,
+
+        #[command(flatten)]
+        pub horse: crate::options::HorseOptions,
+
+        #[clap(short, long, default_value = "true", help = "使用 zigbuild")]
+        pub zigbuild: bool,
+    }
+
+    impl Zigbuild {
+        /// Execute cargo command
+        pub async fn execute(&self) -> Result<ExitStatus> {
+            let current_command = "zigbuild";
+            let mut build = self.build_command()?;
+            let mut child = build
+                .spawn()
+                .with_context(|| format!("Failed to run cargo {current_command}"))?;
+            Ok(child.wait().await?)
+        }
+
+        /// Generate cargo subcommand
+        pub fn build_command(&self) -> Result<Command> {
+            let build = self.cargo.command();
+            Ok(build)
+        }
+    }
+
+    impl Deref for Zigbuild {
+        type Target = cargo_options::Build;
+
+        fn deref(&self) -> &Self::Target {
+            &self.cargo
+        }
+    }
+
+    impl DerefMut for Zigbuild {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.cargo
+        }
+    }
+
+    impl From<cargo_options::Build> for Zigbuild {
+        fn from(cargo: cargo_options::Build) -> Self {
+            Self {
+                cargo,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl CargoKind for Zigbuild {
+        type Target = cargo_options::Build;
+        fn cargo_options(&self) -> &Self::Target {
+            &self.cargo
+        }
+        fn horse_options(&self) -> &crate::options::HorseOptions {
+            &self.horse
+        }
+        fn use_zigbuild(&self) -> bool {
+            self.zigbuild
+        }
+        fn name(&self) -> &str {
+            "zigbuild"
+        }
+    }
+}

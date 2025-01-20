@@ -436,7 +436,7 @@ impl AppServer {
         // 构建命令, 支持 cargo zigbuild
         let mut cmd = match command.first().context("FIXME: CARGO COMMAND")?.as_str() {
             // cargo build
-            "build" => {
+            "zigbuild" | "build" => {
                 cargo_command!(build, env_cargo_options, env_zigbuild)
             }
             "check" => {

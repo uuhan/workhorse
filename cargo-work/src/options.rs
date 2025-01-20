@@ -7,6 +7,7 @@ pub use crate::mac::metadata::Metadata;
 pub use crate::mac::run::Run;
 pub use crate::mac::rustc::Rustc;
 pub use crate::mac::test::Test;
+pub use crate::mac::zigbuild::Zigbuild;
 pub use crate::mac::CargoKind;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -67,6 +68,8 @@ pub struct WorkOptions {
 pub enum Options {
     #[command(name = "build", alias = "b", about = "构建项目")]
     Build(Build),
+    #[command(name = "zigbuild", about = "使用 zigbuild 构建项目")]
+    Zigbuild(Zigbuild),
     #[command(name = "check", alias = "c", about = "检查项目")]
     Check(Check),
     #[command(name = "clippy", about = "检查项目")]

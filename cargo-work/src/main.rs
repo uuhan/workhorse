@@ -44,6 +44,11 @@ async fn main() -> anyhow::Result<()> {
                         eprintln!("执行失败: {}", err);
                     }
                 }
+                Options::Zigbuild(options) => {
+                    if let Err(err) = cargo::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
                 Options::Check(options) => {
                     if let Err(err) = cargo::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
