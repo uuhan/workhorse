@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: cargo build --release --bin cargo-work --bin horsed
+        run: cargo build --bin cargo-work --bin horsed
       - name: Run tests
         run: cargo test --verbose
 
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build the project
-        run: cargo build --release --bin cargo-work --bin horsed
+        run: cargo build --bin cargo-work --bin horsed
 
       - name: Run tests
         run: cargo test --verbose
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build the project
-        run: cargo build --release --bin cargo-work --bin horsed
+        run: cargo build --bin cargo-work --bin horsed
 
       - name: Run tests
         run: cargo test --verbose

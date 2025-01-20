@@ -1,0 +1,78 @@
+name: Publish binary on release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📄 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "📦 Package linux x64"
+        run: |
+          cd "${{github.workspace}}"
+
+          cargo build --release --bin cargo-work --bin horsed
+          cd ./target/release
+
+          tar acf work-${{runner.os}}-x64.tar.gz cargo-work
+          tar acf horsed-${{runner.os}}-x64.tar.gz horsed
+
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.tar.gz
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
+
+  build-windows:
+    name: Build Windows binaries
+    runs-on: windows-latest
+    steps:
+      - name: "📄 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "📦 Package windows x64"
+        run: |
+          cd "${{github.workspace}}"
+
+          cargo build --release --bin cargo-work --bin horsed
+          cd ./target/release
+
+          tar acf work-${{runner.os}}-x64.tar.gz cargo-work
+          tar acf horsed-${{runner.os}}-x64.tar.gz horsed
+
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.tar.gz
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
+
+  build-macos-arm:
+    name: Build macOS arm binaries
+    runs-on: macos-latest
+    steps:
+      - name: "📄 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "📦 Package macos arm"
+        run: |
+          cd "${{github.workspace}}"
+
+          cargo build --release --bin cargo-work --bin horsed
+          cd ./target/release
+
+          tar acf work-${{runner.os}}-arm.tar.gz cargo-work
+          tar acf horsed-${{runner.os}}-arm.tar.gz horsed
+
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-arm.tar.gz
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-arm.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
