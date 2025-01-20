@@ -17,10 +17,13 @@ use tokio::{
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: 从配置文件中读取并设置一些环境变量
+    // std::env::set_var("CARGO_TERM_COLOR", "always");
+
     colored::control::set_override(true);
     let cli = Cli::parse();
 
-    let mut work_dir = &std::env::current_dir().unwrap();
+    let work_dir = &std::env::current_dir().unwrap();
 
     if cli.daemon {
         let _cmd = std::process::Command::new(std::env::current_exe()?)
