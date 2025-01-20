@@ -386,7 +386,6 @@ impl AppServer {
     /// ssh -o SetEnv="REPO=workhorse BRANCH=main CARGO_BUILD=yyy" cargo@xxx.xxx.xxx.xxx -- build
     /// ```
     pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
-        tracing::info!("[cargo] {}", command.join(" "));
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
         let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
@@ -416,15 +415,29 @@ impl AppServer {
         //     .await
         //     .context("克隆仓库失败")?;
 
+        // cargo 参数
         let env_cargo_options = self
             .env
             .get("CARGO_OPTIONS")
             .context("CARGO_OPTIONS 环境变量未设置")?;
-        // let manifest_path = Some(work_path.join("Cargo.toml"));
+        // 是否使用 zigbuild
+        let env_zigbuild = self
+            .env
+            .get("ZIGBUILD")
+            .map(|s| s.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false);
+
+        if env_zigbuild {
+            tracing::info!("[cargo] zigbuild {}", command.join(" "));
+        } else {
+            tracing::info!("[cargo] {}", command.join(" "));
+        }
+
+        // 构建命令, 支持 cargo zigbuild
         let mut cmd = match command.first().context("FIXME: CARGO COMMAND")?.as_str() {
             // cargo build
             "build" => {
-                cargo_command!(build, env_cargo_options)
+                cargo_command!(build, env_cargo_options, env_zigbuild)
             }
             "check" => {
                 cargo_command!(check, env_cargo_options)

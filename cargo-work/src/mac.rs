@@ -10,6 +10,7 @@ pub trait CargoKind {
     fn options(&self) -> CargoOptions {
         self.cargo_options().options()
     }
+    fn use_zigbuild(&self) -> bool;
     fn name(&self) -> &str;
 }
 
@@ -37,6 +38,9 @@ macro_rules! cargo_command {
 
                     #[command(flatten)]
                     pub horse: $crate::options::HorseOptions,
+
+                    #[clap(short, long, help = "使用 zigbuild")]
+                    pub zigbuild: bool,
                 }
 
                 impl $command {
@@ -85,6 +89,9 @@ macro_rules! cargo_command {
                     }
                     fn horse_options(&self) -> &$crate::options::HorseOptions {
                         &self.horse
+                    }
+                    fn use_zigbuild(&self) -> bool {
+                        self.zigbuild
                     }
                     fn name(&self) -> &str {
                         stringify!([<$command:lower>])

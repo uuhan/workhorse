@@ -58,6 +58,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             &[
                 ("REPO", repo_name),
                 ("BRANCH", branch),
+                ("ZIGBUILD", options.use_zigbuild().to_string()),
                 (
                     "CARGO_OPTIONS",
                     format!("\'{}\'", serde_json::to_string(options.cargo_options())?),
