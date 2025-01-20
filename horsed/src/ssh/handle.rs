@@ -113,6 +113,76 @@ impl ChannelHandle {
         Ok(cmd)
     }
 
+    /// 调用远程命令, 并将输入输出流通过通道传输
+    pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {
+        cmd.stdin(Stdio::piped());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let mut cmd = cmd.spawn()?;
+
+        let mut stdin = cmd.stdin.take().unwrap();
+        let mut stdout = cmd.stdout.take().unwrap();
+        let mut stderr = cmd.stderr.take().unwrap();
+
+        let mut eout = self.make_writer();
+        let (mut cout, mut cin) = self.make_io_pair();
+
+        let mut i_ready = false;
+        let mut o_ready = false;
+        let mut e_ready = false;
+        loop {
+            tokio::select! {
+                i = tokio::io::copy(&mut cin, &mut stdin), if !i_ready => {
+                    match i {
+                        Ok(len) => {
+                            tracing::debug!("send data: {}", len);
+                            if len == 0 {
+                                i_ready = true;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("send data error: {}", e);
+                            break;
+                        }
+                    }
+                },
+                o = tokio::io::copy(&mut stdout, &mut cout), if !o_ready => {
+                    match o {
+                        Ok(len) => {
+                            tracing::debug!("send data: {}", len);
+                            if len == 0 {
+                                o_ready = true;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("send data error: {}", e);
+                            break;
+                        }
+                    }
+                },
+                e = tokio::io::copy(&mut stderr, &mut eout), if !e_ready => {
+                    match e {
+                        Ok(len) => {
+                            if len == 0 {
+                                e_ready = true;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("send data error: {}", e);
+                            break;
+                        }
+                    }
+                },
+                else => {
+                    break;
+                }
+            }
+        }
+
+        Ok(cmd)
+    }
+
     #[allow(unused)]
     pub async fn info(&self, text: impl AsRef<str>) -> HorseResult<()> {
         self.log("HORSED".green(), text).await
