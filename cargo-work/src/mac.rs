@@ -192,7 +192,9 @@ pub mod zigbuild {
             self.zigbuild
         }
         fn name(&self) -> &str {
-            "zigbuild"
+            // cargo zigbuild 接收的参数和 cargo build 是一样的
+            // TODO: 未来使用更加定制化的 zig 工具链
+            "build"
         }
     }
 }
