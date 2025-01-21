@@ -22,11 +22,11 @@ jobs:
           cargo build --release --bin cargo-work --bin horsed
           cd ./target/release
 
-          tar acf work-${{runner.os}}-x64.tar.gz cargo-work
-          tar acf horsed-${{runner.os}}-x64.tar.gz horsed
+          zip -r work-${{runner.os}}-x64.zip cargo-work
+          zip -r horsed-${{runner.os}}-x64.zip horsed
 
-          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.tar.gz
-          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.tar.gz
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.zip
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.zip
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
@@ -45,11 +45,11 @@ jobs:
           cargo build --release --bin cargo-work --bin horsed
           cd ./target/release
 
-          tar acf work-${{runner.os}}-x64.tar.gz cargo-work
-          tar acf horsed-${{runner.os}}-x64.tar.gz horsed
+          7z a work-${{runner.os}}-x64.zip cargo-work.exe
+          7z a horsed-${{runner.os}}-x64.zip horsed.exe
 
-          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.tar.gz
-          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.tar.gz
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-x64.zip
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-x64.zip
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
@@ -68,11 +68,11 @@ jobs:
           cargo build --release --bin cargo-work --bin horsed
           cd ./target/release
 
-          tar acf work-${{runner.os}}-arm.tar.gz cargo-work
-          tar acf horsed-${{runner.os}}-arm.tar.gz horsed
+          zip -r work-${{runner.os}}-arm.zip cargo-work
+          zip -r horsed-${{runner.os}}-arm.zip horsed
 
-          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-arm.tar.gz
-          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-arm.tar.gz
+          gh release upload ${{github.event.release.tag_name}} work-${{runner.os}}-arm.zip
+          gh release upload ${{github.event.release.tag_name}} horsed-${{runner.os}}-arm.zip
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
