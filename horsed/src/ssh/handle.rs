@@ -59,6 +59,14 @@ impl ChannelHandle {
 
     /// 调用远程命令, 并将输入输出流通过通道传输
     pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
@@ -115,6 +123,14 @@ impl ChannelHandle {
 
     /// 调用远程命令, 并将输入输出流通过通道传输
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());

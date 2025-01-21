@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use anyhow::Context;
 use clap::Parser;
 use clap::{arg, command, value_parser, ArgAction, Command};
 use horsed::options::*;
@@ -26,12 +27,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let work_dir = &std::env::current_dir().unwrap();
 
     if cli.daemon {
-        let _cmd = std::process::Command::new(std::env::current_exe()?)
-            .arg("-f")
+        let mut cmd = std::process::Command::new(std::env::current_exe()?);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+
+            cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
+        }
+
+        cmd.arg("-f")
             .arg("--dir")
             .arg(work_dir)
             .spawn()
-            .unwrap();
+            .context("启动服务失败")?;
 
         return Ok(());
     }
@@ -164,11 +175,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         // 启动服务
-        let cmd = std::process::Command::new(std::env::current_exe().unwrap())
-            .current_dir(work_dir)
-            .arg("--daemon")
-            .spawn()?
-            .wait();
+        let mut cmd = std::process::Command::new(std::env::current_exe()?);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+
+            cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
+        }
+
+        cmd.current_dir(work_dir).arg("--daemon").spawn()?.wait()?;
     }
 
     Ok(())
