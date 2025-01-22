@@ -52,15 +52,15 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
-            "just",
+            "get",
             host,
-            [OsString::from(options.file)],
+            [OsString::from(&options.file)],
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
-        let mut out = tokio::io::stdout();
+        let mut file = tokio::fs::File::create_new(&options.file).await?;
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
+        while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
             if len == 0 {
                 break;
             }
