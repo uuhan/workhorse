@@ -92,7 +92,7 @@ pub enum Commands {
     Just(JustOptions),
     #[command(name = "get", alias = "g", about = "获取编译目录产物")]
     Get(GetOptions),
-    #[command(name = "scp", about = "拷贝服务器文件到本地, 类似于 scp")]
+    #[command(name = "scp", alias = "cp", about = "拷贝服务器文件到本地, 类似于 scp")]
     Scp(ScpOptions),
     #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
     Push,
