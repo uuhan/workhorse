@@ -5,6 +5,7 @@ use anyhow::Result;
 use git2::Repository;
 use std::ffi::OsString;
 use std::path::Path;
+use std::path::PathBuf;
 
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -58,7 +59,15 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         );
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
-        let mut file = tokio::fs::File::create_new(&options.file).await?;
+        let file_path = PathBuf::from(&options.file);
+
+        if let Some(dir) = file_path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
+            }
+        }
+
+        let mut file = tokio::fs::File::create_new(&file_path).await?;
 
         while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
             if len == 0 {
