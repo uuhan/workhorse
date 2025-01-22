@@ -580,7 +580,10 @@ impl AppServer {
         }
 
         let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
         work_path = work_path.clean();
+
         if !work_path.exists() {
             std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
         }
