@@ -262,7 +262,18 @@ impl AppServer {
         let task = self.tm.spawn_handle();
 
         let file = files.first().context("FIXME: NO FILE")?;
-        let file_path = work_path.join(file);
+        let file_path = PathBuf::from(file);
+        if let Some(fst) = file_path.components().next() {
+            if fst == std::path::Component::ParentDir {
+                tracing::warn!("拒绝文件请求, 只能拷贝工作目录文件: {}", file);
+                handle
+                    .error(format!("拒绝文件请求, 路径不合法: {}", file))
+                    .await?;
+                return Ok(());
+            }
+        }
+
+        let file_path = work_path.join(file_path);
 
         if !file_path.exists() {
             handle.error(format!("文件不存在: {}", file)).await?;
@@ -319,7 +330,18 @@ impl AppServer {
         let task = self.tm.spawn_handle();
 
         let file = files.first().context("FIXME: NO FILE")?;
-        let file_path = work_path.join(file);
+        let file_path = PathBuf::from(file);
+        if let Some(fst) = file_path.components().next() {
+            if fst == std::path::Component::ParentDir {
+                tracing::warn!("拒绝文件请求, 只能拷贝工作目录文件: {}", file);
+                handle
+                    .error(format!("拒绝文件请求, 路径不合法: {}", file))
+                    .await?;
+                return Ok(());
+            }
+        }
+
+        let file_path = work_path.join(file_path);
 
         if !file_path.exists() {
             handle.error(format!("文件不存在: {}", file)).await?;
