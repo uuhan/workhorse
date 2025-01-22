@@ -1,171 +1,71 @@
+use super::*;
+use anyhow::Context;
+use anyhow::Result;
+use git2::Repository;
+use std::ffi::OsString;
 use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
+use std::path::PathBuf;
 
-use anyhow::{Context, Result};
-use async_trait::async_trait;
-use colored::Colorize;
-use key::PrivateKeyWithHashAlg;
-use russh::client::{self, DisconnectReason};
-use russh::keys::*;
-use russh::*;
-use tokio::io::AsyncWriteExt;
-use tokio::net::ToSocketAddrs;
+pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result<()> {
+    let repo = Repository::discover(".")?;
+    let head = repo.head()?;
 
-pub async fn run(sk: &Path) -> Result<()> {
-    let mut ssh = Session::connect(
-        sk,
-        "cmd",
-        std::env::var("HORSED").unwrap_or("127.0.0.1:2222".to_owned()),
-    )
-    .await?;
-
-    let code = ssh.call("ls --color=always").await?;
-
-    println!("Exitcode: {:?}", code);
-    ssh.close().await?;
-    Ok(())
-}
-
-struct Client {}
-
-#[async_trait]
-impl client::Handler for Client {
-    type Error = russh::Error;
-
-    async fn check_server_key(&mut self, spk: &ssh_key::PublicKey) -> Result<bool, Self::Error> {
-        println!("{:?}", spk);
-        Ok(true)
-    }
-
-    async fn auth_banner(
-        &mut self,
-        banner: &str,
-        _session: &mut russh::client::Session,
-    ) -> Result<(), Self::Error> {
-        for banner in banner.lines() {
-            println!(
-                "{}{}{} {}",
-                "[".bold(),
-                "HORSED".green(),
-                "]".bold(),
-                banner.yellow()
-            );
-        }
-        Ok(())
-    }
-
-    /// Called when the server sent a disconnect message
-    ///
-    /// If reason is an Error, this function should re-return the error so the join can also evaluate it
-    async fn disconnected(
-        &mut self,
-        reason: DisconnectReason<Self::Error>,
-    ) -> Result<(), Self::Error> {
-        match reason {
-            DisconnectReason::ReceivedDisconnect(_) => Ok(()),
-            DisconnectReason::Error(e) => Err(e),
-        }
-    }
-
-    /// Called when the server sends us data. The `extended_code`
-    /// parameter is a stream identifier, `None` is usually the
-    /// standard output, and `Some(1)` is the standard error. See
-    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-5.2).
-    async fn data(
-        &mut self,
-        channel: ChannelId,
-        data: &[u8],
-        session: &mut client::Session,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    /// Called when the server sends us data. The `extended_code`
-    /// parameter is a stream identifier, `None` is usually the
-    /// standard output, and `Some(1)` is the standard error. See
-    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-5.2).
-    async fn extended_data(
-        &mut self,
-        channel: ChannelId,
-        ext: u32,
-        data: &[u8],
-        session: &mut client::Session,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
-
-/// This struct is a convenience wrapper
-/// around a russh client
-pub struct Session {
-    session: client::Handle<Client>,
-}
-
-impl Session {
-    async fn connect<P: AsRef<Path>, A: ToSocketAddrs>(
-        key_path: P,
-        user: impl Into<String>,
-        addrs: A,
-    ) -> Result<Self> {
-        let key_pair = load_secret_key(key_path, None)?;
-        let config = client::Config {
-            inactivity_timeout: Some(Duration::from_secs(5)),
-            ..<_>::default()
+    let repo_name = if let Some(repo_name) = find_repo_name(&horse) {
+        repo_name
+    } else {
+        // 无法从参数获取 repo_name, 尝试从 git remote 获取
+        // 默认远程仓库为 horsed,
+        // 格式: ssh://git@192.168.10.62:2222/<ns>/<repo_name>
+        let Some(horsed) = find_remote(&repo) else {
+            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
         };
 
-        let config = Arc::new(config);
-        let sh = Client {};
+        horsed
+            .url()
+            .and_then(extract_repo_name)
+            .context("获取 horsed 远程仓库 URL 失败")?
+    };
 
-        let mut session = client::connect(config, addrs, sh).await?;
-        let auth_res = session
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None)?)
-            .await?;
+    let host = if let Ok(host) = std::env::var("HORSED") {
+        host.parse()
+            .context(format!("解析环境变量 HORSED 失败: {host}"))?
+    } else if let Some(host) = find_host(&horse) {
+        host
+    } else {
+        let Some(horsed) = find_remote(&repo) else {
+            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+        };
 
-        if !auth_res {
-            anyhow::bail!("Authentication failed");
-        }
+        horsed
+            .url()
+            .and_then(extract_host)
+            .context("获取 horsed 远程仓库 HOST 失败")?
+    };
 
-        Ok(Self { session })
-    }
+    let branch = head
+        .shorthand()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "master".to_owned());
 
-    async fn call(&mut self, command: &str) -> Result<u32> {
-        let mut channel = self.session.channel_open_session().await?;
-        channel.exec(true, command).await?;
+    #[cfg(feature = "use-system-ssh")]
+    {
+        let mut cmd = super::run_system_ssh(
+            sk,
+            &[("REPO", repo_name), ("BRANCH", branch)],
+            "cmd",
+            host,
+            scripts,
+        );
+        let mut ssh = cmd.spawn()?;
+        let mut stdout = ssh.stdout.take().unwrap();
+        let mut cout = tokio::io::stdout();
 
-        let mut code = None;
-        let mut stdout = tokio::io::stdout();
-
-        loop {
-            // There's an event available on the session channel
-            let Some(msg) = channel.wait().await else {
+        while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
+            if len == 0 {
                 break;
-            };
-            println!("{:?}", msg);
-            match msg {
-                // Write data to the terminal
-                ChannelMsg::Data { ref data } => {
-                    println!("{:?}", data);
-                    stdout.write_all(data).await?;
-                    stdout.flush().await?;
-                }
-                // The command has returned an exit code
-                ChannelMsg::ExitStatus { exit_status } => {
-                    println!("{:?}", exit_status);
-                    code = Some(exit_status);
-                    // cannot leave the loop immediately, there might still be more data to receive
-                }
-                _ => {}
             }
         }
-
-        code.context("program did not exit cleanly")
     }
 
-    async fn close(&mut self) -> Result<()> {
-        self.session
-            .disconnect(Disconnect::ByApplication, "", "English")
-            .await?;
-        Ok(())
-    }
+    Ok(())
 }

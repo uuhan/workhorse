@@ -34,113 +34,121 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    match cli.commands {
+    match cli.sub_commands {
         // 作为 cargo 子命令运行
-        Commands::Work(w_opt) => {
-            let _horse = w_opt.horse;
-            match w_opt.commands {
-                Options::Build(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Zigbuild(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Check(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Clippy(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Doc(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Install(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Metadata(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Run(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Rustc(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Test(options) => {
-                    if let Err(err) = cargo::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Just(options) => {
-                    if let Err(err) = just::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Get(options) => {
-                    if let Err(err) = get::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Scp(options) => {
-                    if let Err(err) = scp::run(&key, options).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Push => {
-                    if let Err(err) = cmd::run(&key).await {
-                        eprintln!("执行失败: {}", err);
-                    }
-                }
-                Options::Pull => {
-                    let mut downloaded = 0;
-                    let total_size = 23123123;
+        SubCommands::Work(w_opt) => {
+            let horse = w_opt.horse;
+            let scripts = w_opt.scripts;
 
-                    let pb = ProgressBar::new(total_size);
-                    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            // cargo work -- <SCRIPTS>
+            // e.g. cargo work -- ls -al
+            if !scripts.is_empty() {
+                if let Err(err) = cmd::run(&key, horse, scripts).await {
+                    eprintln!("执行失败: {}", err);
+                }
+            } else if let Some(commands) = w_opt.commands {
+                match commands {
+                    Commands::Build(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Zigbuild(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Check(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Clippy(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Doc(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Install(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Metadata(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Run(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Rustc(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Test(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Just(options) => {
+                        if let Err(err) = just::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Get(options) => {
+                        if let Err(err) = get::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Scp(options) => {
+                        if let Err(err) = scp::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Push => {
+                        if let Err(err) = cmd::run(&key, horse, scripts).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Pull => {
+                        let mut downloaded = 0;
+                        let total_size = 23123123;
+
+                        let pb = ProgressBar::new(total_size);
+                        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
                     .unwrap()
                     .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
                     .progress_chars("#>-"));
 
-                    while downloaded < total_size {
-                        let new = min(downloaded + 223211, total_size);
-                        downloaded = new;
-                        pb.set_position(new);
-                        thread::sleep(Duration::from_millis(8));
-                    }
+                        while downloaded < total_size {
+                            let new = min(downloaded + 223211, total_size);
+                            downloaded = new;
+                            pb.set_position(new);
+                            thread::sleep(Duration::from_millis(8));
+                        }
 
-                    pb.finish_with_message("downloaded");
-                } // opt => println!("{:?}", opt),
+                        pb.finish_with_message("downloaded");
+                    } // opt => println!("{:?}", opt),
+                }
             }
         }
 
         // 直接调用 cargo 命令
-        Commands::Cargo(opt) => match opt {
-            Options::Build(build) => println!("{:?}", build.command()),
-            Options::Just(just) => println!("{:?}", just),
-            Options::Push => {
-                if let Err(err) = cmd::run(&key).await {
-                    eprintln!("执行失败: {}", err);
-                }
+        SubCommands::Cargo(opt) => match opt {
+            Commands::Build(build) => println!("{:?}", build.command()),
+            Commands::Just(just) => println!("{:?}", just),
+            Commands::Push => {
+                eprintln!("TODO");
             }
-            Options::Pull => {
+            Commands::Pull => {
                 let mut downloaded = 0;
                 let total_size = 23123123;
 

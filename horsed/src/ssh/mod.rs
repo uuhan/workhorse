@@ -191,17 +191,52 @@ impl AppServer {
     }
 
     /// 服务端执行命令
-    pub async fn exec(&mut self, command: Vec<String>) -> HorseResult<()> {
+    pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
+
+        let env_repo = self.env.get("REPO");
+        let env_branch = self.env.get("BRANCH");
+
+        // 如果命令中包含 REPO 或者 BRANCH 环境变量, 则切换到工作目录执行命令
+        let cmd_dir = if let (Some(env_repo), Some(env_branch)) = (env_repo, env_branch) {
+            let mut repo_path = PathBuf::from(env_repo);
+            // 去除开头的 /
+            if repo_path.starts_with("/") {
+                repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+            }
+
+            // 清理路径
+            repo_path = repo_path.clean();
+
+            // 裸仓库名称统一添加 .git 后缀
+            if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+                tracing::error!("无效仓库路径: {:?}", repo_path);
+                return Ok(());
+            }
+
+            let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
+            // 构建目录不包含 .git 后缀
+            work_path.set_extension("");
+            work_path
+        } else {
+            std::env::current_dir()?
+        };
+
         let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         let task = self.tm.spawn_handle();
+
         task.spawn(async move {
             #[cfg(windows)]
             match handle
-                .exec(Command::new("cmd.exe").arg("/C").args(command))
+                .exec(
+                    Command::new("cmd.exe")
+                        .current_dir(&cmd_dir)
+                        .arg("/C")
+                        .args(command),
+                )
                 .await
             {
                 Ok(mut cmd) => {
@@ -213,7 +248,12 @@ impl AppServer {
             }
             #[cfg(not(windows))]
             match handle
-                .exec(Command::new("sh").arg("-c").arg(command.join(" ")))
+                .exec(
+                    Command::new("sh")
+                        .current_dir(&cmd_dir)
+                        .arg("-c")
+                        .arg(command.join(" ")),
+                )
                 .await
             {
                 Ok(mut cmd) => {
@@ -826,7 +866,7 @@ impl Handler for AppServer {
 
         match self.action.as_str() {
             "git" => self.git(command).await?,
-            "exec" | "cmd" => self.exec(command).await?,
+            "cmd" => self.cmd(command).await?,
             "cargo" => self.cargo(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
             "just" => self.just(command).await?,

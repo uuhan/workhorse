@@ -28,7 +28,7 @@ pub struct Cli {
     pub horse: HorseOptions,
 
     #[clap(subcommand)]
-    pub commands: Commands,
+    pub sub_commands: SubCommands,
 }
 
 #[derive(Default, Clone, Debug, Args)]
@@ -46,11 +46,11 @@ pub struct HorseOptions {
 
 #[derive(Clone, Debug, Subcommand)]
 #[command(version, display_order = 1)]
-pub enum Commands {
+pub enum SubCommands {
     #[command(name = "work", about = "cargo work")]
     Work(WorkOptions),
     #[command(flatten)]
-    Cargo(Options),
+    Cargo(Commands),
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -59,13 +59,15 @@ pub struct WorkOptions {
     pub horse: HorseOptions,
 
     #[clap(subcommand)]
-    pub commands: Options,
+    pub commands: Option<Commands>,
+
+    pub scripts: Vec<String>,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Subcommand)]
 #[command(version, display_order = 1)]
-pub enum Options {
+pub enum Commands {
     #[command(name = "build", alias = "b", about = "构建项目")]
     Build(Build),
     #[command(name = "zigbuild", about = "使用 zigbuild 构建项目")]
