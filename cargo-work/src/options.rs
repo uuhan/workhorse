@@ -90,6 +90,8 @@ pub enum Options {
     Just(JustOptions),
     #[command(name = "get", alias = "g", about = "获取编译目录产物")]
     Get(GetOptions),
+    #[command(name = "scp", about = "拷贝服务器文件到本地, 类似于 scp")]
+    Scp(ScpOptions),
     #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
     Push,
     #[command(name = "pull", alias = "l", about = "拉取编译资产")]
@@ -99,6 +101,14 @@ pub enum Options {
 #[derive(Clone, Debug, Args)]
 pub struct GetOptions {
     pub file: String,
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct ScpOptions {
+    pub source: String,
+    pub dest: String,
     #[clap(flatten)]
     pub horse: HorseOptions,
 }

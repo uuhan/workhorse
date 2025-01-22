@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, get, just},
+    ssh::{cargo, cmd, get, just, scp},
 };
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -96,6 +96,11 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Options::Get(options) => {
                     if let Err(err) = get::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Scp(options) => {
+                    if let Err(err) = scp::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
                     }
                 }

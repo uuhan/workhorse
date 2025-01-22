@@ -229,8 +229,65 @@ impl AppServer {
         Ok(())
     }
 
-    /// 服务端执行命令
+    /// 获取服务端文件
     pub async fn get(&mut self, files: Vec<String>) -> HorseResult<()> {
+        tracing::info!("GET: {}", files.join(" "));
+
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+
+        let mut repo_path = PathBuf::from(env_repo);
+        // 去除开头的 /
+        if repo_path.starts_with("/") {
+            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        }
+
+        // 清理路径
+        repo_path = repo_path.clean();
+
+        // 裸仓库名称统一添加 .git 后缀
+        if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+            tracing::error!("无效仓库路径: {:?}", repo_path);
+            return Ok(());
+        }
+
+        let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
+
+        let handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+        let task = self.tm.spawn_handle();
+
+        let file = files.first().context("FIXME: NO FILE")?;
+        let file_path = work_path.join(file);
+
+        if !file_path.exists() {
+            handle.error(format!("文件不存在: {}", file)).await?;
+            return Ok(());
+        }
+
+        task.spawn(async move {
+            // TODO: 获取文件
+            let mut file = tokio::fs::File::open(&file_path).await?;
+            let mut cout = handle.make_writer();
+
+            while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
+                if len == 0 {
+                    break;
+                }
+            }
+
+            Ok(())
+        });
+
+        Ok(())
+    }
+
+    /// 类似 scp 命令, 拷贝服务器文件到本地
+    pub async fn scp(&mut self, files: Vec<String>) -> HorseResult<()> {
         tracing::info!("GET: {}", files.join(" "));
 
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
@@ -759,6 +816,7 @@ impl Handler for AppServer {
             //     self.just(command, subaction).await?;
             // }
             "get" => self.get(command).await?,
+            "scp" => self.scp(command).await?,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle.error(format!("不支持的命令: {action}")).await?;
