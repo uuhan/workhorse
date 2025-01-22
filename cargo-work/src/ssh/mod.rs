@@ -18,10 +18,9 @@ use std::time::Duration;
 use tokio::net::ToSocketAddrs;
 use url::Url;
 
-// pub mod build;
-// pub mod test;
 pub mod cargo;
 pub mod cmd;
+pub mod get;
 pub mod just;
 
 pub struct HorseClient {

@@ -229,6 +229,25 @@ impl AppServer {
         Ok(())
     }
 
+    /// 服务端执行命令
+    pub async fn get(&mut self, command: Vec<String>) -> HorseResult<()> {
+        tracing::info!("GET: {}", command.join(" "));
+        let mut handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+        let task = self.tm.spawn_handle();
+        task.spawn(async move {
+            // TODO: 获取文件
+            handle.info("开始下载...").await?;
+            handle.eof().await?;
+            handle.close().await?;
+            Ok(())
+        });
+
+        Ok(())
+    }
+
     /// ### 服务端 just 指令
     ///
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
@@ -701,6 +720,7 @@ impl Handler for AppServer {
             //     }
             //     self.just(command, subaction).await?;
             // }
+            "get" => self.get(command).await?,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle.error(format!("不支持的命令: {action}")).await?;

@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, just},
+    ssh::{cargo, cmd, get, just},
 };
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -91,6 +91,11 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Options::Just(options) => {
                     if let Err(err) = just::run(&key, options).await {
+                        eprintln!("执行失败: {}", err);
+                    }
+                }
+                Options::Get(options) => {
+                    if let Err(err) = get::run(&key, options).await {
                         eprintln!("执行失败: {}", err);
                     }
                 }
