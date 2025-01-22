@@ -67,7 +67,11 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             }
         }
 
-        let mut file = tokio::fs::File::create_new(&file_path).await?;
+        if file_path.exists() && !options.force {
+            return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
+        }
+
+        let mut file = tokio::fs::File::create(&file_path).await?;
 
         while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
             if len == 0 {

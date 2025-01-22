@@ -101,6 +101,8 @@ pub enum Options {
 #[derive(Clone, Debug, Args)]
 pub struct GetOptions {
     pub file: String,
+    #[clap(short, long, help = "覆盖本地文件")]
+    pub force: bool,
     #[clap(flatten)]
     pub horse: HorseOptions,
 }
