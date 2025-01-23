@@ -4,14 +4,12 @@ use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use serde::Deserialize;
+use stable::data::*;
 use std::ffi::OsString;
 use std::fmt::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
-use stable::data::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -68,7 +66,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
         let mut stderr = ssh.stderr.take().unwrap();
-        let file_path = PathBuf::from(&options.file);
+        let mut file_path = PathBuf::from(&options.file);
 
         if let Some(dir) = file_path.parent() {
             if !dir.exists() {
@@ -79,8 +77,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         if file_path.exists() && !options.force {
             return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
         }
-
-        let mut file = tokio::fs::File::create(&file_path).await?;
 
         let mut header = [0u8; HEADER_SIZE];
         if let Ok(len) = stderr.read(&mut header).await {
@@ -94,6 +90,12 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             // println!("文件信息: {}", get_file.path.display());
             // println!("文件大小: {}", get_file.size);
 
+            // TODO: 解包
+            if get_file.kind == GetKind::Directory {
+                file_path.set_extension("tar");
+            }
+
+            let mut file = tokio::fs::File::create(&file_path).await?;
             let mut downloaded: u64 = 0;
 
             let pb = ProgressBar::new(get_file.size);

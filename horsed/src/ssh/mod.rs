@@ -19,7 +19,7 @@ use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use serde::Serialize;
 use shellwords::split;
 use stable::{data::*, task::TaskManager};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -322,28 +322,98 @@ impl AppServer {
         }
 
         task.spawn(async move {
-            // TODO: 获取文件
+            if !file_path.exists() {
+                handle
+                    .error(format!("文件不存在: {}", file_path.display()))
+                    .await?;
+                return Ok(());
+            }
+
             let mut file = tokio::fs::File::open(&file_path).await?;
-            let mut cout = handle.make_writer();
+            let md = file.metadata().await?;
 
-            tracing::info!("文件信息: {}", file_path.display());
-            let size = file.metadata().await?.len();
-            tracing::info!("文件大小: {}", size);
-            let get_file_info = GetFile {
-                path: file_path,
-                size,
-            };
+            // 请求目录
+            if md.is_dir() {
+                use walkdir::WalkDir;
+                let mut cout = handle.make_writer();
 
-            let meta = bincode::serialize(&get_file_info)?;
-            let header = Header { size: meta.len() };
+                let mut tardir = tar::Builder::new(Vec::new());
+                let entries = WalkDir::new(&file_path).into_iter();
+                for entry in entries {
+                    let entry = entry?;
+                    let path = entry.path();
+                    let metadata = entry.metadata()?;
 
-            handle.extended_data(1, header.as_bytes()).await?;
-            handle.extended_data(1, meta).await?;
-
-            while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
-                if len == 0 {
-                    break;
+                    if metadata.is_file() {
+                        // 将文件添加到 tar 文件中
+                        let file = std::fs::File::open(path)?;
+                        let mut header = tar::Header::new_gnu();
+                        header.set_path(path.parent().unwrap())?;
+                        header.set_size(metadata.len());
+                        header.set_mode(0o644);
+                        header.set_mtime(
+                            metadata
+                                .modified()?
+                                .duration_since(std::time::UNIX_EPOCH)?
+                                .as_secs(),
+                        );
+                        tardir.append(&header, file)?;
+                    }
                 }
+
+                let tar = tardir.into_inner()?;
+
+                tracing::info!("目录信息: {}", file_path.display());
+                let size = tar.len() as u64;
+                tracing::info!("目录大小: {}", size);
+
+                let get_file_info = GetFile {
+                    path: file_path,
+                    size,
+                    kind: GetKind::Directory,
+                };
+
+                let meta = bincode::serialize(&get_file_info)?;
+                let header = Header { size: meta.len() };
+
+                handle.extended_data(1, header.as_bytes()).await?;
+                handle.extended_data(1, meta).await?;
+
+                while let Ok(len) = cout.write(&tar).await {
+                    if len == 0 {
+                        break;
+                    }
+                }
+
+                return Ok(());
+            }
+
+            // 请求文件
+            if md.is_file() {
+                let mut cout = handle.make_writer();
+
+                tracing::info!("文件信息: {}", file_path.display());
+                let size = file.metadata().await?.len();
+                tracing::info!("文件大小: {}", size);
+                let get_file_info = GetFile {
+                    path: file_path,
+                    size,
+                    kind: GetKind::File,
+                };
+
+                let meta = bincode::serialize(&get_file_info)?;
+                let header = Header { size: meta.len() };
+
+                handle.extended_data(1, header.as_bytes()).await?;
+                handle.extended_data(1, meta).await?;
+
+                while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
+                    if len == 0 {
+                        break;
+                    }
+                }
+
+                return Ok(());
             }
 
             Ok(())

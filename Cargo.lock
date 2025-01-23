@@ -1661,6 +1661,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "walkdir",
  "zerocopy 0.8.14",
 ]
 

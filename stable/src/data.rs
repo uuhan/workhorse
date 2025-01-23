@@ -13,10 +13,11 @@ pub struct Header {
 #[derive(Serialize, Deserialize)]
 pub struct GetFile {
     pub path: PathBuf,
+    pub kind: GetKind,
     pub size: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum GetKind {
     File,
