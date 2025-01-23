@@ -75,7 +75,6 @@ impl Write for Writer {
     }
 }
 
-#[derive(Clone)]
 pub struct Reader {
     buffer: Arc<(Mutex<VecDeque<u8>>, Condvar)>,
     complete: Arc<RwLock<bool>>,

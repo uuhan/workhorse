@@ -337,26 +337,27 @@ impl AppServer {
                 let mut reader = writer.make_reader();
                 let mut cout = handle.make_writer();
 
+                // TODO: 目录无法提前知道大小
+                let get_file_info = GetFile {
+                    path: file_path.clone(),
+                    size: 1_000_000,
+                    kind: GetKind::Directory,
+                };
+
+                let meta = bincode::serialize(&get_file_info)?;
+                let header = Header { size: meta.len() };
+
+                handle.extended_data(1, header.as_bytes()).await?;
+                handle.extended_data(1, meta).await?;
+
                 t1.spawn_blocking(async move {
                     let mut tardir = tar::Builder::new(writer);
                     tardir.append_dir_all("", &file_path)?;
                     let tar = tardir.into_inner()?;
+                    let size = tar.total() as u64;
 
                     tracing::info!("目录信息: {}", file_path.display());
-                    let size = tar.total() as u64;
                     tracing::info!("目录大小: {}", size);
-
-                    let get_file_info = GetFile {
-                        path: file_path,
-                        size,
-                        kind: GetKind::Directory,
-                    };
-
-                    let meta = bincode::serialize(&get_file_info)?;
-                    let header = Header { size: meta.len() };
-
-                    handle.extended_data(1, header.as_bytes()).await?;
-                    handle.extended_data(1, meta).await?;
 
                     Ok(())
                 });
