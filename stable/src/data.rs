@@ -23,3 +23,13 @@ pub enum GetKind {
     File,
     Directory,
 }
+
+impl GetKind {
+    pub fn is_file(&self) -> bool {
+        matches!(self, GetKind::File)
+    }
+
+    pub fn is_dir(&self) -> bool {
+        matches!(self, GetKind::Directory)
+    }
+}

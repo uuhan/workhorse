@@ -86,12 +86,11 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             // println!("文件信息: {}", get_file.path.display());
             // println!("文件大小: {}", get_file.size);
 
-            if get_file.kind == GetKind::File && file_path.exists() && !options.force {
+            if get_file.kind.is_file() && file_path.exists() && !options.force {
                 return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
             }
 
-            // TODO: 解包
-            if get_file.kind == GetKind::Directory {
+            if get_file.kind.is_dir() {
                 file_path.set_extension("tar");
             }
 
