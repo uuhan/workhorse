@@ -74,10 +74,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             }
         }
 
-        if file_path.exists() && !options.force {
-            return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
-        }
-
         let mut header = [0u8; HEADER_SIZE];
         if let Ok(len) = stderr.read(&mut header).await {
             debug_assert_eq!(len, HEADER_SIZE);
@@ -89,6 +85,10 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
             // println!("文件信息: {}", get_file.path.display());
             // println!("文件大小: {}", get_file.size);
+
+            if get_file.kind == GetKind::File && file_path.exists() && !options.force {
+                return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
+            }
 
             // TODO: 解包
             if get_file.kind == GetKind::Directory {

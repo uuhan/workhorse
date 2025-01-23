@@ -314,14 +314,9 @@ impl AppServer {
             }
         }
 
-        let file_path = work_path.join(file_path);
-
-        if !file_path.exists() {
-            handle.error(format!("文件不存在: {}", file)).await?;
-            return Ok(());
-        }
-
         task.spawn(async move {
+            let file_path = work_path.join(file_path);
+
             if !file_path.exists() {
                 handle
                     .error(format!("文件不存在: {}", file_path.display()))
@@ -334,33 +329,9 @@ impl AppServer {
 
             // 请求目录
             if md.is_dir() {
-                use walkdir::WalkDir;
                 let mut cout = handle.make_writer();
-
                 let mut tardir = tar::Builder::new(Vec::new());
-                let entries = WalkDir::new(&file_path).into_iter();
-                for entry in entries {
-                    let entry = entry?;
-                    let path = entry.path();
-                    let metadata = entry.metadata()?;
-
-                    if metadata.is_file() {
-                        // 将文件添加到 tar 文件中
-                        let file = std::fs::File::open(path)?;
-                        let mut header = tar::Header::new_gnu();
-                        header.set_path(path.parent().unwrap())?;
-                        header.set_size(metadata.len());
-                        header.set_mode(0o644);
-                        header.set_mtime(
-                            metadata
-                                .modified()?
-                                .duration_since(std::time::UNIX_EPOCH)?
-                                .as_secs(),
-                        );
-                        tardir.append(&header, file)?;
-                    }
-                }
-
+                tardir.append_dir_all("", &file_path)?;
                 let tar = tardir.into_inner()?;
 
                 tracing::info!("目录信息: {}", file_path.display());
@@ -379,11 +350,7 @@ impl AppServer {
                 handle.extended_data(1, header.as_bytes()).await?;
                 handle.extended_data(1, meta).await?;
 
-                while let Ok(len) = cout.write(&tar).await {
-                    if len == 0 {
-                        break;
-                    }
-                }
+                cout.write_all(&tar).await?;
 
                 return Ok(());
             }

@@ -1,3 +1,4 @@
 /target
 *.db3
 horsed.key
+*.tar
