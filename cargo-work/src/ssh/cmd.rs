@@ -56,6 +56,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             host,
             scripts,
         );
+        cmd.stdout(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
         let mut cout = tokio::io::stdout();

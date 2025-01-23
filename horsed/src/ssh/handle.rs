@@ -241,6 +241,20 @@ impl ChannelHandle {
 
         Ok(())
     }
+
+    /// 发送扩展数据到前端
+    pub async fn extended_data(&self, ext: u32, data: impl AsRef<[u8]>) -> HorseResult<()> {
+        let raw = CryptoVec::from(data.as_ref());
+        if let Err(vec) = self.handle.extended_data(self.id, ext, raw).await {
+            return Err(anyhow::anyhow!(
+                "SEND EXT DATA: ext: {}, len: {}",
+                ext,
+                vec.len()
+            ))?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Drop for ChannelHandle {

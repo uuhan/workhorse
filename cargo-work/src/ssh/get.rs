@@ -3,9 +3,14 @@ use crate::options::GetOptions;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use serde::Deserialize;
 use std::ffi::OsString;
+use std::fmt::Write;
 use std::path::Path;
 use std::path::PathBuf;
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -57,8 +62,11 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             host,
             [OsString::from(&options.file)],
         );
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
+        let mut stderr = ssh.stderr.take().unwrap();
         let file_path = PathBuf::from(&options.file);
 
         if let Some(dir) = file_path.parent() {
@@ -73,10 +81,56 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
         let mut file = tokio::fs::File::create(&file_path).await?;
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
-            if len == 0 {
-                break;
+        use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+        #[derive(FromBytes, IntoBytes, KnownLayout, Immutable)]
+        #[repr(C)]
+        struct Header {
+            pub size: usize,
+        }
+
+        debug_assert_eq!(std::mem::size_of::<Header>(), 8);
+
+        #[derive(Deserialize)]
+        struct GetFile {
+            pub path: PathBuf,
+            pub size: u64,
+        }
+
+        let mut header = [0u8; std::mem::size_of::<Header>()];
+        if let Ok(len) = stderr.read(&mut header).await {
+            debug_assert_eq!(len, 8);
+            let header = Header::ref_from_bytes(&header).unwrap();
+
+            let mut get_file_info = vec![0u8; header.size];
+            let total = stderr.read(&mut get_file_info).await?;
+            let get_file = serde_json::from_slice::<GetFile>(&get_file_info[..total])?;
+
+            // println!("文件信息: {}", get_file.path.display());
+            // println!("文件大小: {}", get_file.size);
+
+            let mut downloaded: u64 = 0;
+
+            let pb = ProgressBar::new(get_file.size);
+            pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+                .unwrap()
+                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+                .progress_chars("#>-"));
+
+            const BUF_SIZE: usize = 1024 * 32;
+            let mut buf = [0u8; BUF_SIZE];
+
+            while let Ok(len) = stdout.read(&mut buf).await {
+                pb.set_position(downloaded);
+
+                if len == 0 {
+                    break;
+                }
+
+                downloaded += len as u64;
+                file.write_all(&buf[..len]).await?;
             }
+
+            pb.finish_with_message("下载完成");
         }
     }
 

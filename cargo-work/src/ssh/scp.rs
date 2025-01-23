@@ -56,6 +56,7 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
             host,
             [OsString::from(&options.source)],
         );
+        cmd.stdout(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
         let mut file = tokio::fs::File::create_new(&options.dest).await?;

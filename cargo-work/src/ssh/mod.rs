@@ -218,7 +218,5 @@ where
     cmd.arg(format!("{}", host.port()));
     cmd.args(args);
 
-    cmd.stdout(std::process::Stdio::piped());
-
     cmd
 }

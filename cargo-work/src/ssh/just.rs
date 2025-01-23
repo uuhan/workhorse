@@ -57,6 +57,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
             host,
             [OsString::from(command)],
         );
+        cmd.stdout(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
         let mut out = tokio::io::stdout();

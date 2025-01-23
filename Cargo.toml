@@ -34,6 +34,7 @@ serde_json = "1"
 cargo-options = { version = "0.7.5", features = ["serde", "tokio"] }
 git2 = { version = "0.20", default-features = false }
 paste = "1.0.15"
+zerocopy = { version = "0.8", features = ["derive"] }
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "0bfa57a" }
