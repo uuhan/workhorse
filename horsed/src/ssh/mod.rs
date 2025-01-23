@@ -314,6 +314,7 @@ impl AppServer {
             }
         }
 
+        let t1 = task.clone();
         task.spawn(async move {
             let file_path = work_path.join(file_path);
 
@@ -329,28 +330,47 @@ impl AppServer {
 
             // 请求目录
             if md.is_dir() {
+                use stable::buffer::Writer;
+                // 5MB 的缓冲区
+                const BUF_SIZE: usize = 1024 * 1024 * 5;
+                let writer = Writer::new(BUF_SIZE);
+                let mut reader = writer.make_reader();
                 let mut cout = handle.make_writer();
-                let mut tardir = tar::Builder::new(Vec::new());
-                tardir.append_dir_all("", &file_path)?;
-                let tar = tardir.into_inner()?;
 
-                tracing::info!("目录信息: {}", file_path.display());
-                let size = tar.len() as u64;
-                tracing::info!("目录大小: {}", size);
+                t1.spawn_blocking(async move {
+                    let mut tardir = tar::Builder::new(writer);
+                    tardir.append_dir_all("", &file_path)?;
+                    let tar = tardir.into_inner()?;
 
-                let get_file_info = GetFile {
-                    path: file_path,
-                    size,
-                    kind: GetKind::Directory,
-                };
+                    tracing::info!("目录信息: {}", file_path.display());
+                    let size = tar.total() as u64;
+                    tracing::info!("目录大小: {}", size);
 
-                let meta = bincode::serialize(&get_file_info)?;
-                let header = Header { size: meta.len() };
+                    let get_file_info = GetFile {
+                        path: file_path,
+                        size,
+                        kind: GetKind::Directory,
+                    };
 
-                handle.extended_data(1, header.as_bytes()).await?;
-                handle.extended_data(1, meta).await?;
+                    let meta = bincode::serialize(&get_file_info)?;
+                    let header = Header { size: meta.len() };
 
-                cout.write_all(&tar).await?;
+                    handle.extended_data(1, header.as_bytes()).await?;
+                    handle.extended_data(1, meta).await?;
+
+                    Ok(())
+                });
+
+                let mut buf = vec![0; BUF_SIZE];
+                // TODO: 使用异步 IO 读取缓冲区
+                use std::io::Read;
+                while let Ok(len) = reader.read(&mut buf) {
+                    if len == 0 {
+                        break;
+                    }
+
+                    cout.write_all(&buf[..len]).await?;
+                }
 
                 return Ok(());
             }
