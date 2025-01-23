@@ -18,7 +18,7 @@ use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use serde::Serialize;
 use shellwords::split;
-use stable::task::TaskManager;
+use stable::{data::*, task::TaskManager};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -326,21 +326,6 @@ impl AppServer {
             let mut file = tokio::fs::File::open(&file_path).await?;
             let mut cout = handle.make_writer();
 
-            use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-            #[derive(FromBytes, IntoBytes, KnownLayout, Immutable)]
-            #[repr(C)]
-            struct Header {
-                pub size: usize,
-            }
-
-            debug_assert_eq!(std::mem::size_of::<Header>(), 8);
-
-            #[derive(Serialize)]
-            struct GetFile {
-                pub path: PathBuf,
-                pub size: u64,
-            }
-
             tracing::info!("文件信息: {}", file_path.display());
             let size = file.metadata().await?.len();
             tracing::info!("文件大小: {}", size);
@@ -349,14 +334,11 @@ impl AppServer {
                 size,
             };
 
-            let meta = serde_json::to_vec(&get_file_info)?;
+            let meta = bincode::serialize(&get_file_info)?;
             let header = Header { size: meta.len() };
 
             handle.extended_data(1, header.as_bytes()).await?;
-
-            handle
-                .extended_data(1, serde_json::to_vec(&get_file_info)?)
-                .await?;
+            handle.extended_data(1, meta).await?;
 
             while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
                 if len == 0 {

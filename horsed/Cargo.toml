@@ -24,6 +24,8 @@ cargo-options.workspace = true
 tracing-appender.workspace = true
 paste.workspace = true
 zerocopy.workspace = true
+bincode.workspace = true
+tar.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"

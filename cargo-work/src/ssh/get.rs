@@ -11,6 +11,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+use stable::data::*;
 
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -81,29 +82,14 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
         let mut file = tokio::fs::File::create(&file_path).await?;
 
-        use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-        #[derive(FromBytes, IntoBytes, KnownLayout, Immutable)]
-        #[repr(C)]
-        struct Header {
-            pub size: usize,
-        }
-
-        debug_assert_eq!(std::mem::size_of::<Header>(), 8);
-
-        #[derive(Deserialize)]
-        struct GetFile {
-            pub path: PathBuf,
-            pub size: u64,
-        }
-
-        let mut header = [0u8; std::mem::size_of::<Header>()];
+        let mut header = [0u8; HEADER_SIZE];
         if let Ok(len) = stderr.read(&mut header).await {
-            debug_assert_eq!(len, 8);
+            debug_assert_eq!(len, HEADER_SIZE);
             let header = Header::ref_from_bytes(&header).unwrap();
 
             let mut get_file_info = vec![0u8; header.size];
             let total = stderr.read(&mut get_file_info).await?;
-            let get_file = serde_json::from_slice::<GetFile>(&get_file_info[..total])?;
+            let get_file = bincode::deserialize::<GetFile>(&get_file_info[..total])?;
 
             // println!("文件信息: {}", get_file.path.display());
             // println!("文件大小: {}", get_file.size);
