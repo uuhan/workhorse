@@ -352,7 +352,9 @@ impl AppServer {
 
                 t1.spawn_blocking(async move {
                     let mut tardir = tar::Builder::new(writer);
-                    tardir.append_dir_all("", &file_path)?;
+                    let path = file_path.file_name().unwrap();
+                    // 同步阻塞
+                    tardir.append_dir_all(path, &file_path)?;
                     let tar = tardir.into_inner()?;
                     let size = tar.total() as u64;
 
