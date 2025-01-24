@@ -754,6 +754,14 @@ impl AppServer {
             }
         };
 
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         cmd.kill_on_drop(true);
         cmd.current_dir(&work_path);
         cmd.stdout(std::process::Stdio::piped());
