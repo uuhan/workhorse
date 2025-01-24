@@ -134,7 +134,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_writer_reader() {
+    fn test_write_less() {
+        let mut writer = Writer::new(10);
+        let mut reader = writer.make_reader();
+
+        let _ = std::thread::spawn(move || {
+            writer.write_all(b"012").unwrap();
+            assert_eq!(writer.total(), 3);
+        });
+
+        let reader_thread = std::thread::spawn(move || {
+            let mut buf = [0; 10];
+            assert_eq!(reader.read(&mut buf).unwrap(), 3);
+            assert_eq!(reader.read(&mut buf).unwrap(), 0);
+        });
+
+        reader_thread.join().unwrap();
+    }
+
+    #[test]
+    fn test_write_more() {
         let mut writer = Writer::new(3);
         let mut reader = writer.make_reader();
 
