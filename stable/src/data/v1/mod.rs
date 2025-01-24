@@ -1,14 +1,4 @@
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-pub use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-
-pub const HEADER_SIZE: usize = std::mem::size_of::<Header>();
-
-#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Clone, Debug)]
-#[repr(C)]
-pub struct Header {
-    pub size: u16,
-}
+use super::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct GetFile {
@@ -40,7 +30,7 @@ mod test {
 
     #[test]
     fn test_header_size() {
-        assert_eq!(HEADER_SIZE, 1);
+        assert_eq!(HEADER_SIZE, 3);
     }
 
     #[test]

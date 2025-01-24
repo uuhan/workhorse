@@ -4,7 +4,7 @@ use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use stable::data::*;
+use stable::data::{v1::*, *};
 use std::ffi::OsString;
 use std::fmt::Write;
 use std::path::Path;

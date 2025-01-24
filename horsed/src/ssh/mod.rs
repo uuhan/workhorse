@@ -18,7 +18,10 @@ use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use serde::Serialize;
 use shellwords::split;
-use stable::{data::*, task::TaskManager};
+use stable::{
+    data::{v1::*, *},
+    task::TaskManager,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -346,6 +349,7 @@ impl AppServer {
 
                 let meta = bincode::serialize(&get_file_info)?;
                 let header = Header {
+                    version: 1,
                     size: meta.len() as _,
                 };
 
@@ -393,6 +397,7 @@ impl AppServer {
 
                 let meta = bincode::serialize(&get_file_info)?;
                 let header = Header {
+                    version: 1,
                     size: meta.len() as _,
                 };
 
