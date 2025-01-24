@@ -94,10 +94,15 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
                 file_path.set_extension("tar");
             }
 
+            let pb = if let Some(size) = get_file.size {
+                ProgressBar::new(size)
+            } else {
+                ProgressBar::no_length()
+            };
+
             let mut file = tokio::fs::File::create(&file_path).await?;
             let mut downloaded: u64 = 0;
 
-            let pb = ProgressBar::new(get_file.size);
             pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
                 .unwrap()
                 .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
@@ -116,8 +121,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
                 downloaded += len as u64;
                 file.write_all(&buf[..len]).await?;
             }
-
-            pb.finish_with_message("下载完成");
         }
     }
 

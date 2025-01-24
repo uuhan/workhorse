@@ -14,7 +14,7 @@ pub struct Header {
 pub struct GetFile {
     pub path: PathBuf,
     pub kind: GetKind,
-    pub size: u64,
+    pub size: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

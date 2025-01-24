@@ -340,7 +340,7 @@ impl AppServer {
                 // TODO: 目录无法提前知道大小
                 let get_file_info = GetFile {
                     path: file_path.clone(),
-                    size: 1_000_000,
+                    size: None,
                     kind: GetKind::Directory,
                 };
 
@@ -387,7 +387,7 @@ impl AppServer {
                 tracing::info!("文件大小: {}", size);
                 let get_file_info = GetFile {
                     path: file_path,
-                    size,
+                    size: Some(size),
                     kind: GetKind::File,
                 };
 
