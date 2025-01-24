@@ -581,6 +581,7 @@ dependencies = [
  "cargo-config2",
  "cargo-options",
  "clap",
+ "clean-path",
  "colored",
  "git2",
  "indicatif",

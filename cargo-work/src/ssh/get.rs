@@ -54,6 +54,16 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     {
+        use clean_path::Clean;
+        let current_dir = std::env::current_dir().unwrap();
+        let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
+
+        if let Some(dir) = file_path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
+            }
+        }
+
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
@@ -64,13 +74,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         cmd.stdout(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
-        let mut file_path = PathBuf::from(&options.file);
-
-        if let Some(dir) = file_path.parent() {
-            if !dir.exists() {
-                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
-            }
-        }
 
         let mut header = [0u8; HEADER_SIZE];
         stdout.read_exact(&mut header).await?;
