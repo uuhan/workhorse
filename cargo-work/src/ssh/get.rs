@@ -62,10 +62,8 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             [OsString::from(&options.file)],
         );
         cmd.stdout(std::process::Stdio::piped());
-        cmd.stderr(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
-        let mut stderr = ssh.stderr.take().unwrap();
         let mut file_path = PathBuf::from(&options.file);
 
         if let Some(dir) = file_path.parent() {
@@ -75,55 +73,54 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         }
 
         let mut header = [0u8; HEADER_SIZE];
-        if let Ok(len) = stderr.read(&mut header).await {
-            debug_assert_eq!(len, HEADER_SIZE);
-            let header = Header::ref_from_bytes(&header).unwrap();
+        stdout.read_exact(&mut header).await?;
+        let header = Header::ref_from_bytes(&header).unwrap();
 
-            let mut get_file_info = vec![0u8; header.size];
-            let total = stderr.read(&mut get_file_info).await?;
-            let get_file = bincode::deserialize::<GetFile>(&get_file_info[..total])?;
+        let mut get_file_info = vec![0u8; header.size as usize];
+        stdout.read_exact(&mut get_file_info).await?;
 
-            // println!("文件信息: {}", get_file.path.display());
-            // println!("文件大小: {}", get_file.size);
+        let get_file = bincode::deserialize::<GetFile>(&get_file_info)?;
 
-            if get_file.kind.is_file() && file_path.exists() && !options.force {
-                return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
-            }
+        // println!("文件信息: {}", get_file.path.display());
+        // println!("文件大小: {}", get_file.size);
 
-            if get_file.kind.is_dir() {
-                file_path.set_extension("tar");
-            }
-
-            let pb = if let Some(size) = get_file.size {
-                ProgressBar::new(size)
-            } else {
-                ProgressBar::no_length()
-            };
-
-            let mut file = tokio::fs::File::create(&file_path).await?;
-            let mut downloaded: u64 = 0;
-
-            pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                .unwrap()
-                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-                .progress_chars("#>-"));
-
-            const BUF_SIZE: usize = 1024 * 32;
-            let mut buf = [0u8; BUF_SIZE];
-
-            while let Ok(len) = stdout.read(&mut buf).await {
-                pb.set_position(downloaded);
-
-                if len == 0 {
-                    break;
-                }
-
-                downloaded += len as u64;
-                file.write_all(&buf[..len]).await?;
-            }
-
-            pb.finish();
+        if get_file.kind.is_file() && file_path.exists() && !options.force {
+            return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
         }
+
+        if get_file.kind.is_dir() {
+            file_path.set_extension("tar");
+        }
+
+        let pb = if let Some(size) = get_file.size {
+            ProgressBar::new(size)
+        } else {
+            ProgressBar::no_length()
+        };
+
+        let mut file = tokio::fs::File::create(&file_path).await?;
+        let mut downloaded: u64 = 0;
+
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .unwrap()
+            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+            .progress_chars("#>-"));
+
+        const BUF_SIZE: usize = 1024 * 32;
+        let mut buf = [0u8; BUF_SIZE];
+
+        while let Ok(len) = stdout.read(&mut buf).await {
+            pb.set_position(downloaded);
+
+            if len == 0 {
+                break;
+            }
+
+            downloaded += len as u64;
+            file.write_all(&buf[..len]).await?;
+        }
+
+        pb.finish();
     }
 
     Ok(())

@@ -345,10 +345,12 @@ impl AppServer {
                 };
 
                 let meta = bincode::serialize(&get_file_info)?;
-                let header = Header { size: meta.len() };
+                let header = Header {
+                    size: meta.len() as _,
+                };
 
-                handle.extended_data(1, header.as_bytes()).await?;
-                handle.extended_data(1, meta).await?;
+                cout.write_all(header.as_bytes()).await?;
+                cout.write_all(&meta).await?;
 
                 t1.spawn_blocking(async move {
                     let mut tardir = tar::Builder::new(writer);
@@ -358,7 +360,7 @@ impl AppServer {
                     let tar = tardir.into_inner()?;
                     let size = tar.total() as u64;
 
-                    tracing::info!("目录信息: {}", file_path.display());
+                    tracing::info!("目录路径: {}", file_path.display());
                     tracing::info!("目录大小: {}", size);
 
                     Ok(())
@@ -381,10 +383,8 @@ impl AppServer {
             // 请求文件
             if md.is_file() {
                 let mut cout = handle.make_writer();
+                let size = md.len();
 
-                tracing::info!("文件信息: {}", file_path.display());
-                let size = file.metadata().await?.len();
-                tracing::info!("文件大小: {}", size);
                 let get_file_info = GetFile {
                     path: file_path,
                     size: Some(size),
@@ -392,10 +392,12 @@ impl AppServer {
                 };
 
                 let meta = bincode::serialize(&get_file_info)?;
-                let header = Header { size: meta.len() };
+                let header = Header {
+                    size: meta.len() as _,
+                };
 
-                handle.extended_data(1, header.as_bytes()).await?;
-                handle.extended_data(1, meta).await?;
+                cout.write_all(header.as_bytes()).await?;
+                cout.write_all(&meta).await?;
 
                 while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
                     if len == 0 {

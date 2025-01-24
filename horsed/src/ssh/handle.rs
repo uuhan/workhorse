@@ -4,6 +4,7 @@ use russh::{
     server::{Handle, Msg, Session},
     Channel, ChannelId, CryptoVec,
 };
+use std::ops::{Deref, DerefMut};
 use std::process::ExitStatus;
 use std::process::Stdio;
 use tokio::process::Command;
@@ -254,6 +255,19 @@ impl ChannelHandle {
         }
 
         Ok(())
+    }
+}
+
+impl Deref for ChannelHandle {
+    type Target = Handle;
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
+impl DerefMut for ChannelHandle {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.handle
     }
 }
 
