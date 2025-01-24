@@ -333,11 +333,15 @@ impl AppServer {
 
             // 请求目录
             if md.is_dir() {
+                use flate2::write::ZlibEncoder;
+                use flate2::Compression;
                 use stable::buffer::Writer;
                 // 5MB 的缓冲区
                 const BUF_SIZE: usize = 1024 * 1024 * 5;
                 let writer = Writer::new(BUF_SIZE);
                 let mut reader = writer.make_reader();
+
+                let tar_writer = ZlibEncoder::new(writer, Compression::default());
                 let mut cout = handle.make_writer();
 
                 // TODO: 目录无法提前知道大小
@@ -357,12 +361,12 @@ impl AppServer {
                 cout.write_all(&meta).await?;
 
                 t1.spawn_blocking(async move {
-                    let mut tardir = tar::Builder::new(writer);
+                    let mut tardir = tar::Builder::new(tar_writer);
                     let path = file_path.file_name().unwrap();
                     // 同步阻塞
                     tardir.append_dir_all(path, &file_path)?;
                     let tar = tardir.into_inner()?;
-                    let size = tar.total() as u64;
+                    let size = tar.total_out();
 
                     tracing::info!("目录路径: {}", file_path.display());
                     tracing::info!("目录大小: {}", size);

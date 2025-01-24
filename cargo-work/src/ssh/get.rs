@@ -92,7 +92,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         }
 
         if get_file.kind.is_dir() {
-            file_path.set_extension("tar");
+            file_path.set_extension("tar.zip");
         }
 
         let pb = if let Some(size) = get_file.size {
