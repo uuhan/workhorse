@@ -45,27 +45,39 @@ impl Drop for Writer {
 
         // 写入缓冲区结束
         *self.complete.write() = true;
-        condvar.notify_all(); // 通知读取线程
+        // 通知读取线程
+        condvar.notify_all();
     }
 }
 
 impl Write for Writer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let (lock, condvar) = &*self.buffer;
+
+        if buf.is_empty() {
+            // 数据已经读取完毕, 但是缓冲区可能未满, 通知读取线程
+            condvar.notify_all();
+            return Ok(0);
+        }
+
         let mut buffer = lock.lock();
 
         // 如果缓冲区满了, 等待读取线程读取
         while buffer.len() >= self.capacity {
+            // 通知读取线程
+            condvar.notify_all();
+            // 等待缓冲区读取
             condvar.wait(&mut buffer);
         }
 
         // 持有互斥锁, 写入缓冲区
-        let written = (self.capacity - buffer.len()).min(buf.len());
+        let written = (self.capacity - buffer.len())
+            // 最大写入量
+            .min(buf.len());
         buffer.extend(&buf[..written]);
 
+        // 累计写入数量
         self.total += written;
-
-        condvar.notify_all(); // 通知读取线程
 
         Ok(written)
     }
@@ -92,7 +104,9 @@ impl Read for Reader {
                 return Ok(0);
             }
 
-            // 否则继续等待
+            // 通知写入线程
+            condvar.notify_all();
+            // 等待缓冲区写入
             condvar.wait(&mut buffer);
         }
 
@@ -110,8 +124,6 @@ impl Read for Reader {
         let take = buffer.drain(..).collect::<Vec<_>>();
         let taken = take.len();
         buf[..taken].copy_from_slice(&take);
-
-        condvar.notify_all(); // 通知写入线程
 
         Ok(taken)
     }
@@ -137,6 +149,25 @@ mod tests {
             assert_eq!(reader.read(&mut buf).unwrap(), 3);
             assert_eq!(reader.read(&mut buf).unwrap(), 3);
             assert_eq!(reader.read(&mut buf).unwrap(), 1);
+            assert_eq!(reader.read(&mut buf).unwrap(), 0);
+        });
+
+        reader_thread.join().unwrap();
+    }
+
+    #[test]
+    fn test_write_zero() {
+        let mut writer = Writer::new(3);
+        let mut reader = writer.make_reader();
+
+        let _ = std::thread::spawn(move || {
+            writer.write_all(&[]).unwrap();
+            assert_eq!(writer.total(), 0);
+        });
+
+        let reader_thread = std::thread::spawn(move || {
+            let mut buf = [0; 10];
+            assert_eq!(reader.read(&mut buf).unwrap(), 0);
             assert_eq!(reader.read(&mut buf).unwrap(), 0);
         });
 
