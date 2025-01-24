@@ -331,8 +331,7 @@ impl AppServer {
                 return Ok(());
             }
 
-            let mut file = tokio::fs::File::open(&file_path).await?;
-            let md = file.metadata().await?;
+            let md = std::fs::metadata(&file_path)?;
 
             // 请求目录
             if md.is_dir() {
@@ -399,7 +398,7 @@ impl AppServer {
                 let mut cout = handle.make_writer();
                 let size = md.len();
                 let get_file_info = GetFile {
-                    path: file_path,
+                    path: file_path.clone(),
                     size: Some(size),
                     kind: GetKind::File,
                 };
@@ -414,7 +413,7 @@ impl AppServer {
                 cout.write_all(&meta).await?;
 
                 t1.spawn_blocking(async move {
-                    let mut file = file.try_into_std().unwrap();
+                    let mut file = std::fs::File::open(&file_path)?;
                     while let Ok(len) = std::io::copy(&mut file, &mut tar_writer) {
                         if len == 0 {
                             break;
