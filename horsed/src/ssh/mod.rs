@@ -12,12 +12,15 @@ use crate::prelude::*;
 use anyhow::Context;
 use clean_path::Clean;
 use colored::{Color, Colorize};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use serde::Serialize;
 use shellwords::split;
+use stable::buffer::Writer;
 use stable::{
     data::{v1::*, *},
     task::TaskManager,
@@ -333,9 +336,6 @@ impl AppServer {
 
             // 请求目录
             if md.is_dir() {
-                use flate2::write::ZlibEncoder;
-                use flate2::Compression;
-                use stable::buffer::Writer;
                 // 5MB 的缓冲区
                 const BUF_SIZE: usize = 1024 * 1024 * 5;
                 let writer = Writer::new(BUF_SIZE);
@@ -390,9 +390,14 @@ impl AppServer {
 
             // 请求文件
             if md.is_file() {
+                // 5MB 的缓冲区
+                const BUF_SIZE: usize = 1024 * 1024 * 5;
+                let writer = Writer::new(BUF_SIZE);
+                let mut reader = writer.make_reader();
+                let mut tar_writer = ZlibEncoder::new(writer, Compression::default());
+
                 let mut cout = handle.make_writer();
                 let size = md.len();
-
                 let get_file_info = GetFile {
                     path: file_path,
                     size: Some(size),
@@ -408,10 +413,25 @@ impl AppServer {
                 cout.write_all(header.as_bytes()).await?;
                 cout.write_all(&meta).await?;
 
-                while let Ok(len) = tokio::io::copy(&mut file, &mut cout).await {
+                t1.spawn_blocking(async move {
+                    let mut file = file.try_into_std().unwrap();
+                    while let Ok(len) = std::io::copy(&mut file, &mut tar_writer) {
+                        if len == 0 {
+                            break;
+                        }
+                    }
+
+                    Ok(())
+                });
+
+                use std::io::Read;
+                let mut buf = vec![0; BUF_SIZE];
+                while let Ok(len) = reader.read(&mut buf) {
                     if len == 0 {
                         break;
                     }
+
+                    cout.write_all(&buf[..len]).await?;
                 }
 
                 return Ok(());
