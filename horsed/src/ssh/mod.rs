@@ -322,7 +322,7 @@ impl AppServer {
 
         let t1 = task.clone();
         task.spawn(async move {
-            let file_path = work_path.join(file_path);
+            let file_path = work_path.join(file_path).clean();
 
             if !file_path.exists() {
                 handle
