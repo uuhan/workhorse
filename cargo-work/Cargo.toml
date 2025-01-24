@@ -29,4 +29,5 @@ paste.workspace = true
 zerocopy.workspace = true
 bincode.workspace = true
 tar.workspace = true
+flate2.workspace = true
 clean-path.workspace = true

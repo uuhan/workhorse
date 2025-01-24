@@ -2,11 +2,14 @@ use super::*;
 use crate::options::GetOptions;
 use anyhow::Context;
 use anyhow::Result;
+use flate2::read::ZlibDecoder;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use stable::data::{v1::*, *};
+use stable::{
+    buffer::Writer,
+    data::{v1::*, *},
+};
 use std::ffi::OsString;
-use std::fmt::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -55,6 +58,9 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     #[cfg(feature = "use-system-ssh")]
     {
         use clean_path::Clean;
+        use flate2::write::ZlibDecoder;
+        use std::io::Write;
+
         let current_dir = std::env::current_dir().unwrap();
         let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
 
@@ -92,7 +98,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         }
 
         if get_file.kind.is_dir() {
-            file_path.set_extension("tar.zip");
+            file_path.set_extension("tar");
         }
 
         let pb = if let Some(size) = get_file.size {
@@ -101,16 +107,17 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             ProgressBar::no_length()
         };
 
-        let mut file = tokio::fs::File::create(&file_path).await?;
-        let mut downloaded: u64 = 0;
-
         pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
             .unwrap()
-            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+            .with_key("eta", |state: &ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
+
+        let file = std::fs::File::create(&file_path)?;
+        let mut downloaded: u64 = 0;
 
         const BUF_SIZE: usize = 1024 * 32;
         let mut buf = [0u8; BUF_SIZE];
+        let mut decoder = ZlibDecoder::new(file);
 
         while let Ok(len) = stdout.read(&mut buf).await {
             pb.set_position(downloaded);
@@ -120,9 +127,10 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             }
 
             downloaded += len as u64;
-            file.write_all(&buf[..len]).await?;
+            decoder.write_all(&buf[..len])?;
         }
 
+        decoder.finish()?;
         pb.finish();
     }
 
