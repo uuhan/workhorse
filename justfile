@@ -14,5 +14,5 @@ install: install-work install-horsed
   @echo "[{{os()}}-{{arch()}}] 安装成功: cargo-work, horsed"
 
 get-release:
-  @cargo work get ./target/release/cargo-work -f
-  @cargo work get ./target/release/horsed -f
+  cargo work get ./target/release/cargo-work -f
+  cargo work get ./target/release/horsed -f

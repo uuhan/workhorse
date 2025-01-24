@@ -121,6 +121,8 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
                 downloaded += len as u64;
                 file.write_all(&buf[..len]).await?;
             }
+
+            pb.finish();
         }
     }
 
