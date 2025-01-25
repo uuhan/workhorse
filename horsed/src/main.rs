@@ -94,6 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if !in_danger {
                 stable::prelude::handle().block_on(tm1.future())?;
+                tm1.terminate();
                 tracing::info!("临时服务退出...");
             } else {
                 tracing::warn!("临时服务常驻...");
