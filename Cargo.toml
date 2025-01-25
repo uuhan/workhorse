@@ -39,6 +39,7 @@ bincode = "1.3"
 tar = "0.4"
 clean-path = "0.2.1"
 flate2 = { version = "1.0" }
+indoc = "2.0"
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "0bfa57a" }

@@ -1,5 +1,5 @@
 use super::m20250104_174457_create_user::User;
-use sea_orm_migration::prelude::*;
+use sea_orm_migration::{prelude::*, schema::*};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

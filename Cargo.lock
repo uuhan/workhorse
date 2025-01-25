@@ -1647,6 +1647,7 @@ dependencies = [
  "displaydoc",
  "flate2",
  "futures",
+ "indoc",
  "interprocess",
  "migration",
  "once_cell",

@@ -123,6 +123,10 @@ impl SpawnTaskHandle {
 }
 
 impl SpawnEssentialTaskHandle {
+    pub fn exit(&self) {
+        self.essential_failed_tx.close_channel();
+    }
+
     pub fn spawn<T>(&self, task: T) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,

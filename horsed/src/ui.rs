@@ -124,11 +124,12 @@ impl AppServer {
             }
         });
 
+        let key = key_init();
         let config = Config {
             inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
             auth_rejection_time: std::time::Duration::from_secs(3),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
-            keys: vec![KEY.clone()],
+            keys: vec![key],
             ..Default::default()
         };
 

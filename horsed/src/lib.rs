@@ -12,12 +12,11 @@ pub mod ssh;
 pub mod ui;
 
 pub mod prelude {
+    pub(crate) use super::db::DB;
     use std::process::ExitStatus;
 
-    pub(crate) use super::db::DB;
-    pub(crate) use super::key::KEY;
-
     pub use super::error::Error as HorseError;
+    pub use super::key::{key_exists, key_init};
     pub type HorseResult<T> = Result<T, HorseError>;
 
     pub trait ExitOk {

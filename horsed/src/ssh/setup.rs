@@ -8,23 +8,56 @@ use crate::db::entity::{
 };
 use crate::prelude::*;
 use anyhow::Context;
+use colored::Colorize;
 use futures::future::FutureExt;
-use russh::keys::ssh_key::PublicKey;
-use russh::ChannelId;
+use rand_core::OsRng;
+use russh::{keys::ssh_key::PublicKey, CryptoVec};
 use russh::{server::*, MethodSet};
+use russh::{Channel, ChannelId};
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
     ColumnTrait, QueryFilter, TransactionTrait, {EntityTrait, ModelTrait},
 };
+use stable::task::SpawnEssentialTaskHandle;
+use std::sync::Arc;
 
-struct SetupServer {}
+#[derive(Clone)]
+struct SetupServer {
+    pub handle: SpawnEssentialTaskHandle,
+}
+
+impl SetupServer {
+    pub fn new(handle: SpawnEssentialTaskHandle) -> Self {
+        Self { handle }
+    }
+
+    pub async fn run(&mut self) -> HorseResult<()> {
+        let config = Config {
+            inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
+            auth_rejection_time: std::time::Duration::from_secs(1),
+            auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
+            auth_banner: None,
+            keys: vec![russh_keys::PrivateKey::random(
+                &mut OsRng,
+                russh_keys::Algorithm::Ed25519,
+            )?],
+            keepalive_interval: Some(std::time::Duration::from_secs(5)),
+            ..Default::default()
+        };
+
+        self.run_on_address(Arc::new(config), ("0.0.0.0", 2223))
+            .await?;
+
+        Ok(())
+    }
+}
 
 impl Server for SetupServer {
     type Handler = Self;
 
     fn new_client(&mut self, _peer: Option<std::net::SocketAddr>) -> Self {
-        SetupServer {}
+        self.clone()
     }
 
     fn handle_session_error(&mut self, _error: <Self::Handler as Handler>::Error) {}
@@ -33,6 +66,14 @@ impl Server for SetupServer {
 #[async_trait::async_trait]
 impl Handler for SetupServer {
     type Error = HorseError;
+
+    async fn channel_open_session(
+        &mut self,
+        channel: Channel<Msg>,
+        session: &mut Session,
+    ) -> HorseResult<bool> {
+        Ok(true)
+    }
 
     async fn auth_publickey_offered(
         &mut self,
@@ -55,26 +96,32 @@ impl Handler for SetupServer {
             .transaction::<_, (), HorseError>(move |txn| {
                 async move {
                     let name = user_name.clone();
-                    let user = user::ActiveModel {
-                        name: Set(name),
-                        ..Default::default()
-                    };
-
-                    user.save(txn).await?;
-
-                    let res = User::find()
-                        .filter(user::Column::Name.eq(user_name))
+                    let user = if let Some(user) = User::find()
+                        .filter(user::Column::Name.eq(&name))
                         .one(txn)
                         .await?
-                        .context("bad txn")?;
+                    {
+                        user.into()
+                    } else {
+                        user::ActiveModel {
+                            name: Set(name),
+                            ..Default::default()
+                        }
+                        .save(txn)
+                        .await
+                        .context(format!("create user: {}", user_name))?
+                    };
 
                     let auth = ssh_pk::ActiveModel {
                         alg: Set(alg.to_string()),
                         key: Set(key),
-                        user_id: Set(res.id),
+                        user_id: user.id,
                     };
 
-                    auth.save(txn).await?;
+                    if let Err(err) = auth.insert(txn).await {
+                        tracing::warn!("{:?}", err);
+                    }
+
                     Ok(())
                 }
                 .boxed()
@@ -84,8 +131,6 @@ impl Handler for SetupServer {
             tracing::error!("DB ERROR: {err:?}");
         }
 
-        tracing::info!("Setup As: {}", user);
-
         Ok(Auth::Accept)
     }
 
@@ -94,7 +139,9 @@ impl Handler for SetupServer {
         channel: ChannelId,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        session.channel_success(channel)?;
+        tracing::info!("Shell Request: {:?}", channel);
+        session.close(channel)?;
+        self.handle.exit();
         Ok(())
     }
 
@@ -104,7 +151,12 @@ impl Handler for SetupServer {
         command: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        tracing::info!("Exec Request: {:?}", channel);
         session.channel_success(channel)?;
         Ok(())
     }
+}
+
+pub async fn run(handle: SpawnEssentialTaskHandle) -> HorseResult<()> {
+    SetupServer::new(handle).run().await
 }

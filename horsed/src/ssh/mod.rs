@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshPk, User};
 use crate::git::repo::Repo;
-use crate::key::KEY;
 use crate::prelude::*;
 use anyhow::Context;
 use clean_path::Clean;
@@ -18,7 +17,6 @@ use russh::keys::ssh_key::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
-use serde::Serialize;
 use shellwords::split;
 use stable::buffer::Writer;
 use stable::{
@@ -30,7 +28,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 mod handle;
-mod setup;
+pub mod setup;
 use handle::ChannelHandle;
 
 struct AppServer {
@@ -74,13 +72,14 @@ impl AppServer {
     }
 
     pub async fn run(&mut self) -> HorseResult<()> {
+        let key = key_init();
         let config = Config {
             inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
-            auth_rejection_time: std::time::Duration::from_secs(3),
+            auth_rejection_time: std::time::Duration::from_secs(1),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
             // TODO: 服务端配置 banner
             auth_banner: None,
-            keys: vec![KEY.clone()],
+            keys: vec![key],
             keepalive_interval: Some(std::time::Duration::from_secs(5)),
             ..Default::default()
         };

@@ -2,7 +2,7 @@
 use anyhow::Context;
 use clap::Parser;
 use clap::{arg, command, value_parser, ArgAction, Command};
-use horsed::options::*;
+use horsed::{options::*, prelude::*};
 use interprocess::local_socket::{
     tokio::{prelude::*, Stream},
     GenericNamespaced, ListenerOptions,
@@ -65,12 +65,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let handler = tm.spawn_essential_handle();
         let h = tm.spawn_handle();
 
-        handler.spawn(async move {
-            let db = horsed::db::db();
-            if let Err(err) = Migrator::up(&db, None).await {
-                tracing::error!("数据库初始化失败: {err}");
-            }
+        if !key_exists() {
+            tracing::info!("密钥不存在, 启动临时服务...");
 
+            let mut tm = TaskManager::default();
+            let handler = tm.spawn_essential_handle();
+            let h = handler.clone();
+
+            handler.spawn(async move {
+                tracing::info!("数据库初始化...");
+                let db = horsed::db::db();
+                if let Err(err) = Migrator::up(&db, None).await {
+                    tracing::error!("数据库初始化失败: {err}");
+                }
+
+                horsed::ssh::setup::run(h).await?;
+                Ok(())
+            });
+
+            stable::prelude::handle().block_on(tm.future())?;
+            tracing::info!("临时服务退出...");
+        }
+
+        tracing::info!("正式服务启动中...");
+
+        handler.spawn(async move {
             horsed::ssh::run().await?;
             Ok(())
         });
