@@ -5,6 +5,7 @@ use anyhow::Result;
 use git2::Repository;
 use std::ffi::OsString;
 use std::path::Path;
+use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -50,6 +51,44 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     {
+        // git diff HEAD
+        let mut cmd = tokio::process::Command::new("git");
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.arg("diff").arg("HEAD");
+
+        let mut cmd = cmd.spawn()?;
+
+        let mut diff = vec![];
+        use tokio::io::AsyncReadExt;
+        cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
+        cmd.wait().await?;
+        // git diff HEAD
+
+        if !diff.is_empty() {
+            // ssh apply@horsed apply
+            // let args = vec![OsString::from("apply")];
+            // let mut cmd = super::run_system_ssh(
+            //     sk,
+            //     &[("REPO", &repo_name), ("BRANCH", &branch)],
+            //     "apply",
+            //     host,
+            //     args,
+            // );
+            // cmd.stdin(std::process::Stdio::piped());
+            // let mut ssh = cmd.spawn()?;
+            // let mut stdin = ssh.stdin.take().unwrap();
+            // use tokio::io::AsyncWriteExt;
+            // stdin.write_all(&diff).await?;
+            // ssh apply@horsed apply
+        }
+
         // ssh cargo@horsed build --
         let mut args = vec![OsString::from(options.name())];
         args.extend(options.options().into_iter());
@@ -69,21 +108,26 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             args,
         );
         cmd.stdout(std::process::Stdio::piped());
+        cmd.stdin(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
+        let mut stdin = ssh.stdin.take().unwrap();
         let mut out = tokio::io::stdout();
+
+        stdin.write_all(&diff).await?;
+        drop(stdin);
 
         while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
             if len == 0 {
                 break;
             }
         }
+        ssh.wait().await?;
     }
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
         use russh::ChannelMsg;
-        use tokio::io::AsyncWriteExt;
         let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
 
         let mut channel = ssh.channel_open_session().await?;

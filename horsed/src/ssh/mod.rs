@@ -667,14 +667,22 @@ impl AppServer {
     /// ssh -o SetEnv="REPO=workhorse BRANCH=main CARGO_BUILD=yyy" cargo@xxx.xxx.xxx.xxx -- build
     /// ```
     pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
-        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+        let env_repo = self
+            .env
+            .get("REPO")
+            .context("REPO 环境变量未设置")?
+            .to_owned();
+        let env_branch = self
+            .env
+            .get("BRANCH")
+            .context("BRANCH 环境变量未设置")?
+            .to_owned();
 
-        let mut repo_path = std::env::current_dir()?.join("repos").join(env_repo);
+        let mut repo_path = std::env::current_dir()?.join("repos").join(&env_repo);
         repo_path.set_extension("git");
         repo_path = repo_path.clean();
 
-        let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
         let task = self.tm.spawn_handle();
         let repo = Repo::from(repo_path);
 
@@ -684,7 +692,7 @@ impl AppServer {
             return Ok(());
         }
 
-        let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
+        let mut work_path = std::env::current_dir()?.join("workspace").join(&env_repo);
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
         work_path = work_path.clean();
@@ -693,8 +701,6 @@ impl AppServer {
             std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
         }
 
-        // 编译目录
-        repo.checkout(&work_path, Some(env_branch)).await?;
         // let work_repo = Repo::clone(repo.path(), work_path, Some(env_branch))
         //     .await
         //     .context("克隆仓库失败")?;
@@ -768,14 +774,25 @@ impl AppServer {
 
         let t2 = task.clone();
         task.spawn(async move {
-            // Run the command
-            let mut cmd = cmd.spawn().context("cargo command failed")?;
-
-            let mut stdout = cmd.stdout.take().unwrap();
-            let mut stderr = cmd.stderr.take().unwrap();
-
             let mut o_output = handle.make_writer();
             let mut e_output = handle.make_writer();
+
+            // git checkout
+            repo.checkout(&work_path, Some(env_branch.as_str()))
+                .await
+                .context("git checkout")?;
+            // git apply
+            let mut diff_input = handle.make_reader();
+            let mut buf = vec![];
+            diff_input.read_to_end(&mut buf).await?;
+
+            repo.apply(&buf).await.context("git apply")?;
+            drop(diff_input);
+
+            // Run the command
+            let mut cmd = cmd.spawn().context("cargo command failed")?;
+            let mut stdout = cmd.stdout.take().unwrap();
+            let mut stderr = cmd.stderr.take().unwrap();
 
             t2.spawn(async move {
                 while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
@@ -796,6 +813,83 @@ impl AppServer {
             }
 
             handle.exit(cmd.wait().await?).await?;
+            Ok(())
+        });
+
+        Ok(())
+    }
+
+    pub async fn apply(&mut self, _command: Vec<String>) -> HorseResult<()> {
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+
+        let mut repo_path = std::env::current_dir()?.join("repos").join(env_repo);
+        repo_path.set_extension("git");
+        repo_path = repo_path.clean();
+
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
+        let task = self.tm.spawn_handle();
+        let repo = Repo::from(repo_path);
+
+        if !repo.exists() {
+            tracing::error!("仓库不存在: {}", repo.path().display());
+            handle.error("仓库不存在").await?;
+            return Ok(());
+        }
+
+        let mut work_path = std::env::current_dir()?.join("workspace").join(env_repo);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
+        work_path = work_path.clean();
+
+        if !work_path.exists() {
+            std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
+        }
+
+        // 检出最新代码 (HEAD)
+        // repo.checkout(&work_path, Some(env_branch)).await?;
+
+        let mut cmd = tokio::process::Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        cmd.kill_on_drop(true);
+        cmd.current_dir(&work_path);
+        cmd.stdin(std::process::Stdio::piped());
+
+        cmd.arg("apply");
+
+        task.spawn(async move {
+            // Run the command
+            let mut cmd = cmd.spawn()?;
+
+            {
+                let mut cin = handle.make_reader();
+                let mut stdin = cmd.stdin.take().unwrap();
+
+                while let Ok(len) = tokio::io::copy(&mut cin, &mut stdin).await {
+                    // eof
+                    if len == 0 {
+                        break;
+                    }
+                }
+
+                tracing::info!("[git] apply done");
+            }
+
+            let cmd = cmd.wait_with_output().await?;
+            if !cmd.status.success() {
+                let err = String::from_utf8_lossy(&cmd.stderr);
+                tracing::error!("git apply err: {err}");
+            }
+
+            handle.exit(cmd.status).await?;
             Ok(())
         });
 
@@ -984,6 +1078,7 @@ impl Handler for AppServer {
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
             "cargo" => self.cargo(command).await?,
+            "apply" => self.apply(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
             "just" => self.just(command).await?,
             // action if action.starts_with("just") => {

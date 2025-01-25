@@ -203,6 +203,15 @@ where
     Args: std::iter::IntoIterator<Item = Arg>,
 {
     let mut cmd = tokio::process::Command::new("ssh");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     cmd.arg("-i");
     cmd.arg(key);
     cmd.arg("-o");

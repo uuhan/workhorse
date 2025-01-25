@@ -1,5 +1,8 @@
 use crate::prelude::*;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 use tokio::process::Command;
 
 pub struct Repo {
@@ -75,7 +78,7 @@ impl Repo {
 
     /// 从远程仓库检出代码
     pub async fn checkout(&self, to: impl AsRef<Path>, branch: Option<&str>) -> HorseResult<Self> {
-        Command::new("git")
+        let out = Command::new("git")
             .current_dir(&self.dir)
             .arg("--work-tree")
             .arg(to.as_ref())
@@ -83,12 +86,40 @@ impl Repo {
             .arg("-f")
             .arg(branch.unwrap_or("HEAD"))
             .output()
-            .await?
-            .status
-            .exit_ok()?;
+            .await?;
 
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            tracing::error!("GIT CHECKOUT ERR: {}", err);
+        }
+
+        tracing::info!("[git] checkout done");
         Ok(Repo::from(to))
     }
+
+    pub async fn apply(&self, patch: impl AsRef<[u8]>) -> HorseResult<()> {
+        let mut cmd = Command::new("git")
+            .current_dir(&self.dir)
+            .arg("apply")
+            .stdin(Stdio::piped())
+            .spawn()?;
+
+        let mut stdin = cmd.stdin.take().unwrap();
+        use tokio::io::AsyncWriteExt;
+        stdin.write_all(patch.as_ref()).await?;
+        drop(stdin);
+
+        let output = cmd.wait_with_output().await?;
+        if !output.stderr.is_empty() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            tracing::error!("[git] apply failed: {}", err);
+        }
+
+        tracing::info!("[git] apply done");
+
+        Ok(())
+    }
+
     pub async fn push_changes(&self, message: impl AsRef<str>) -> HorseResult<()> {
         Command::new("git")
             .current_dir(&self.dir)
