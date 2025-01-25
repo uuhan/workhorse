@@ -27,6 +27,9 @@ pub struct Cli {
     #[clap(short, long, help = "显示日志")]
     pub show_log: bool,
 
+    #[clap(long, help = "!!! 维护服务常驻, 请注意使用风险 !!!")]
+    pub dangerous: bool,
+
     #[clap(short, long = "fg", help = "前台运行")]
     pub foreground: bool,
 

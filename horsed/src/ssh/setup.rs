@@ -25,11 +25,12 @@ use std::sync::Arc;
 #[derive(Clone)]
 struct SetupServer {
     pub handle: SpawnEssentialTaskHandle,
+    pub in_danger: bool,
 }
 
 impl SetupServer {
-    pub fn new(handle: SpawnEssentialTaskHandle) -> Self {
-        Self { handle }
+    pub fn new(handle: SpawnEssentialTaskHandle, in_danger: bool) -> Self {
+        Self { handle, in_danger }
     }
 
     pub async fn run(&mut self) -> HorseResult<()> {
@@ -141,7 +142,11 @@ impl Handler for SetupServer {
     ) -> Result<(), Self::Error> {
         tracing::info!("Shell Request: {:?}", channel);
         session.close(channel)?;
-        self.handle.exit();
+
+        if !self.in_danger {
+            self.handle.exit();
+        }
+
         Ok(())
     }
 
@@ -157,6 +162,6 @@ impl Handler for SetupServer {
     }
 }
 
-pub async fn run(handle: SpawnEssentialTaskHandle) -> HorseResult<()> {
-    SetupServer::new(handle).run().await
+pub async fn run(handle: SpawnEssentialTaskHandle, in_danger: bool) -> HorseResult<()> {
+    SetupServer::new(handle, in_danger).run().await
 }

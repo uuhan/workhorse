@@ -62,29 +62,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let mut tm = TaskManager::default();
+        let tm1 = TaskManager::default();
+
         let handler = tm.spawn_essential_handle();
+        let task = tm.spawn_handle();
         let h = tm.spawn_handle();
 
-        if !key_exists() {
-            tracing::info!("密钥不存在, 启动临时服务...");
+        task.spawn(async move {
+            tracing::info!("数据库初始化...");
+            let db = horsed::db::db();
+            if let Err(err) = Migrator::up(&db, None).await {
+                tracing::error!("数据库初始化失败: {err}");
+            }
+            Ok(())
+        });
 
-            let mut tm = TaskManager::default();
-            let handler = tm.spawn_essential_handle();
+        let in_danger = std::env::var("DANGEROUS")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+            || cli.dangerous;
+
+        if !key_exists() || in_danger {
+            tracing::warn!("临时服务启动...");
+            let handler = tm1.spawn_essential_handle();
             let h = handler.clone();
 
             handler.spawn(async move {
-                tracing::info!("数据库初始化...");
-                let db = horsed::db::db();
-                if let Err(err) = Migrator::up(&db, None).await {
-                    tracing::error!("数据库初始化失败: {err}");
-                }
-
-                horsed::ssh::setup::run(h).await?;
+                horsed::ssh::setup::run(h, in_danger).await?;
                 Ok(())
             });
 
-            stable::prelude::handle().block_on(tm.future())?;
-            tracing::info!("临时服务退出...");
+            if !in_danger {
+                stable::prelude::handle().block_on(tm.future())?;
+                tracing::info!("临时服务退出...");
+            } else {
+                tracing::warn!("临时服务常驻...");
+            }
         }
 
         tracing::info!("正式服务启动中...");
