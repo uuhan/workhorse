@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let mut tm = TaskManager::default();
-        let tm1 = TaskManager::default();
+        let mut tm1 = TaskManager::default();
 
         let handler = tm.spawn_essential_handle();
         let task = tm.spawn_handle();
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
 
             if !in_danger {
-                stable::prelude::handle().block_on(tm.future())?;
+                stable::prelude::handle().block_on(tm1.future())?;
                 tracing::info!("临时服务退出...");
             } else {
                 tracing::warn!("临时服务常驻...");
