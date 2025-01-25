@@ -5,7 +5,7 @@ use std::process::Stdio;
 use std::str::from_utf8;
 use std::sync::Arc;
 
-use crate::db::entity::prelude::{SshAuth, User};
+use crate::db::entity::prelude::{SshPk, User};
 use crate::git::repo::Repo;
 use crate::key::KEY;
 use crate::prelude::*;
@@ -30,6 +30,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 mod handle;
+mod setup;
 use handle::ChannelHandle;
 
 struct AppServer {
@@ -868,7 +869,7 @@ impl Handler for AppServer {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes()?);
 
-        let Some(sa) = SshAuth::find_by_id((pk.algorithm().to_string(), data.to_owned()))
+        let Some(sa) = SshPk::find_by_id((pk.algorithm().to_string(), data.to_owned()))
             .one(&self.db)
             .await?
         else {

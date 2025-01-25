@@ -3,10 +3,10 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "ssh_auth")]
+#[sea_orm(table_name = "ssh_pk")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub method: String,
+    pub alg: String,
     #[sea_orm(primary_key, auto_increment = false)]
     pub key: String,
     pub user_id: i32,

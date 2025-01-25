@@ -10,15 +10,15 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(SshAuth::Table)
+                    .table(SshPk::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(SshAuth::Method).string().not_null())
-                    .col(ColumnDef::new(SshAuth::Key).string().not_null())
-                    .col(ColumnDef::new(SshAuth::UserId).integer().not_null())
-                    .primary_key(Index::create().col(SshAuth::Method).col(SshAuth::Key))
+                    .col(ColumnDef::new(SshPk::Alg).string().not_null())
+                    .col(ColumnDef::new(SshPk::Key).string().not_null())
+                    .col(ColumnDef::new(SshPk::UserId).integer().not_null())
+                    .primary_key(Index::create().col(SshPk::Alg).col(SshPk::Key))
                     .foreign_key(
                         ForeignKey::create()
-                            .from(SshAuth::Table, SshAuth::UserId)
+                            .from(SshPk::Table, SshPk::UserId)
                             .to(User::Table, User::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
@@ -30,15 +30,15 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(SshAuth::Table).to_owned())
+            .drop_table(Table::drop().table(SshPk::Table).to_owned())
             .await
     }
 }
 
 #[derive(DeriveIden)]
-enum SshAuth {
+enum SshPk {
     Table,
-    Method,
+    Alg,
     Key,
     UserId,
 }

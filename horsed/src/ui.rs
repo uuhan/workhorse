@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::db::entity::prelude::{SshAuth, User};
+use crate::db::entity::prelude::{SshPk, User};
 use crate::prelude::*;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
@@ -262,7 +262,7 @@ impl Handler for AppServer {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes()?);
 
-        let Some(sa) = SshAuth::find_by_id((pk.algorithm().to_string(), data))
+        let Some(sa) = SshPk::find_by_id((pk.algorithm().to_string(), data))
             .one(&self.db)
             .await?
         else {
