@@ -18,7 +18,7 @@ use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
-use stable::buffer::Writer;
+use stable::buffer;
 use stable::{
     data::{v1::*, *},
     task::TaskManager,
@@ -338,8 +338,7 @@ impl AppServer {
                 // 1MB 的缓冲区
                 #[allow(clippy::identity_op)]
                 const BUF_SIZE: usize = 1024 * 1024 * 1;
-                let writer = Writer::new(BUF_SIZE);
-                let mut reader = writer.make_reader();
+                let (mut writer, mut reader) = buffer::new(BUF_SIZE);
 
                 let tar_writer = ZlibEncoder::new(writer, Compression::default());
                 let mut cout = handle.make_writer();
@@ -392,8 +391,7 @@ impl AppServer {
             if md.is_file() {
                 // 5MB 的缓冲区
                 const BUF_SIZE: usize = 1024 * 1024 * 5;
-                let writer = Writer::new(BUF_SIZE);
-                let mut reader = writer.make_reader();
+                let (writer, mut reader) = buffer::new(BUF_SIZE);
                 let mut tar_writer = ZlibEncoder::new(writer, Compression::default());
 
                 let mut cout = handle.make_writer();
