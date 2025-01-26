@@ -786,7 +786,7 @@ impl AppServer {
             let mut buf = vec![];
             diff_input.read_to_end(&mut buf).await?;
 
-            repo.apply(&buf).await.context("git apply")?;
+            repo.apply(&work_path, &buf).await.context("git apply")?;
             drop(diff_input);
 
             // Run the command
