@@ -92,6 +92,24 @@ impl Handler for SetupServer {
 
         let conn = DB.clone();
 
+        // Check if the key is already in the database
+        if let Some(pk) = SshPk::find_by_id((alg.to_string(), key.clone()))
+            .one(&conn)
+            .await?
+        {
+            // Check if there is some user already associated with the key
+            if let Some(user) = pk.find_related(User).one(&conn).await? {
+                tracing::info!("User already exists: {}", user.name);
+                return Ok(Auth::Accept);
+            } else {
+                // If there is no user associated with the key, but it is impossible
+                tracing::warn!("Key without user: {}", pk.user_id);
+                return Ok(Auth::Reject {
+                    proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                });
+            }
+        }
+
         let user_name = user.to_string();
         if let Err(err) = conn
             .transaction::<_, (), HorseError>(move |txn| {
