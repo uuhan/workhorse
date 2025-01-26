@@ -27,6 +27,7 @@ zerocopy.workspace = true
 bincode.workspace = true
 tar.workspace = true
 clean-path.workspace = true
+flate2.workspace = true
 
 interprocess = { version = "2.2.2", features = ["tokio"] }
 rand_core = "0.6.4"
@@ -42,5 +43,3 @@ base64 = "0.22.1"
 shellwords = "1.1.0"
 casbin = "2.7.0"
 anstyle = "1.0.2"
-flate2.workspace = true
-indoc.workspace = true

@@ -31,3 +31,4 @@ bincode.workspace = true
 tar.workspace = true
 flate2.workspace = true
 clean-path.workspace = true
+fs4.workspace = true

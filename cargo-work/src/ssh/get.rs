@@ -2,17 +2,17 @@ use super::*;
 use crate::options::GetOptions;
 use anyhow::Context;
 use anyhow::Result;
-use flate2::read::ZlibDecoder;
+use clean_path::Clean;
+use flate2::write::ZlibDecoder;
+use fs4::fs_std::FileExt;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use stable::{
-    buffer::Writer,
-    data::{v1::*, *},
-};
+use stable::data::{v1::*, *};
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -57,10 +57,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     {
-        use clean_path::Clean;
-        use flate2::write::ZlibDecoder;
-        use std::io::Write;
-
         let current_dir = std::env::current_dir().unwrap();
         let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
 
@@ -101,6 +97,9 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             file_path.set_extension("tar");
         }
 
+        let file = std::fs::File::create(&file_path)?;
+        file.try_lock_exclusive().context("文件锁定失败!")?;
+
         let pb = if let Some(size) = get_file.size {
             ProgressBar::new(size)
         } else {
@@ -112,7 +111,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             .with_key("eta", |state: &ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
 
-        let file = std::fs::File::create(&file_path)?;
         let mut downloaded: u64 = 0;
 
         const BUF_SIZE: usize = 1024 * 32;

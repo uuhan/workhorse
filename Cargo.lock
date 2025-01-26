@@ -584,6 +584,7 @@ dependencies = [
  "clean-path",
  "colored",
  "flate2",
+ "fs4",
  "git2",
  "indicatif",
  "paste",
@@ -1328,6 +1329,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c29c30684418547d476f0b48e84f4821639119c483b1eccd566c8cd0cd05f521"
+dependencies = [
+ "rustix",
+ "tokio",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1647,7 +1659,6 @@ dependencies = [
  "displaydoc",
  "flate2",
  "futures",
- "indoc",
  "interprocess",
  "migration",
  "once_cell",
