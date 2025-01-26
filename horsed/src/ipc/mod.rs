@@ -20,6 +20,7 @@ pub async fn listen() -> HorseResult<Listener> {
         // ipc 已被占用
         Err(err) if err.kind() == AddrInUse => {
             let stream = match connect().await {
+                #[allow(unused)]
                 Err(err) => {
                     // FIXME: interprocess 库在 macOS 上退出不会自动清理 ipc 文件
                     #[cfg(target_os = "macos")]
