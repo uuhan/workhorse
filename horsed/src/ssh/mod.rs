@@ -224,7 +224,12 @@ impl AppServer {
             let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
             // 构建目录不包含 .git 后缀
             work_path.set_extension("");
-            work_path
+
+            if work_path.exists() {
+                work_path
+            } else {
+                std::env::current_dir()?
+            }
         } else {
             std::env::current_dir()?
         };
