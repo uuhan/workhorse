@@ -13,6 +13,7 @@ use futures::{
 use std::pin::Pin;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct TaskHandler {
     condition: Arc<TaskCondition>,
     pool_size: Option<usize>,
@@ -105,6 +106,7 @@ impl SpawnTaskHandle {
         let join_handle = self.executor.spawn(task.boxed(), tt);
         let mut task_notifier = self.task_notifier.clone();
 
+        #[allow(clippy::let_underscore_future)]
         let _ = self.executor.spawn(
             Box::pin(async move {
                 if let Err(err) = task_notifier.send(join_handle).await {

@@ -205,7 +205,7 @@ impl AppServer {
         let env_branch = self.env.get("BRANCH");
 
         // 如果命令中包含 REPO 或者 BRANCH 环境变量, 则切换到工作目录执行命令
-        let cmd_dir = if let (Some(env_repo), Some(env_branch)) = (env_repo, env_branch) {
+        let cmd_dir = if let (Some(env_repo), Some(_)) = (env_repo, env_branch) {
             let mut repo_path = PathBuf::from(env_repo);
             // 去除开头的 /
             if repo_path.starts_with("/") {
@@ -286,7 +286,7 @@ impl AppServer {
         tracing::info!("GET: {}", files.join(" "));
 
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+        let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
         let mut repo_path = PathBuf::from(env_repo);
         // 去除开头的 /
@@ -343,7 +343,7 @@ impl AppServer {
                 // 1MB 的缓冲区
                 #[allow(clippy::identity_op)]
                 const BUF_SIZE: usize = 1024 * 1024 * 1;
-                let (mut writer, mut reader) = buffer::new(BUF_SIZE);
+                let (writer, mut reader) = buffer::new(BUF_SIZE);
 
                 let tar_writer = ZlibEncoder::new(writer, Compression::default());
                 let mut cout = handle.make_writer();
@@ -451,7 +451,7 @@ impl AppServer {
         tracing::info!("GET: {}", files.join(" "));
 
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+        let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
         let mut repo_path = PathBuf::from(env_repo);
         // 去除开头的 /
@@ -535,7 +535,7 @@ impl AppServer {
         // 工作路径不包含 .git
         let repo_work_path = repo_path.clone();
 
-        let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
 
         if let Some(fst) = repo_path.components().next() {
             // 如果提供的地址包含 .. 等路径，则拒绝请求
@@ -606,35 +606,43 @@ impl AppServer {
             return Ok(());
         }
 
-        handle
-            .info(format!("just {}...", command.join(" ")).bold().to_string())
-            .await?;
-
-        let mut cmd = Command::new("just");
-        cmd.current_dir(&work_path);
-        cmd.arg(command.join(" "));
-
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
-
-        let mut cmd = cmd.spawn()?;
-
-        let mut stdout = cmd.stdout.take().unwrap();
-        let mut stderr = cmd.stderr.take().unwrap();
-
-        let mut o_output = handle.make_writer();
-
+        let t = task.clone();
         task.spawn(async move {
-            while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
-                // eof
-                if len == 0 {
-                    break;
+            let mut diff_input = handle.make_reader();
+            let mut buf = vec![];
+            diff_input.read_to_end(&mut buf).await?;
+
+            repo.apply(&work_path, &buf).await.context("git apply")?;
+            drop(diff_input);
+
+            handle
+                .info(format!("just {}...", command.join(" ")).bold().to_string())
+                .await?;
+
+            let mut cmd = Command::new("just");
+            cmd.current_dir(&work_path);
+            cmd.arg(command.join(" "));
+
+            cmd.stdout(Stdio::piped());
+            cmd.stderr(Stdio::piped());
+
+            let mut cmd = cmd.spawn()?;
+
+            let mut stdout = cmd.stdout.take().unwrap();
+            let mut stderr = cmd.stderr.take().unwrap();
+
+            let mut o_output = handle.make_writer();
+
+            t.spawn(async move {
+                while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
+                    // eof
+                    if len == 0 {
+                        break;
+                    }
                 }
-            }
-            Ok(())
-        });
+                Ok(())
+            });
 
-        task.spawn(async move {
             const BUF_SIZE: usize = 1024 * 32;
             let mut buf = [0u8; BUF_SIZE];
 
@@ -825,7 +833,7 @@ impl AppServer {
 
     pub async fn apply(&mut self, _command: Vec<String>) -> HorseResult<()> {
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+        let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
 
         let mut repo_path = std::env::current_dir()?.join("repos").join(env_repo);
         repo_path.set_extension("git");
@@ -1020,7 +1028,8 @@ impl Handler for AppServer {
         })
     }
 
-    /// Called when authentication succeeds for a session.
+    // Called when authentication succeeds for a session.
+    //
     // async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
     //     tracing::info!("Auth Succeeded");
     //     Ok(())
@@ -1048,7 +1057,7 @@ impl Handler for AppServer {
         channel: ChannelId,
         key: &str,
         value: &str,
-        session: &mut Session,
+        _session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("[{channel}] ssh env request: {key}={value}");
         self.env
@@ -1059,8 +1068,8 @@ impl Handler for AppServer {
     /// The client requests a shell.
     async fn shell_request(
         &mut self,
-        channel: ChannelId,
-        session: &mut Session,
+        _channel: ChannelId,
+        _session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("ssh shell request");
         // session.channel_success(channel)?;
@@ -1144,7 +1153,7 @@ impl Handler for AppServer {
 
     async fn data(
         &mut self,
-        channel_id: ChannelId,
+        _channel_id: ChannelId,
         data: &[u8],
         _session: &mut Session,
     ) -> HorseResult<()> {
@@ -1155,8 +1164,8 @@ impl Handler for AppServer {
     /// 当客户端传输结束时调用。
     async fn channel_eof(
         &mut self,
-        channel_id: ChannelId,
-        session: &mut Session,
+        _channel_id: ChannelId,
+        _session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("Channel Eof");
         Ok(())

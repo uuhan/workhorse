@@ -45,6 +45,7 @@ pub struct Signal(oneshot::Sender<()>);
 
 impl Signal {
     /// Fire the signal manually.
+    #[allow(clippy::result_unit_err)]
     pub fn fire(self) -> Result<(), ()> {
         self.0.send(())
     }

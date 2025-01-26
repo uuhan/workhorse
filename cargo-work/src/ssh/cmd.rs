@@ -2,9 +2,7 @@ use super::*;
 use anyhow::Context;
 use anyhow::Result;
 use git2::Repository;
-use std::ffi::OsString;
 use std::path::Path;
-use std::path::PathBuf;
 
 pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result<()> {
     let repo = Repository::discover(".")?;

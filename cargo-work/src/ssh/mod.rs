@@ -97,6 +97,7 @@ impl Handler for Client {
 }
 
 impl HorseClient {
+    #[allow(unused)]
     async fn connect<P: AsRef<Path>, A: ToSocketAddrs>(
         key_path: P,
         user: impl Into<String>,
@@ -123,6 +124,7 @@ impl HorseClient {
         Ok(Self { handle })
     }
 
+    #[allow(unused)]
     async fn close(&mut self) -> Result<()> {
         self.handle
             .disconnect(Disconnect::ByApplication, "", "English")

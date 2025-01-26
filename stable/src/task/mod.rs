@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 异步任务管理器
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::{
@@ -116,6 +117,6 @@ where
             tracing::info!("Received Terminate/Ctrl-Break Event.");
             // std::process::exit(0);
         },
-        res = t3 => {},
+        _ = t3 => {},
     }
 }

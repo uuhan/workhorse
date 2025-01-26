@@ -113,8 +113,6 @@ cargo_command!(Doc);
 
 pub mod zigbuild {
     use crate::mac::CargoKind;
-    use crate::options::HorseOptions;
-    use cargo_options::{CargoOptions, CargoOptionsExt};
     use std::ops::{Deref, DerefMut};
     use std::process::ExitStatus;
     use tokio::process::Command;

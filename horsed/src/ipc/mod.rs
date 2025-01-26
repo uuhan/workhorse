@@ -35,6 +35,7 @@ pub async fn listen() -> HorseResult<Listener> {
                         return Box::pin(listen()).await;
                     }
 
+                    #[allow(unreachable_code)]
                     Err(err).context("FIXME: IPC 既无法创建, 也无法连接.")?
                 }
                 x => x?,
@@ -84,7 +85,7 @@ async fn handle_conn(conn: Stream) -> HorseResult<()> {
     let mut buffer = String::with_capacity(128);
 
     // Describe the receive operation as receiving a line into our big buffer.
-    let recv = recver.read_line(&mut buffer).await;
+    let _recv = recver.read_line(&mut buffer).await;
     sender.write_all(b"Hello from server!\n").await?;
 
     // Produce our output!

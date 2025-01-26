@@ -8,10 +8,9 @@ use crate::db::entity::{
 };
 use crate::prelude::*;
 use anyhow::Context;
-use colored::Colorize;
 use futures::future::FutureExt;
 use rand_core::OsRng;
-use russh::{keys::ssh_key::PublicKey, CryptoVec};
+use russh::keys::ssh_key::PublicKey;
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId};
 use sea_orm::{
@@ -70,8 +69,8 @@ impl Handler for SetupServer {
 
     async fn channel_open_session(
         &mut self,
-        channel: Channel<Msg>,
-        session: &mut Session,
+        _channel: Channel<Msg>,
+        _session: &mut Session,
     ) -> HorseResult<bool> {
         Ok(true)
     }
@@ -171,7 +170,7 @@ impl Handler for SetupServer {
     async fn exec_request(
         &mut self,
         channel: ChannelId,
-        command: &[u8],
+        _command: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("Exec Request: {:?}", channel);

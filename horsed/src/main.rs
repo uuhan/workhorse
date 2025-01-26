@@ -201,8 +201,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     }
-                    UserCommand::Mod(user) => {}
-                    UserCommand::List(user) => {}
+                    UserCommand::Mod(_user) => {}
+                    UserCommand::List(_user) => {}
                 }
             }
         }

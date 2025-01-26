@@ -244,6 +244,7 @@ impl ChannelHandle {
     }
 
     /// 发送扩展数据到前端
+    #[allow(dead_code)]
     pub async fn extended_data(&self, ext: u32, data: impl AsRef<[u8]>) -> HorseResult<()> {
         let raw = CryptoVec::from(data.as_ref());
         if let Err(vec) = self.handle.extended_data(self.id, ext, raw).await {

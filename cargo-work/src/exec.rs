@@ -1,3 +1,4 @@
+#![allow(unused)]
 /// Run this example with:
 ///
 /// -k <private key path> <host> <command>

@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 #[derive(Clone, Debug, Parser)]
 #[command(version, display_order = 1)]
