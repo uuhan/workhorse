@@ -335,8 +335,9 @@ impl AppServer {
 
             // 请求目录
             if md.is_dir() {
-                // 5MB 的缓冲区
-                const BUF_SIZE: usize = 1024 * 1024 * 5;
+                // 1MB 的缓冲区
+                #[allow(clippy::identity_op)]
+                const BUF_SIZE: usize = 1024 * 1024 * 1;
                 let writer = Writer::new(BUF_SIZE);
                 let mut reader = writer.make_reader();
 

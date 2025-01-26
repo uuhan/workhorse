@@ -101,6 +101,7 @@ impl Repo {
         let mut cmd = Command::new("git")
             .current_dir(to.as_ref())
             .arg("apply")
+            .arg("--allow-empty")
             .stdin(Stdio::piped())
             .spawn()?;
 
