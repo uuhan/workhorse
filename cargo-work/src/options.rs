@@ -105,6 +105,8 @@ pub struct GetOptions {
     pub file: String,
     #[clap(short, long, help = "覆盖本地文件")]
     pub force: bool,
+    #[clap(short, long, help = "输出到标准输出")]
+    pub stdout: bool,
     #[clap(flatten)]
     pub horse: HorseOptions,
 }

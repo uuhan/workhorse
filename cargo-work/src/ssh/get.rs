@@ -103,7 +103,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         // println!("文件信息: {}", get_file.path.display());
         // println!("文件大小: {}", get_file.size);
 
-        if get_file.kind.is_file() && file_path.exists() && !options.force {
+        if get_file.kind.is_file() && file_path.exists() && !options.force && !options.stdout {
             return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
         }
 
@@ -111,8 +111,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             file_path.set_extension("tar");
         }
 
-        let file = std::fs::File::create(&file_path)?;
-        file.try_lock_exclusive().context("文件锁定失败!")?;
+        let mut downloaded: u64 = 0;
 
         let pb = if let Some(size) = get_file.size {
             ProgressBar::new(size)
@@ -125,24 +124,43 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             .with_key("eta", |state: &ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
 
-        let mut downloaded: u64 = 0;
-
         const BUF_SIZE: usize = 1024 * 32;
         let mut buf = [0u8; BUF_SIZE];
-        let mut decoder = ZlibDecoder::new(file);
 
-        while let Ok(len) = stdout.read(&mut buf).await {
-            pb.set_position(downloaded);
+        if options.stdout {
+            let mut decoder = ZlibDecoder::new(std::io::stdout());
 
-            if len == 0 {
-                break;
+            while let Ok(len) = stdout.read(&mut buf).await {
+                pb.set_position(downloaded);
+
+                if len == 0 {
+                    break;
+                }
+
+                downloaded += len as u64;
+                decoder.write_all(&buf[..len])?;
             }
 
-            downloaded += len as u64;
-            decoder.write_all(&buf[..len])?;
-        }
+            decoder.finish()?;
+        } else {
+            let file = std::fs::File::create(&file_path)?;
+            file.try_lock_exclusive().context("文件锁定失败!")?;
+            let mut decoder = ZlibDecoder::new(file);
 
-        decoder.finish()?;
+            while let Ok(len) = stdout.read(&mut buf).await {
+                pb.set_position(downloaded);
+
+                if len == 0 {
+                    break;
+                }
+
+                downloaded += len as u64;
+                decoder.write_all(&buf[..len])?;
+            }
+
+            decoder.finish()?;
+        };
+
         pb.finish();
     }
 
