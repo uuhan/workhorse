@@ -158,7 +158,7 @@ impl App {
         let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(43)]);
         let [title, tabs] = layout.areas(area);
 
-        Span::styled("Ratatui", THEME.app_title).render(title, buf);
+        Span::styled("Horsed", THEME.app_title).render(title, buf);
         let titles = Tab::iter().map(Tab::title);
         Tabs::new(titles)
             .style(THEME.tabs)

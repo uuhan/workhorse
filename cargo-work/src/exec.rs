@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
+use color_eyre::eyre::{anyhow, bail, ContextCompat, Result};
 use key::PrivateKeyWithHashAlg;
 use russh::keys::*;
 use russh::*;
@@ -93,7 +93,7 @@ impl Session {
             .await?;
 
         if !auth_res.success() {
-            anyhow::bail!("Authentication failed");
+            bail!("Authentication failed");
         }
 
         Ok(Self { session })

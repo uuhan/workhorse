@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 use crate::options::HorseOptions;
-use anyhow::Result;
+use color_eyre::eyre::{bail, Result};
 use colored::Colorize;
 use git2::Remote;
 use git2::Repository;
@@ -118,7 +118,7 @@ impl HorseClient {
             .await?;
 
         if !auth_res.success() {
-            anyhow::bail!("Authentication failed");
+            bail!("Authentication failed");
         }
 
         Ok(Self { handle })

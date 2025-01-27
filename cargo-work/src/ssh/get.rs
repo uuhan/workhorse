@@ -1,8 +1,7 @@
 use super::*;
 use crate::options::GetOptions;
-use anyhow::Context;
-use anyhow::Result;
 use clean_path::Clean;
+use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
 use flate2::write::ZlibDecoder;
 use fs4::fs_std::FileExt;
 use git2::Repository;
@@ -25,7 +24,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         // 默认远程仓库为 horsed,
         // 格式: ssh://git@192.168.10.62:2222/<ns>/<repo_name>
         let Some(horsed) = find_remote(&repo) else {
-            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+            return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 
         horsed
@@ -41,7 +40,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         host
     } else {
         let Some(horsed) = find_remote(&repo) else {
-            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+            return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 
         horsed
@@ -90,21 +89,18 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             match body {
                 Body::GetFile(get_file) => get_file,
                 body => {
-                    return Err(anyhow::anyhow!(
-                        "获取文件错误: {}",
-                        serde_json::to_string(&body)?
-                    ));
+                    return Err(anyhow!("获取文件错误: {}", serde_json::to_string(&body)?));
                 }
             }
         } else {
-            return Err(anyhow::anyhow!("协议错误: {:?} {:?}", head, body));
+            return Err(anyhow!("协议错误: {:?} {:?}", head, body));
         };
 
         // println!("文件信息: {}", get_file.path.display());
         // println!("文件大小: {}", get_file.size);
 
         if get_file.kind.is_file() && file_path.exists() && !options.force && !options.stdout {
-            return Err(anyhow::anyhow!("文件已存在: {}", file_path.display()));
+            return Err(anyhow!("文件已存在: {}", file_path.display()));
         }
 
         if get_file.kind.is_dir() {
@@ -144,7 +140,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             decoder.finish()?;
         } else {
             let file = std::fs::File::create(&file_path)?;
-            file.try_lock_exclusive().context("文件锁定失败!")?;
+            file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
             let mut decoder = ZlibDecoder::new(file);
 
             while let Ok(len) = stdout.read(&mut buf).await {

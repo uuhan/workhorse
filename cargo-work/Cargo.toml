@@ -11,8 +11,13 @@ use-system-ssh = []
 cargo-config2 = "0.1.31"
 indicatif = "0.17.9"
 url = "2.5.4"
+color-eyre = "0.6.3"
+palette = "0.7.6"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+time = "0.3.37"
+unicode-width = "0.2.0"
 
-anyhow.workspace = true
 async-trait.workspace = true
 clap.workspace = true
 stable.workspace = true
@@ -37,10 +42,3 @@ itertools.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 strum.workspace = true
-
-color-eyre = "0.6.3"
-palette = "0.7.6"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-time = "0.3.37"
-unicode-width = "0.2.0"

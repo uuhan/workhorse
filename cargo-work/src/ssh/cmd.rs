@@ -1,6 +1,5 @@
 use super::*;
-use anyhow::Context;
-use anyhow::Result;
+use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
 use std::path::Path;
 
@@ -15,7 +14,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         // 默认远程仓库为 horsed,
         // 格式: ssh://git@192.168.10.62:2222/<ns>/<repo_name>
         let Some(horsed) = find_remote(&repo) else {
-            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+            return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 
         horsed
@@ -25,13 +24,12 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
     };
 
     let host = if let Ok(host) = std::env::var("HORSED") {
-        host.parse()
-            .context(format!("解析环境变量 HORSED 失败: {host}"))?
+        host.parse()?
     } else if let Some(host) = find_host(&horse) {
         host
     } else {
         let Some(horsed) = find_remote(&repo) else {
-            return Err(anyhow::anyhow!("找不到 horsed 远程仓库!"));
+            return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 
         horsed

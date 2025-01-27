@@ -3,6 +3,7 @@ use cargo_work::{
     ssh::{cargo, cmd, get, just, scp},
 };
 use clap::Parser;
+use color_eyre::Result;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::path::PathBuf;
 use std::thread;
@@ -10,7 +11,7 @@ use std::time::Duration;
 use std::{cmp::min, fmt::Write};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let key = if let Some(key) = cli.horse.key.clone().take() {

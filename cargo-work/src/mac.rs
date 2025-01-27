@@ -21,8 +21,7 @@ macro_rules! cargo_command {
                 use std::ops::{Deref, DerefMut};
                 use tokio::process::Command;
                 use std::process::ExitStatus;
-
-                use anyhow::{Context, Result};
+                use color_eyre::eyre::{Result, WrapErr};
                 use clap::Parser;
 
                 #[derive(Clone, Debug, Default, Parser)]
@@ -47,7 +46,7 @@ macro_rules! cargo_command {
                     pub async fn execute(&self) -> Result<ExitStatus> {
                         let current_command = stringify!([<$command:lower>]);
                         let mut build = self.build_command()?;
-                        let mut child = build.spawn().with_context(|| format!("Failed to run cargo {current_command}"))?;
+                        let mut child = build.spawn().wrap_err_with(|| format!("Failed to run cargo {current_command}"))?;
                         Ok(child.wait().await?)
                     }
 
@@ -117,8 +116,8 @@ pub mod zigbuild {
     use std::process::ExitStatus;
     use tokio::process::Command;
 
-    use anyhow::{Context, Result};
     use clap::Parser;
+    use color_eyre::eyre::{Result, WrapErr};
 
     #[derive(Clone, Debug, Default, Parser)]
     #[command(
@@ -144,7 +143,7 @@ pub mod zigbuild {
             let mut build = self.build_command()?;
             let mut child = build
                 .spawn()
-                .with_context(|| format!("Failed to run cargo {current_command}"))?;
+                .wrap_err_with(|| format!("Failed to run cargo {current_command}"))?;
             Ok(child.wait().await?)
         }
 
