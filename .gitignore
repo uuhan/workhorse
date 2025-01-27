@@ -2,3 +2,5 @@
 *.db3
 horsed.key
 *.tar
+.cargo
+vendor
