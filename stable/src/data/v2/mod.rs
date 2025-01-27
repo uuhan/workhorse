@@ -1,36 +1,19 @@
 use super::*;
+pub use v1::{GetFile, GetKind};
 
 #[derive(Serialize, Deserialize)]
-pub struct GetFile {
-    pub path: PathBuf,
-    pub kind: GetKind,
-    pub size: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum GetKind {
-    File,
-    Directory,
+pub enum Body {
+    GetFile(GetFile),
 }
 
 pub fn head(size: u16) -> Head {
-    Head { version: 1, size }
+    Head { version: 2, size }
 }
 
 impl Head {
-    pub fn v1(&self) -> bool {
+    pub fn v2(&self) -> bool {
         self.version == 1
-    }
-}
-
-impl GetKind {
-    pub fn is_file(&self) -> bool {
-        matches!(self, GetKind::File)
-    }
-
-    pub fn is_dir(&self) -> bool {
-        matches!(self, GetKind::Directory)
     }
 }
 
@@ -44,13 +27,14 @@ mod test {
     }
 
     #[test]
-    fn test_get_file_size() {
+    fn test_get_file_body() {
         let file = GetFile {
             path: PathBuf::from("/foo/bar/"),
             kind: GetKind::File,
             size: None,
         };
-
         assert_eq!(bincode::serialize(&file).unwrap().len(), 22);
+        let body = Body::GetFile(file);
+        assert_eq!(bincode::serialize(&body).unwrap().len(), 26);
     }
 }

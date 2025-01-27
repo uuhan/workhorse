@@ -20,7 +20,10 @@ use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
 use stable::buffer;
 use stable::{
-    data::{v1::*, *},
+    data::{
+        v2::{self, *},
+        *,
+    },
     task::TaskManager,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -30,6 +33,7 @@ use tokio::sync::Mutex;
 mod handle;
 pub mod setup;
 use handle::ChannelHandle;
+use v2::Body;
 
 struct AppServer {
     /// 一些共享数据
@@ -347,20 +351,16 @@ impl AppServer {
                 let mut cout = handle.make_writer();
 
                 // TODO: 目录无法提前知道大小
-                let get_file_info = GetFile {
+                let body = Body::GetFile(GetFile {
                     path: file_path.clone(),
                     size: None,
                     kind: GetKind::Directory,
-                };
-
-                let meta = bincode::serialize(&get_file_info)?;
-                let header = Header {
-                    version: 1,
-                    size: meta.len() as _,
-                };
-
-                cout.write_all(header.as_bytes()).await?;
-                cout.write_all(&meta).await?;
+                });
+                let body = bincode::serialize(&body)?;
+                let head = v2::head(body.len() as _);
+                // HEADER:BODY(GetFile):FILE
+                cout.write_all(head.as_bytes()).await?;
+                cout.write_all(&body).await?;
 
                 t1.spawn_blocking(async move {
                     let mut tardir = tar::Builder::new(tar_writer);
@@ -399,20 +399,15 @@ impl AppServer {
 
                 let mut cout = handle.make_writer();
                 let size = md.len();
-                let get_file_info = GetFile {
+                let body = Body::GetFile(GetFile {
                     path: file_path.clone(),
                     size: Some(size),
                     kind: GetKind::File,
-                };
-
-                let meta = bincode::serialize(&get_file_info)?;
-                let header = Header {
-                    version: 1,
-                    size: meta.len() as _,
-                };
-
-                cout.write_all(header.as_bytes()).await?;
-                cout.write_all(&meta).await?;
+                });
+                let body = bincode::serialize(&body)?;
+                let head = v2::head(body.len() as _);
+                cout.write_all(head.as_bytes()).await?;
+                cout.write_all(&body).await?;
 
                 t1.spawn_blocking(async move {
                     let mut file = std::fs::File::open(&file_path)?;

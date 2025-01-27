@@ -7,7 +7,7 @@ use flate2::write::ZlibDecoder;
 use fs4::fs_std::FileExt;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use stable::data::{v1::*, *};
+use stable::data::{v2::*, *};
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::Path;
@@ -77,14 +77,28 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
 
-        let mut header = [0u8; HEADER_SIZE];
+        let mut header = [0u8; HEAD_SIZE];
         stdout.read_exact(&mut header).await?;
-        let header = Header::ref_from_bytes(&header).unwrap();
+        let head = Head::ref_from_bytes(&header).unwrap();
 
-        let mut get_file_info = vec![0u8; header.size as usize];
-        stdout.read_exact(&mut get_file_info).await?;
+        let mut body = vec![0u8; head.size as usize];
+        stdout.read_exact(&mut body).await?;
 
-        let get_file = bincode::deserialize::<GetFile>(&get_file_info)?;
+        let get_file = if let Ok(get_file) = bincode::deserialize::<GetFile>(&body) {
+            get_file
+        } else if let Ok(body) = bincode::deserialize::<Body>(&body) {
+            match body {
+                Body::GetFile(get_file) => get_file,
+                body => {
+                    return Err(anyhow::anyhow!(
+                        "获取文件错误: {}",
+                        serde_json::to_string(&body)?
+                    ));
+                }
+            }
+        } else {
+            return Err(anyhow::anyhow!("协议错误: {:?} {:?}", head, body));
+        };
 
         // println!("文件信息: {}", get_file.path.display());
         // println!("文件大小: {}", get_file.size);
