@@ -971,7 +971,6 @@ impl Handler for AppServer {
     async fn auth_publickey(&mut self, action: &str, pk: &PublicKey) -> HorseResult<Auth> {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes().context("pk bytes")?);
-        let methods = vec![MethodKind::PublicKey];
 
         let Some(sa) = SshPk::find_by_id((pk.algorithm().to_string(), data.to_owned()))
             .one(&self.db)
@@ -979,14 +978,14 @@ impl Handler for AppServer {
         else {
             tracing::error!("公钥未记录: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet::from(&methods[..])),
+                proceed_with_methods: Some(method_set(&[MethodKind::PublicKey])),
             });
         };
 
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
             tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet::from(&methods[..])),
+                proceed_with_methods: Some(method_set(&[MethodKind::PublicKey])),
             });
         };
 
@@ -1185,6 +1184,15 @@ impl Drop for AppServer {
     fn drop(&mut self) {
         tracing::info!("Drop AppServer");
     }
+}
+
+#[inline]
+pub fn method_set<const N: usize>(value: &[MethodKind; N]) -> MethodSet {
+    let mut this = MethodSet::empty();
+    for method in value {
+        this.push(*method);
+    }
+    this
 }
 
 pub async fn run() -> HorseResult<()> {
