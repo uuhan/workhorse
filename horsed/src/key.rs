@@ -1,5 +1,5 @@
 use rand_core::OsRng;
-use russh_keys::PrivateKey;
+use russh::keys::{Algorithm, PrivateKey};
 use std::path::Path;
 
 const KEY_FILE: &str = "horsed.key";
@@ -20,8 +20,7 @@ pub fn key_init() -> PrivateKey {
     }
 
     tracing::info!("生成密钥文件: {}", path.display());
-    let key = russh_keys::PrivateKey::random(&mut OsRng, ssh_key::Algorithm::Ed25519)
-        .expect("无法生成私钥");
+    let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).expect("无法生成私钥");
 
     #[cfg(windows)]
     key.write_openssh_file(path, ssh_key::LineEnding::CRLF)

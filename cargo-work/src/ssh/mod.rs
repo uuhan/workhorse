@@ -114,10 +114,10 @@ impl HorseClient {
 
         let mut handle = client::connect(config, addrs, sh).await?;
         let auth_res = handle
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None)?)
+            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None))
             .await?;
 
-        if !auth_res {
+        if !auth_res.success() {
             anyhow::bail!("Authentication failed");
         }
 

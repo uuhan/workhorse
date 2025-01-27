@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshPk, User};
 use crate::prelude::*;
+use anyhow::Context;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
@@ -260,7 +261,7 @@ impl Handler for AppServer {
     /// time than that.
     async fn auth_publickey(&mut self, action: &str, pk: &PublicKey) -> HorseResult<Auth> {
         #[allow(deprecated)]
-        let data = base64::encode(&pk.to_bytes()?);
+        let data = base64::encode(&pk.to_bytes().context("pk bytes")?);
 
         let Some(sa) = SshPk::find_by_id((pk.algorithm().to_string(), data))
             .one(&self.db)

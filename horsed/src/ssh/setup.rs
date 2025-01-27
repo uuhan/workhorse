@@ -10,7 +10,10 @@ use crate::prelude::*;
 use anyhow::Context;
 use futures::future::FutureExt;
 use rand_core::OsRng;
-use russh::keys::ssh_key::PublicKey;
+use russh::{
+    keys::{Algorithm, PrivateKey, PublicKey},
+    MethodKind,
+};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId};
 use sea_orm::{
@@ -37,11 +40,7 @@ impl SetupServer {
             inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
             auth_rejection_time: std::time::Duration::from_secs(1),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
-            auth_banner: None,
-            keys: vec![russh_keys::PrivateKey::random(
-                &mut OsRng,
-                russh_keys::Algorithm::Ed25519,
-            )?],
+            keys: vec![PrivateKey::random(&mut OsRng, Algorithm::Ed25519).context("random key")?],
             keepalive_interval: Some(std::time::Duration::from_secs(5)),
             ..Default::default()
         };
@@ -87,9 +86,10 @@ impl Handler for SetupServer {
     async fn auth_publickey(&mut self, user: &str, pk: &PublicKey) -> HorseResult<Auth> {
         let alg = pk.algorithm();
         #[allow(deprecated)]
-        let key = base64::encode(&pk.to_bytes()?);
+        let key = base64::encode(&pk.to_bytes().context("pk bytes")?);
 
         let conn = DB.clone();
+        let methods = vec![MethodKind::PublicKey];
 
         // Check if the key is already in the database
         if let Some(pk) = SshPk::find_by_id((alg.to_string(), key.clone()))
@@ -104,7 +104,7 @@ impl Handler for SetupServer {
                 // If there is no user associated with the key, but it is impossible
                 tracing::warn!("Key without user: {}", pk.user_id);
                 return Ok(Auth::Reject {
-                    proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                    proceed_with_methods: Some(MethodSet::from(&methods[..])),
                 });
             }
         }

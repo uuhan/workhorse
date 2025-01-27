@@ -13,8 +13,8 @@ use clean_path::Clean;
 use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use russh::keys::ssh_key::{Certificate, PublicKey};
-use russh::{server::*, MethodSet};
+use russh::keys::{Certificate, PublicKey};
+use russh::{server::*, MethodKind, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
@@ -77,8 +77,6 @@ impl AppServer {
             inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
             auth_rejection_time: std::time::Duration::from_secs(1),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
-            // TODO: 服务端配置 banner
-            auth_banner: None,
             keys: vec![key],
             keepalive_interval: Some(std::time::Duration::from_secs(5)),
             ..Default::default()
@@ -972,7 +970,8 @@ impl Handler for AppServer {
     /// time than that.
     async fn auth_publickey(&mut self, action: &str, pk: &PublicKey) -> HorseResult<Auth> {
         #[allow(deprecated)]
-        let data = base64::encode(&pk.to_bytes()?);
+        let data = base64::encode(&pk.to_bytes().context("pk bytes")?);
+        let methods = vec![MethodKind::PublicKey];
 
         let Some(sa) = SshPk::find_by_id((pk.algorithm().to_string(), data.to_owned()))
             .one(&self.db)
@@ -980,14 +979,14 @@ impl Handler for AppServer {
         else {
             tracing::error!("公钥未记录: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                proceed_with_methods: Some(MethodSet::from(&methods[..])),
             });
         };
 
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
             tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                proceed_with_methods: Some(MethodSet::from(&methods[..])),
             });
         };
 
