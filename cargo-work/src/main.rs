@@ -12,6 +12,7 @@ use std::{cmp::min, fmt::Write};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
     let cli = Cli::parse();
 
     let key = if let Some(key) = cli.horse.key.clone().take() {

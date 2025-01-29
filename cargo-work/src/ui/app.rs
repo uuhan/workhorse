@@ -164,7 +164,7 @@ impl App {
             .style(THEME.tabs)
             .highlight_style(THEME.tabs_selected)
             .select(self.tab as usize)
-            .divider("")
+            .divider("|")
             .padding("", "")
             .render(tabs, buf);
     }
