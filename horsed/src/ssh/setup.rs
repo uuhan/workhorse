@@ -62,7 +62,6 @@ impl Server for SetupServer {
     fn handle_session_error(&mut self, _error: <Self::Handler as Handler>::Error) {}
 }
 
-#[async_trait::async_trait]
 impl Handler for SetupServer {
     type Error = HorseError;
 

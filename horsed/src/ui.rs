@@ -200,7 +200,6 @@ impl Server for AppServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for AppServer {
     type Error = HorseError;
 
@@ -292,21 +291,6 @@ impl Handler for AppServer {
         &mut self,
         _user: &str,
         _certificate: &Certificate,
-    ) -> Result<Auth, Self::Error> {
-        Ok(Auth::Reject {
-            proceed_with_methods: None,
-        })
-    }
-
-    /// Check authentication using the "keyboard-interactive"
-    /// method. Russh makes sure rejection happens in time
-    /// `config.auth_rejection_time`, except if this method takes more
-    /// than that.
-    async fn auth_keyboard_interactive(
-        &mut self,
-        _user: &str,
-        _submethods: &str,
-        _response: Option<Response<'async_trait>>,
     ) -> Result<Auth, Self::Error> {
         Ok(Auth::Reject {
             proceed_with_methods: None,

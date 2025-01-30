@@ -9,7 +9,7 @@ migration = { path = "./horsed/migration" }
 anyhow = { version = "1.0", features = ["backtrace"] }
 async-trait = "0.1.83"
 clap = { version = "4.5.23", features = ["cargo", "derive"] }
-russh = "0.50.0-beta.11"
+russh = "0.50.0"
 shell-escape = "0.1.5"
 ssh-key = { version = "0.6.7", features = [
   "ed25519",
@@ -47,4 +47,3 @@ strum = { version = "0.26", features = ["derive"] }
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "0bfa57a" }
 ratatui = { git = "https://github.com/ratatui/ratatui" }
-russh = { git = "https://github.com/uuhan/russh" }

@@ -30,7 +30,6 @@ pub struct HorseClient {
 
 pub struct Client {}
 
-#[async_trait::async_trait]
 impl Handler for Client {
     type Error = russh::Error;
 

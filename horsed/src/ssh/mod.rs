@@ -393,7 +393,7 @@ impl AppServer {
             // 请求文件
             if md.is_file() {
                 // 5MB 的缓冲区
-                const BUF_SIZE: usize = 1024 * 1024 * 5;
+                const BUF_SIZE: usize = 1024 * 1;
                 let (writer, mut reader) = buffer::new(BUF_SIZE);
                 let mut tar_writer = ZlibEncoder::new(writer, Compression::default());
 
@@ -916,7 +916,6 @@ impl Server for AppServer {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for AppServer {
     type Error = HorseError;
 
@@ -1005,28 +1004,6 @@ impl Handler for AppServer {
             proceed_with_methods: None,
         })
     }
-
-    /// Check authentication using the "keyboard-interactive"
-    /// method. Russh makes sure rejection happens in time
-    /// `config.auth_rejection_time`, except if this method takes more
-    /// than that.
-    async fn auth_keyboard_interactive(
-        &mut self,
-        _user: &str,
-        _submethods: &str,
-        _response: Option<Response<'async_trait>>,
-    ) -> Result<Auth, Self::Error> {
-        Ok(Auth::Reject {
-            proceed_with_methods: None,
-        })
-    }
-
-    // Called when authentication succeeds for a session.
-    //
-    // async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
-    //     tracing::info!("Auth Succeeded");
-    //     Ok(())
-    // }
 
     /// The client requests an X11 connection.
     async fn x11_request(

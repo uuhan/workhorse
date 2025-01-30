@@ -72,6 +72,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             host,
             [OsString::from(&options.file)],
         );
+        cmd.kill_on_drop(true);
         cmd.stdout(std::process::Stdio::piped());
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
