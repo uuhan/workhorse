@@ -81,7 +81,6 @@ You can run almost any cargo command remotely, like:
 
 ```bash
 # This will build your rust project remotely, cool :)
-git push horsed
 cargo work build --release
 ```
 
@@ -99,6 +98,7 @@ git remote set-url --add origin ssh://git@127.0.0.1:2222/uuhan/workhorse.git
 Then you can run any cargo command remotely:
 
 ```bash
+git push horsed
 cargo work build
 # a lot of cargo output...
 ```
