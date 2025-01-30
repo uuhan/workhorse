@@ -9,7 +9,8 @@ migration = { path = "./horsed/migration" }
 anyhow = { version = "1.0", features = ["backtrace"] }
 async-trait = "0.1.83"
 clap = { version = "4.5.23", features = ["cargo", "derive"] }
-russh = "0.50.0"
+russh = "0.49.2"
+russh-keys = "0.49.2"
 shell-escape = "0.1.5"
 ssh-key = { version = "0.6.7", features = [
   "ed25519",

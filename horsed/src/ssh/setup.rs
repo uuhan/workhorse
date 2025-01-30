@@ -10,12 +10,9 @@ use crate::prelude::*;
 use anyhow::Context;
 use futures::future::FutureExt;
 use rand_core::OsRng;
-use russh::{
-    keys::{Algorithm, PrivateKey, PublicKey},
-    MethodKind,
-};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId};
+use russh_keys::{Algorithm, PrivateKey, PublicKey};
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
@@ -62,6 +59,7 @@ impl Server for SetupServer {
     fn handle_session_error(&mut self, _error: <Self::Handler as Handler>::Error) {}
 }
 
+#[async_trait::async_trait]
 impl Handler for SetupServer {
     type Error = HorseError;
 
@@ -88,7 +86,6 @@ impl Handler for SetupServer {
         let key = base64::encode(&pk.to_bytes().context("pk bytes")?);
 
         let conn = DB.clone();
-        let methods = vec![MethodKind::PublicKey];
 
         // Check if the key is already in the database
         if let Some(pk) = SshPk::find_by_id((alg.to_string(), key.clone()))
@@ -103,7 +100,7 @@ impl Handler for SetupServer {
                 // If there is no user associated with the key, but it is impossible
                 tracing::warn!("Key without user: {}", pk.user_id);
                 return Ok(Auth::Reject {
-                    proceed_with_methods: Some(MethodSet::from(&methods[..])),
+                    proceed_with_methods: Some(MethodSet::PUBLICKEY),
                 });
             }
         }

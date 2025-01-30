@@ -200,6 +200,7 @@ impl Server for AppServer {
     }
 }
 
+#[async_trait::async_trait]
 impl Handler for AppServer {
     type Error = HorseError;
 

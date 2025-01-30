@@ -53,6 +53,7 @@ struct Client {}
 // More SSH event handlers
 // can be defined in this trait
 // In this example, we're only using Channel, so these aren't needed.
+#[async_trait::async_trait]
 impl client::Handler for Client {
     type Error = russh::Error;
 
@@ -87,10 +88,10 @@ impl Session {
 
         let mut session = client::connect(config, addrs, sh).await?;
         let auth_res = session
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None))
+            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None)?)
             .await?;
 
-        if !auth_res.success() {
+        if !auth_res {
             bail!("Authentication failed");
         }
 

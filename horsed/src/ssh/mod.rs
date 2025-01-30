@@ -14,7 +14,7 @@ use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use russh::keys::{Certificate, PublicKey};
-use russh::{server::*, MethodKind, MethodSet};
+use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
@@ -393,7 +393,7 @@ impl AppServer {
             // 请求文件
             if md.is_file() {
                 // 5MB 的缓冲区
-                const BUF_SIZE: usize = 1024 * 1;
+                const BUF_SIZE: usize = 1024 * 1024;
                 let (writer, mut reader) = buffer::new(BUF_SIZE);
                 let mut tar_writer = ZlibEncoder::new(writer, Compression::default());
 
@@ -916,6 +916,7 @@ impl Server for AppServer {
     }
 }
 
+#[async_trait::async_trait]
 impl Handler for AppServer {
     type Error = HorseError;
 
@@ -972,14 +973,14 @@ impl Handler for AppServer {
         else {
             tracing::error!("公钥未记录: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(method_set(&[MethodKind::PublicKey])),
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
             tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(method_set(&[MethodKind::PublicKey])),
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 
@@ -1156,15 +1157,6 @@ impl Drop for AppServer {
     fn drop(&mut self) {
         tracing::info!("Drop AppServer");
     }
-}
-
-#[inline]
-pub fn method_set<const N: usize>(value: &[MethodKind; N]) -> MethodSet {
-    let mut this = MethodSet::empty();
-    for method in value {
-        this.push(*method);
-    }
-    this
 }
 
 pub async fn run() -> HorseResult<()> {
