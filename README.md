@@ -95,6 +95,7 @@ git remote set-url --add origin ssh://git@127.0.0.1:2222/uuhan/workhorse.git
 然后你可以远程运行任何 cargo 命令：
 
 ```bash
+git push horsed
 cargo work build
 # 会有很多 cargo 输出...
 ```

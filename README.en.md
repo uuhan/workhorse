@@ -81,6 +81,7 @@ You can run almost any cargo command remotely, like:
 
 ```bash
 # This will build your rust project remotely, cool :)
+git push horsed
 cargo work build --release
 ```
 
