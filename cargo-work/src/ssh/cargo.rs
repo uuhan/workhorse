@@ -47,46 +47,28 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         // 默认分支为 master
         .unwrap_or_else(|| "master".to_owned());
 
+    // git diff HEAD
+    let mut cmd = tokio::process::Command::new("git");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.arg("diff").arg("HEAD");
+
+    let mut cmd = cmd.spawn()?;
+
+    let mut diff = vec![];
+    use tokio::io::AsyncReadExt;
+    cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
+    cmd.wait().await?;
+    // git diff HEAD
+
     #[cfg(feature = "use-system-ssh")]
     {
-        // git diff HEAD
-        let mut cmd = tokio::process::Command::new("git");
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        cmd.stdout(std::process::Stdio::piped());
-        cmd.arg("diff").arg("HEAD");
-
-        let mut cmd = cmd.spawn()?;
-
-        let mut diff = vec![];
-        use tokio::io::AsyncReadExt;
-        cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
-        cmd.wait().await?;
-        // git diff HEAD
-
-        if !diff.is_empty() {
-            // ssh apply@horsed apply
-            // let args = vec![OsString::from("apply")];
-            // let mut cmd = super::run_system_ssh(
-            //     sk,
-            //     &[("REPO", &repo_name), ("BRANCH", &branch)],
-            //     "apply",
-            //     host,
-            //     args,
-            // );
-            // cmd.stdin(std::process::Stdio::piped());
-            // let mut ssh = cmd.spawn()?;
-            // let mut stdin = ssh.stdin.take().unwrap();
-            // use tokio::io::AsyncWriteExt;
-            // stdin.write_all(&diff).await?;
-            // ssh apply@horsed apply
-        }
-
         // ssh cargo@horsed build --
         let mut args = vec![OsString::from(options.name())];
         args.extend(options.options().into_iter());
@@ -132,13 +114,23 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
         channel
+            .set_env(true, "ZIGBUILD", options.use_zigbuild().to_string())
+            .await?;
+        channel
             .set_env(
                 true,
                 "CARGO_OPTIONS",
                 serde_json::to_string(options.cargo_options())?,
             )
             .await?;
-        channel.exec(true, options.name()).await?;
+
+        use color_eyre::eyre::WrapErr;
+
+        // FIXME: blocking
+        let mut writer = channel.make_writer();
+        writer.write_all(&diff).await.unwrap();
+
+        channel.exec(true, options.name()).await.wrap_err("exec")?;
 
         let mut code = None;
         let mut stdout = tokio::io::stdout();
@@ -146,6 +138,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         loop {
             // There's an event available on the session channel
             let Some(msg) = channel.wait().await else {
+                println!("break");
                 break;
             };
             match msg {
