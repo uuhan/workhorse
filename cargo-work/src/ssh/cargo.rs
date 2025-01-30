@@ -1,8 +1,7 @@
 use super::*;
 use crate::options::CargoKind;
-use color_eyre::eyre::{anyhow, ContextCompat, Result};
+use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
 use git2::Repository;
-use std::ffi::OsString;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
@@ -70,7 +69,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
     #[cfg(feature = "use-system-ssh")]
     {
         // ssh cargo@horsed build --
-        let mut args = vec![OsString::from(options.name())];
+        let mut args = vec![std::ffi::OsString::from(options.name())];
         args.extend(options.options().into_iter());
         let mut cmd = super::run_system_ssh(
             sk,
@@ -89,7 +88,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         );
         cmd.stdout(std::process::Stdio::piped());
         cmd.stdin(std::process::Stdio::piped());
-        let mut ssh = cmd.spawn()?;
+        let mut ssh = cmd.spawn().wrap_err("ssh")?;
         let mut stdout = ssh.stdout.take().unwrap();
         let mut stdin = ssh.stdin.take().unwrap();
         let mut out = tokio::io::stdout();
@@ -107,9 +106,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
-        use russh::ChannelMsg;
         let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
-
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
@@ -124,50 +121,22 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             )
             .await?;
 
-        use color_eyre::eyre::WrapErr;
-
-        // FIXME: blocking
-        let mut writer = channel.make_writer();
-        writer.write_all(&diff).await.unwrap();
-
         channel.exec(true, options.name()).await.wrap_err("exec")?;
 
-        let mut code = None;
-        let mut stdout = tokio::io::stdout();
+        let mut writer = channel.make_writer();
+        writer.write_all(&diff).await.unwrap();
+        writer.shutdown().await?;
 
-        loop {
-            // There's an event available on the session channel
-            let Some(msg) = channel.wait().await else {
-                println!("break");
+        let mut chout = channel.make_reader();
+        let mut out = tokio::io::stdout();
+
+        while let Ok(len) = tokio::io::copy(&mut chout, &mut out).await {
+            if len == 0 {
                 break;
-            };
-            match msg {
-                ChannelMsg::Success => {}
-
-                // Write data to the terminal
-                ChannelMsg::Data { ref data } => {
-                    stdout.write_all(data).await?;
-                    stdout.flush().await?;
-                }
-                // The command has returned an exit code
-                ChannelMsg::ExitStatus { exit_status } => {
-                    code = Some(exit_status);
-                }
-
-                ChannelMsg::ExtendedData { ref data, ext } => {
-                    stdout.write_all(data).await?;
-                    stdout.flush().await?;
-                }
-
-                ChannelMsg::Eof => {
-                    break;
-                }
-                e => {}
             }
         }
 
         ssh.close().await?;
-        code.wrap_err("program did not exit cleanly")?;
     }
 
     Ok(())
