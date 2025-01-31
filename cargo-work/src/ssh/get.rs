@@ -145,13 +145,12 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
             let mut decoder = ZlibDecoder::new(file);
 
             while let Ok(len) = stdout.read(&mut buf).await {
-                pb.set_position(downloaded);
+                pb.set_position(decoder.total_out());
 
                 if len == 0 {
                     break;
                 }
 
-                downloaded += len as u64;
                 decoder.write_all(&buf[..len])?;
             }
 
