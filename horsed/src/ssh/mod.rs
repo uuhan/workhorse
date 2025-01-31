@@ -368,10 +368,16 @@ impl AppServer {
                     // 同步阻塞
                     tardir.append_dir_all(path, &file_path)?;
                     let tar = tardir.into_inner()?;
-                    let size = tar.total_out();
+                    let size_in = tar.total_in();
+                    let size_out = tar.total_out();
 
                     tracing::info!("目录路径: {}", file_path.display());
-                    tracing::info!("目录大小: {}", size);
+                    tracing::info!(
+                        "目录大小: {}/{} = {:.2}%",
+                        size_in,
+                        size_out,
+                        size_out as f64 / size_in as f64 * 100.0
+                    );
 
                     Ok(())
                 });
