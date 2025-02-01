@@ -175,7 +175,7 @@ impl AppServer {
 
                 task.spawn(async move {
                     match handle
-                        .exec_io(Command::new("git-receive-pack").arg(repo.path()))
+                        .exec_io(Command::new("git").arg("receive-pack").arg(repo.path()))
                         .await
                     {
                         Ok(mut cmd) => {
