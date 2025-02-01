@@ -117,3 +117,24 @@ cargo work get target
 # 目录将显示在当前目录，路径为：
 # target.tar
 ```
+
+你也可以执行任意的远程命令:
+
+```bash
+# 运行远程命令, -- 后面的内容将作为命令执行
+cargo work -- scoop install vcpkg
+```
+
+cargo-work 也支持显式传入机器地址:
+
+```bash
+cargo work --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git -- pacman install zig
+cargo work build --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git --release
+```
+
+更多的帮助信息可以通过查看帮助获取:
+
+```bash
+cargo work --help
+cargo work <SUBCOMMAND> --help
+```

@@ -120,3 +120,24 @@ cargo work get target
 # The directory will show in the current directory with the path:
 # target.tar
 ```
+
+You can alsa run any command remotely:
+
+```bash
+# Run a command in horsed server, -- takes all the left args as command
+cargo work -- scoop install vcpkg
+```
+
+You can pass the horsed target apparently to any cargo command:
+
+```bash
+cargo work --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git -- pacman install zig
+cargo work build --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git --release
+```
+
+More help info can be found by running:
+
+```bash
+cargo work --help
+cargo work <SUBCOMMAND> --help
+```
