@@ -97,8 +97,8 @@ where
 
     #[cfg(windows)]
     let (mut t1, mut t2) = {
-        let mut t1 = tokio::signal::windows::ctrl_c().unwrap();
-        let mut t2 = tokio::signal::windows::ctrl_break().unwrap();
+        let t1 = tokio::signal::windows::ctrl_c().unwrap();
+        let t2 = tokio::signal::windows::ctrl_break().unwrap();
         (t1, t2)
     };
 

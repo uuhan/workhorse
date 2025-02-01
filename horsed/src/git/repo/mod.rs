@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use crate::prelude::*;
 use std::{
     path::{Path, PathBuf},
@@ -33,14 +34,20 @@ impl Repo {
     /// 创建一个裸仓库, 用于存放代码
     pub async fn create_bare(path: impl AsRef<Path>) -> HorseResult<Repo> {
         tracing::debug!("CREATE BARE REPO: {}", path.as_ref().display());
-        Command::new("git")
-            .arg("init")
-            .arg("--bare")
-            .arg(path.as_ref())
-            .output()
-            .await?
-            .status
-            .exit_ok()?;
+
+        #[allow(unused_mut)]
+        let mut cmd = Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let cmd = cmd.arg("init").arg("--bare").arg(path.as_ref()).spawn()?;
+
+        cmd.wait_with_output().await?.status.exit_ok()?;
 
         // Command::new("git")
         //     .current_dir(path.as_ref())
@@ -62,31 +69,51 @@ impl Repo {
         to: impl AsRef<Path>,
         branch: Option<&str>,
     ) -> HorseResult<Self> {
-        Command::new("git")
+        #[allow(unused_mut)]
+        let mut cmd = Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let cmd = cmd
             .arg("clone")
             .arg("--branch")
             .arg(branch.unwrap_or("master"))
             .arg(from.as_ref().to_str().unwrap())
             .arg(to.as_ref().to_str().unwrap())
-            .output()
-            .await?
-            .status
-            .exit_ok()?;
+            .spawn()?;
+
+        cmd.wait_with_output().await?.status.exit_ok()?;
 
         Ok(Repo::from(to))
     }
 
     /// 从远程仓库检出代码
     pub async fn checkout(&self, to: impl AsRef<Path>, branch: Option<&str>) -> HorseResult<Self> {
-        let out = Command::new("git")
+        #[allow(unused_mut)]
+        let mut cmd = Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let cmd = cmd
             .current_dir(&self.dir)
             .arg("--work-tree")
             .arg(to.as_ref())
             .arg("checkout")
             .arg("-f")
             .arg(branch.unwrap_or("HEAD"))
-            .output()
-            .await?;
+            .spawn()?;
+
+        let out = cmd.wait_with_output().await?;
 
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
@@ -98,7 +125,16 @@ impl Repo {
     }
 
     pub async fn apply(&self, to: impl AsRef<Path>, patch: impl AsRef<[u8]>) -> HorseResult<()> {
-        let mut cmd = Command::new("git")
+        let mut cmd = Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let mut cmd = cmd
             .current_dir(to.as_ref())
             .arg("apply")
             .arg("--allow-empty")

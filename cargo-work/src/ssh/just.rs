@@ -53,6 +53,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut cmd = tokio::process::Command::new("git");
         #[cfg(target_os = "windows")]
         {
+            #[allow(unused_imports)]
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
 

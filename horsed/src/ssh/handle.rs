@@ -62,6 +62,7 @@ impl ChannelHandle {
     pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
         #[cfg(target_os = "windows")]
         {
+            #[allow(unused_imports)]
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -126,6 +127,7 @@ impl ChannelHandle {
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {
         #[cfg(target_os = "windows")]
         {
+            #[allow(unused_imports)]
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
 
