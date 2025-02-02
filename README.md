@@ -43,6 +43,17 @@ ssh -p 2223 <YOUR NAME>@<THE HORSED SERVER>
 
 现在，`horsed` 服务器已经准备好接收来自客户端的连接。
 
+##### 危险模式!
+
+horsed 支持参数 `--dangerous`, 目前只能在前台模式启用, 启用之后维护服务会常驻,
+**任意** 连接到 2223 端口的客户端都能录入他的公钥信息, 请小心使用!
+
+```bash
+horsed -f --show-log --dangerous
+```
+
+其他参数请参考 `horsed --help` 命令。
+
 #### 客户端
 
 Workhorse 将普通的 `<Action>@<The Horsed Server>` 视为远程操作执行器。

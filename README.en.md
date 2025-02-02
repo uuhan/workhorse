@@ -42,6 +42,17 @@ and there will be a file **horsed.key** in the current directory, which is the p
 
 Now the horsed server is ready to accept the connections from the clients.
 
+##### DANGEROUS MODE
+
+horsed supports a DANGEROUS MODE, which means the server will accept any ssh public keys,
+**ANY** client connect to port 2223 will record the public key, please use it with caution.
+
+```bash
+horsed -f --show-log --dangerous
+```
+
+Other options please refer to the `horsed --help` info.
+
 #### The Client Side
 
 Workhorse treats the usual <Action>@<The Horsed Server> as a remote action runner.
@@ -121,7 +132,7 @@ cargo work get target
 # target.tar
 ```
 
-You can alsa run any command remotely:
+You can also run any command remotely:
 
 ```bash
 # Run a command in horsed server, -- takes all the left args as command
