@@ -42,6 +42,8 @@ pub struct HorseOptions {
     pub repo: Option<String>,
     #[clap(long = "repo-name", help = "指定仓库名称, 例如: [/]uuhan/workhorse")]
     pub repo_name: Option<String>,
+    #[clap(long = "remote", help = "指定 git remote 名称, 例如: horsed")]
+    pub remote: Option<String>,
 }
 
 #[derive(Clone, Debug, Subcommand)]

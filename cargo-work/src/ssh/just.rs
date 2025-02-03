@@ -16,7 +16,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         // 无法从参数获取 repo_name, 尝试从 git remote 获取
         // 默认远程仓库为 horsed,
         // 格式: ssh://git@192.168.10.62:2222/<ns>/<repo_name>
-        let Some(horsed) = find_remote(&repo) else {
+        let Some(horsed) = find_remote(&repo, &options.horse) else {
             return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 
@@ -31,7 +31,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     } else if let Some(host) = find_host(&options.horse) {
         host
     } else {
-        let Some(horsed) = find_remote(&repo) else {
+        let Some(horsed) = find_remote(&repo, &options.horse) else {
             return Err(anyhow!("找不到 horsed 远程仓库!"));
         };
 

@@ -147,12 +147,13 @@ impl DerefMut for HorseClient {
 }
 
 /// 获取默认的配置, 目前 `牛马` 设置远程仓库名为 `horsed` 或 `just-horsed`
-fn find_remote(repo: &Repository) -> Option<Remote<'_>> {
-    if let Ok(remote) = repo.find_remote("horsed") {
-        return Some(remote);
+fn find_remote<'a>(repo: &'a Repository, options: &'a HorseOptions) -> Option<Remote<'a>> {
+    // --remote <REMOTE>
+    if let Some(ref remote) = options.remote {
+        return repo.find_remote(remote).ok();
     }
 
-    if let Ok(remote) = repo.find_remote("just-horsed") {
+    if let Ok(remote) = repo.find_remote("horsed") {
         return Some(remote);
     }
 
