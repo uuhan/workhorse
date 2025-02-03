@@ -45,6 +45,7 @@ Now the horsed server is ready to accept the connections from the clients.
 ##### DANGEROUS MODE
 
 horsed supports a DANGEROUS MODE, which means the server will accept any ssh public keys,
+
 **ANY** client connect to port 2223 will record the public key, please use it with caution.
 
 ```bash
@@ -144,6 +145,19 @@ You can pass the horsed target apparently to any cargo command:
 ```bash
 cargo work --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git -- pacman install zig
 cargo work build --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git --release
+```
+
+You can also add more git remotes:
+
+```bash
+git remote add horsed-win http://git@127.0.0.1:2222/uuhan/workhorse.git
+git remote add horsed-linux http://git@127.0.0.1:2222/uuhan/workhorse.git
+git remote add horsed-macos http://git@127.0.0.1:2222/uuhan/workhorse.git
+
+# Then pass the remote by `--remote` option:
+cargo work build --remote horsed-win
+cargo work build --remote horsed-linux
+cargo work build --remote horsed-macos
 ```
 
 More help info can be found by running:

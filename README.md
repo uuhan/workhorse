@@ -46,6 +46,7 @@ ssh -p 2223 <YOUR NAME>@<THE HORSED SERVER>
 ##### 危险模式!
 
 horsed 支持参数 `--dangerous`, 目前只能在前台模式启用, 启用之后维护服务会常驻,
+
 **任意** 连接到 2223 端口的客户端都能录入他的公钥信息, 请小心使用!
 
 ```bash
@@ -141,6 +142,19 @@ cargo-work 也支持显式传入机器地址:
 ```bash
 cargo work --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git -- pacman install zig
 cargo work build --repo ssh://git@127.0.0.1:2222/uuhan/workhorse.git --release
+```
+
+你也可以为 git 仓库配置多个 remote:
+
+```bash
+git remote add horsed-win http://git@127.0.0.1:2222/uuhan/workhorse.git
+git remote add horsed-linux http://git@127.0.0.1:2222/uuhan/workhorse.git
+git remote add horsed-macos http://git@127.0.0.1:2222/uuhan/workhorse.git
+
+# 然后通过传递 --remote 来指定远程仓库
+cargo work build --remote horsed-win
+cargo work build --remote horsed-linux
+cargo work build --remote horsed-macos
 ```
 
 更多的帮助信息可以通过查看帮助获取:
