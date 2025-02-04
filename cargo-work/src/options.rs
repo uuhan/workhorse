@@ -98,8 +98,8 @@ pub enum Commands {
     Scp(ScpOptions),
     #[command(name = "push", about = "推送代码到远程仓库")]
     Push(PushOptions),
-    #[command(name = "pull", about = "拉取编译资产")]
-    Pull,
+    #[command(name = "pull", about = "拉取代码到本地仓库")]
+    Pull(PullOptions),
     #[command(name = "ping", about = "服务器状态检查")]
     Ping(PingOptions),
 }
@@ -133,6 +133,12 @@ pub struct PingOptions {
 
 #[derive(Clone, Debug, Args)]
 pub struct PushOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct PullOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
 }

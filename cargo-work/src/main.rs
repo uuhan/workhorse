@@ -1,14 +1,10 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, get, just, ping, push, scp},
+    ssh::{cargo, cmd, get, just, ping, pull, push, scp},
 };
 use clap::Parser;
 use color_eyre::Result;
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::path::PathBuf;
-use std::thread;
-use std::time::Duration;
-use std::{cmp::min, fmt::Write};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -120,25 +116,11 @@ async fn main() -> Result<()> {
                             eprintln!("执行失败: {}", err);
                         }
                     }
-                    Commands::Pull => {
-                        let mut downloaded = 0;
-                        let total_size = 23123123;
-
-                        let pb = ProgressBar::new(total_size);
-                        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                    .unwrap()
-                    .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-                    .progress_chars("#>-"));
-
-                        while downloaded < total_size {
-                            let new = min(downloaded + 223211, total_size);
-                            downloaded = new;
-                            pb.set_position(new);
-                            thread::sleep(Duration::from_millis(8));
+                    Commands::Pull(options) => {
+                        if let Err(err) = pull::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
                         }
-
-                        pb.finish_with_message("downloaded");
-                    } // opt => println!("{:?}", opt),
+                    }
 
                     Commands::Ping(options) => {
                         if let Err(err) = ping::run(&key, options).await {
@@ -156,7 +138,7 @@ async fn main() -> Result<()> {
             Commands::Push(options) => {
                 println!("{:?}", options);
             }
-            Commands::Pull => {
+            Commands::Pull(_) => {
                 let _ = cargo_work::ui::init();
             }
             opt => println!("{:?}", opt),
