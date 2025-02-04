@@ -64,38 +64,53 @@ pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
     //     }
     // }
 
-    let now = Instant::now();
-    let mut ssh = HorseClient::connect(sk, "ping", host).await?;
-    let mut channel = ssh.channel_open_session().await?;
+    let count = options.count;
+    let mut idx: usize = 0;
 
-    channel.exec(true, &[]).await.wrap_err("ssh exec")?;
-
-    let mut sshin = channel.make_writer();
-    let mut sshout = channel.make_reader();
-
-    let ping = bincode::serialize(&Body::Ping(Instant::now()))?;
-    let head = v2::head(ping.len() as _);
-
-    sshin.write_all(head.as_bytes()).await?;
-    sshin.write_all(&ping).await?;
-
-    let mut head = [0u8; HEAD_SIZE];
-    sshout.read_exact(&mut head).await?;
-    let head = Head::ref_from_bytes(&head).unwrap();
-
-    let mut body = vec![0u8; head.size as usize];
-    sshout.read_exact(&mut body).await?;
-
-    let body = bincode::deserialize::<Body>(&body)?;
-    match body {
-        Body::Pong(instant) => {
-            println!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());
+    loop {
+        if let Some(count) = count {
+            if idx >= count as _ {
+                break;
+            }
         }
-        _ => {
-            return Err(anyhow!("ping 失败!"));
+
+        idx = idx.wrapping_add(1);
+
+        let now = Instant::now();
+        let mut ssh = HorseClient::connect(sk, "ping", host).await?;
+        let mut channel = ssh.channel_open_session().await?;
+
+        channel.exec(true, &[]).await.wrap_err("ssh exec")?;
+
+        let mut sshin = channel.make_writer();
+        let mut sshout = channel.make_reader();
+
+        let ping = bincode::serialize(&Body::Ping(Instant::now()))?;
+        let head = v2::head(ping.len() as _);
+
+        sshin.write_all(head.as_bytes()).await?;
+        sshin.write_all(&ping).await?;
+
+        let mut head = [0u8; HEAD_SIZE];
+        sshout.read_exact(&mut head).await?;
+        let head = Head::ref_from_bytes(&head).unwrap();
+
+        let mut body = vec![0u8; head.size as usize];
+        sshout.read_exact(&mut body).await?;
+
+        let body = bincode::deserialize::<Body>(&body)?;
+        match body {
+            Body::Pong(instant) => {
+                println!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());
+            }
+            _ => {
+                return Err(anyhow!("ping 失败!"));
+            }
         }
+
+        ssh.close().await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
     }
 
-    ssh.close().await?;
     Ok(())
 }

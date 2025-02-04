@@ -127,6 +127,8 @@ pub struct ScpOptions {
 pub struct PingOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
+    #[clap(short, long, help = "指定次数")]
+    pub count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Args)]
