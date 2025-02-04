@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, get, just, ping, scp},
+    ssh::{cargo, cmd, get, just, ping, push, scp},
 };
 use clap::Parser;
 use color_eyre::Result;
@@ -115,8 +115,8 @@ async fn main() -> Result<()> {
                             eprintln!("执行失败: {}", err);
                         }
                     }
-                    Commands::Push => {
-                        if let Err(err) = cmd::run(&key, horse, scripts).await {
+                    Commands::Push(options) => {
+                        if let Err(err) = push::run(&key, options).await {
                             eprintln!("执行失败: {}", err);
                         }
                     }
@@ -153,8 +153,8 @@ async fn main() -> Result<()> {
         SubCommands::Cargo(opt) => match opt {
             Commands::Build(build) => println!("{:?}", build.command()),
             Commands::Just(just) => println!("{:?}", just),
-            Commands::Push => {
-                eprintln!("TODO");
+            Commands::Push(options) => {
+                println!("{:?}", options);
             }
             Commands::Pull => {
                 let _ = cargo_work::ui::init();
