@@ -14,7 +14,7 @@ use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use russh::keys::{Certificate, PublicKey};
-use russh::{server::*, MethodKind, MethodSet};
+use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use shellwords::split;
@@ -1034,14 +1034,14 @@ impl Handler for AppServer {
         else {
             tracing::error!("公钥未记录: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet(vec![MethodKind::PublicKey])),
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
             tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet(vec![MethodKind::PublicKey])),
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
             });
         };
 

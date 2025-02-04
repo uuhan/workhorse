@@ -10,8 +10,8 @@ use std::time::Duration;
 use clap::Parser;
 use color_eyre::eyre::{anyhow, bail, ContextCompat, Result};
 use key::PrivateKeyWithHashAlg;
-use russh::keys::*;
 use russh::*;
+use russh_keys::*;
 use tokio::io::AsyncWriteExt;
 use tokio::net::ToSocketAddrs;
 use tracing::info;
@@ -88,10 +88,10 @@ impl Session {
 
         let mut session = client::connect(config, addrs, sh).await?;
         let auth_res = session
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None))
+            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None)?)
             .await?;
 
-        if !auth_res.success() {
+        if !auth_res {
             bail!("Authentication failed");
         }
 

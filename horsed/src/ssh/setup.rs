@@ -10,10 +10,7 @@ use crate::prelude::*;
 use anyhow::Context;
 use futures::future::FutureExt;
 use rand_core::OsRng;
-use russh::{
-    keys::{Algorithm, PrivateKey, PublicKey},
-    MethodKind,
-};
+use russh::keys::{Algorithm, PrivateKey, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId};
 use sea_orm::{
@@ -103,7 +100,7 @@ impl Handler for SetupServer {
                 // If there is no user associated with the key, but it is impossible
                 tracing::warn!("Key without user: {}", pk.user_id);
                 return Ok(Auth::Reject {
-                    proceed_with_methods: Some(MethodSet(vec![MethodKind::PublicKey])),
+                    proceed_with_methods: Some(MethodSet::PUBLICKEY),
                 });
             }
         }
