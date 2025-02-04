@@ -61,6 +61,11 @@ async fn main() -> Result<()> {
                             eprintln!("执行失败: {}", err);
                         }
                     }
+                    Commands::Clean(options) => {
+                        if let Err(err) = cargo::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
                     Commands::Clippy(options) => {
                         if let Err(err) = cargo::run(&key, options).await {
                             eprintln!("执行失败: {}", err);

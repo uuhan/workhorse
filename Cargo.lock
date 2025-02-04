@@ -648,7 +648,7 @@ dependencies = [
 [[package]]
 name = "cargo-options"
 version = "0.7.5"
-source = "git+https://github.com/uuhan/cargo-options?rev=0bfa57a#0bfa57a5a7887d39b976e8c8c5720a112c6b2954"
+source = "git+https://github.com/uuhan/cargo-options?rev=c759c78#c759c78f79dce9d314ddf34c3474f2626f463b14"
 dependencies = [
  "anstyle",
  "clap",
@@ -692,14 +692,14 @@ dependencies = [
  "tracing",
  "unicode-width 0.2.0",
  "url",
- "zerocopy 0.8.14",
+ "zerocopy 0.8.15",
 ]
 
 [[package]]
 name = "casbin"
-version = "2.8.0"
+version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4fb1bc5c8347bb7f3a70265a70ff8efbb26cc26150b272d3500ad3af8c08f65"
+checksum = "7a516a1b53bce35e02aab02234f35486436d54fbbd180c778267c5a5191d8fa0"
 dependencies = [
  "async-trait",
  "fixedbitset",
@@ -743,9 +743,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.11"
+version = "1.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4730490333d58093109dc02c23174c3f4d490998c3fed3cc8e82d57afedb9cf"
+checksum = "755717a7de9ec452bf7f3f1a3099085deabd7f2962b861dae91ecd7a365903d2"
 dependencies = [
  "jobserver",
  "libc",
@@ -808,9 +808,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.27"
+version = "4.5.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "769b0145982b4b48713e01ec42d61614425f27b7058bda7180a3a41f30104796"
+checksum = "3e77c3243bd94243c03672cb5154667347c457ca271254724f9f393aee1c05ff"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -831,9 +831,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.24"
+version = "4.5.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b755194d6389280185988721fffba69495eed5ee9feeee9a599b53db80318c"
+checksum = "bf4ced95c6f4a675af3da73304b9ac4ed991640c36374e4b46795c49e17cf1ed"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -1893,7 +1893,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "zerocopy 0.8.14",
+ "zerocopy 0.8.15",
 ]
 
 [[package]]
@@ -2749,7 +2749,7 @@ dependencies = [
 [[package]]
 name = "pageant"
 version = "0.0.2"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#1fee3eb975892aabef74646c8c1254204ffbbf8a"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#121e062295c215f2b1974baa8557044db253e20d"
 dependencies = [
  "bytes",
  "delegate",
@@ -3240,7 +3240,7 @@ dependencies = [
 [[package]]
 name = "ratatui"
 version = "0.30.0-alpha.1"
-source = "git+https://github.com/ratatui/ratatui#d045305c67096f15f1396c30ffe72d1cd8d63c2d"
+source = "git+https://github.com/ratatui/ratatui#0b24e6c7bf70bcf97f7c326641fdc2d4d8618253"
 dependencies = [
  "instability",
  "itertools 0.13.0",
@@ -3256,7 +3256,7 @@ dependencies = [
 [[package]]
 name = "ratatui-core"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/ratatui/ratatui#d045305c67096f15f1396c30ffe72d1cd8d63c2d"
+source = "git+https://github.com/ratatui/ratatui#0b24e6c7bf70bcf97f7c326641fdc2d4d8618253"
 dependencies = [
  "bitflags 2.8.0",
  "cassowary",
@@ -3275,7 +3275,7 @@ dependencies = [
 [[package]]
 name = "ratatui-crossterm"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/ratatui/ratatui#d045305c67096f15f1396c30ffe72d1cd8d63c2d"
+source = "git+https://github.com/ratatui/ratatui#0b24e6c7bf70bcf97f7c326641fdc2d4d8618253"
 dependencies = [
  "crossterm",
  "instability",
@@ -3285,7 +3285,7 @@ dependencies = [
 [[package]]
 name = "ratatui-termwiz"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/ratatui/ratatui#d045305c67096f15f1396c30ffe72d1cd8d63c2d"
+source = "git+https://github.com/ratatui/ratatui#0b24e6c7bf70bcf97f7c326641fdc2d4d8618253"
 dependencies = [
  "ratatui-core",
  "termwiz",
@@ -3294,7 +3294,7 @@ dependencies = [
 [[package]]
 name = "ratatui-widgets"
 version = "0.3.0-alpha.1"
-source = "git+https://github.com/ratatui/ratatui#d045305c67096f15f1396c30ffe72d1cd8d63c2d"
+source = "git+https://github.com/ratatui/ratatui#0b24e6c7bf70bcf97f7c326641fdc2d4d8618253"
 dependencies = [
  "bitflags 2.8.0",
  "indoc",
@@ -3495,7 +3495,7 @@ dependencies = [
 [[package]]
 name = "russh"
 version = "0.50.0-workhorse"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#1fee3eb975892aabef74646c8c1254204ffbbf8a"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#121e062295c215f2b1974baa8557044db253e20d"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -3560,7 +3560,7 @@ dependencies = [
 [[package]]
 name = "russh-cryptovec"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#1fee3eb975892aabef74646c8c1254204ffbbf8a"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#121e062295c215f2b1974baa8557044db253e20d"
 dependencies = [
  "libc",
  "ssh-encoding",
@@ -3570,7 +3570,7 @@ dependencies = [
 [[package]]
 name = "russh-util"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#1fee3eb975892aabef74646c8c1254204ffbbf8a"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#121e062295c215f2b1974baa8557044db253e20d"
 dependencies = [
  "chrono",
  "tokio",
@@ -4415,7 +4415,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "zerocopy 0.8.14",
+ "zerocopy 0.8.15",
 ]
 
 [[package]]
@@ -5573,9 +5573,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e49d2d35d3fad69b39b94139037ecfb4f359f08958b9c11e7315ce770462419"
+checksum = "86e376c75f4f43f44db463cf729e0d3acbf954d13e22c51e26e4c264b4ab545f"
 dependencies = [
  "memchr",
 ]
@@ -5663,11 +5663,11 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.14"
+version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a367f292d93d4eab890745e75a778da40909cab4d6ff8173693812f79c4a2468"
+checksum = "a1e101d4bc320b6f9abb68846837b70e25e380ca2f467ab494bf29fcc435fcc3"
 dependencies = [
- "zerocopy-derive 0.8.14",
+ "zerocopy-derive 0.8.15",
 ]
 
 [[package]]
@@ -5683,9 +5683,9 @@ dependencies = [
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.14"
+version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3931cb58c62c13adec22e38686b559c86a30565e16ad6e8510a337cedc611e1"
+checksum = "03a73df1008145cd135b3c780d275c57c3e6ba8324a41bd5e0008fe167c3bc7c"
 dependencies = [
  "proc-macro2",
  "quote",

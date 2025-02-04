@@ -106,6 +106,7 @@ cargo_command!(Install);
 cargo_command!(Run);
 cargo_command!(Rustc);
 cargo_command!(Check);
+cargo_command!(Clean);
 cargo_command!(Clippy);
 cargo_command!(Metadata);
 cargo_command!(Doc);

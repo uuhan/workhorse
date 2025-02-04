@@ -67,6 +67,45 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
     cmd.wait().await?;
     // git diff HEAD
 
+    #[cfg(not(feature = "use-system-ssh"))]
+    {
+        let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
+        let mut channel = ssh.channel_open_session().await?;
+        channel.set_env(true, "REPO", repo_name).await?;
+        channel.set_env(true, "BRANCH", branch).await?;
+        channel
+            .set_env(true, "ZIGBUILD", options.use_zigbuild().to_string())
+            .await?;
+        channel
+            .set_env(
+                true,
+                "CARGO_OPTIONS",
+                serde_json::to_string(options.cargo_options())?,
+            )
+            .await?;
+
+        channel.exec(true, options.name()).await.wrap_err("exec")?;
+
+        let mut writer = channel.make_writer();
+        writer.write_all(&diff).await.unwrap();
+        writer.shutdown().await?;
+
+        let mut chout = channel.make_reader();
+        let mut out = tokio::io::stdout();
+
+        while let Ok(len) = tokio::io::copy(&mut chout, &mut out).await {
+            if len == 0 {
+                break;
+            }
+        }
+
+        out.shutdown().await?;
+
+        if !ssh.is_closed() {
+            ssh.close().await?;
+        }
+    }
+
     #[cfg(feature = "use-system-ssh")]
     {
         // ssh cargo@horsed build --
@@ -103,41 +142,6 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             }
         }
         ssh.wait().await?;
-    }
-
-    #[cfg(not(feature = "use-system-ssh"))]
-    {
-        let mut ssh = HorseClient::connect(sk, "cargo", host).await?;
-        let mut channel = ssh.channel_open_session().await?;
-        channel.set_env(true, "REPO", repo_name).await?;
-        channel.set_env(true, "BRANCH", branch).await?;
-        channel
-            .set_env(true, "ZIGBUILD", options.use_zigbuild().to_string())
-            .await?;
-        channel
-            .set_env(
-                true,
-                "CARGO_OPTIONS",
-                serde_json::to_string(options.cargo_options())?,
-            )
-            .await?;
-
-        channel.exec(true, options.name()).await.wrap_err("exec")?;
-
-        let mut writer = channel.make_writer();
-        writer.write_all(&diff).await.unwrap();
-        writer.shutdown().await?;
-
-        let mut chout = channel.make_reader();
-        let mut out = tokio::io::stdout();
-
-        while let Ok(len) = tokio::io::copy(&mut chout, &mut out).await {
-            if len == 0 {
-                break;
-            }
-        }
-
-        ssh.close().await?;
     }
 
     Ok(())

@@ -785,6 +785,9 @@ impl AppServer {
             "check" => {
                 cargo_command!(check, env_cargo_options)
             }
+            "clean" => {
+                cargo_command!(clean, env_cargo_options)
+            }
             "clippy" => {
                 cargo_command!(clippy, env_cargo_options)
             }
@@ -826,7 +829,6 @@ impl AppServer {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
-        let t2 = task.clone();
         task.spawn(async move {
             let mut o_output = handle.make_writer();
             let mut e_output = handle.make_writer();
@@ -848,23 +850,32 @@ impl AppServer {
             let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
 
-            t2.spawn(async move {
-                while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
-                    // eof
-                    if len == 0 {
+            let mut e_finish = false;
+            let mut o_finish = false;
+            loop {
+                tokio::select! {
+                    e_len = tokio::io::copy(&mut stderr, &mut e_output), if !e_finish => {
+                        if let Ok(len) = e_len {
+                             if len == 0 {
+                                 e_finish = true;
+                             }
+                        }
+                    }
+                    o_len = tokio::io::copy(&mut stdout, &mut o_output), if !o_finish =>  {
+                        if let Ok(len) = o_len {
+                             if len == 0 {
+                                 o_finish = true;
+                             }
+                        }
+                    }
+                    else => {
                         break;
                     }
                 }
-
-                Ok(())
-            });
-
-            while let Ok(len) = tokio::io::copy(&mut stderr, &mut e_output).await {
-                // eof
-                if len == 0 {
-                    break;
-                }
             }
+
+            e_output.shutdown().await.context("shutdown e_output")?;
+            o_output.shutdown().await.context("shutdown o_output")?;
 
             handle.exit(cmd.wait().await?).await?;
             Ok(())

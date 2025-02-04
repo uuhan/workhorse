@@ -1,5 +1,6 @@
 pub use crate::mac::build::Build;
 pub use crate::mac::check::Check;
+pub use crate::mac::clean::Clean;
 pub use crate::mac::clippy::Clippy;
 pub use crate::mac::doc::Doc;
 pub use crate::mac::install::Install;
@@ -76,6 +77,8 @@ pub enum Commands {
     Zigbuild(Zigbuild),
     #[command(name = "check", alias = "c", about = "检查项目")]
     Check(Check),
+    #[command(name = "clean", about = "清理工作目录")]
+    Clean(Clean),
     #[command(name = "clippy", about = "检查项目")]
     Clippy(Clippy),
     #[command(name = "doc", about = "项目文档")]

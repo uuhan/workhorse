@@ -2,7 +2,7 @@ use crate::prelude::HorseResult;
 use colored::{ColoredString, Colorize};
 use russh::{
     server::{Handle, Msg, Session},
-    Channel, ChannelId, CryptoVec,
+    Channel, ChannelId, ChannelMsg, CryptoVec,
 };
 use std::ops::{Deref, DerefMut};
 use std::process::ExitStatus;
@@ -38,6 +38,11 @@ impl ChannelHandle {
 
     pub fn make_reader(&mut self) -> impl AsyncRead + '_ {
         self.ch.make_reader()
+    }
+
+    #[allow(unused)]
+    pub async fn wait(&mut self) -> Option<ChannelMsg> {
+        self.ch.wait().await
     }
 
     pub async fn eof(&mut self) -> HorseResult<()> {
