@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, get, just, scp},
+    ssh::{cargo, cmd, get, just, ping, scp},
 };
 use clap::Parser;
 use color_eyre::Result;
@@ -139,6 +139,12 @@ async fn main() -> Result<()> {
 
                         pb.finish_with_message("downloaded");
                     } // opt => println!("{:?}", opt),
+
+                    Commands::Ping(options) => {
+                        if let Err(err) = ping::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
                 }
             }
         }

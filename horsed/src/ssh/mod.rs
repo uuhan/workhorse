@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::db::entity::prelude::{SshPk, User};
 use crate::git::repo::Repo;
 use crate::prelude::*;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clean_path::Clean;
 use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
@@ -506,6 +506,48 @@ impl AppServer {
                     break;
                 }
             }
+
+            Ok(())
+        });
+
+        Ok(())
+    }
+
+    pub async fn ping(&mut self, _args: Vec<String>) -> HorseResult<()> {
+        let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
+        let task = self.tm.spawn_handle();
+
+        task.spawn(async move {
+            let mut writer = handle.make_writer();
+            let mut reader = handle.make_reader();
+
+            let mut head = [0u8; HEAD_SIZE];
+            reader.read_exact(&mut head).await?;
+            let head = Head::ref_from_bytes(&head).unwrap();
+
+            let mut body = vec![0u8; head.size as usize];
+            reader.read_exact(&mut body).await?;
+
+            let pong = if let Ok(body) = bincode::deserialize::<Body>(&body) {
+                match body {
+                    Body::Ping(inst) => {
+                        tracing::info!("ping: {:?}", inst.elapsed());
+                        Body::Pong(inst)
+                    }
+                    body => {
+                        return Err(anyhow!("不支持的协议: {:?}", body));
+                    }
+                }
+            } else {
+                return Err(anyhow!("协议错误: {:?} {:?}", head, body));
+            };
+
+            let pong = bincode::serialize(&pong)?;
+
+            writer
+                .write_all(v2::head(pong.len() as _).as_bytes())
+                .await?;
+            writer.write_all(&pong).await?;
 
             Ok(())
         });
@@ -1082,6 +1124,7 @@ impl Handler for AppServer {
             // }
             "get" => self.get(command).await?,
             "scp" => self.scp(command).await?,
+            "ping" => self.ping(command).await?,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle.error(format!("不支持的命令: {action}")).await?;

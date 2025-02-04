@@ -4412,6 +4412,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "zerocopy 0.8.14",

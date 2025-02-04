@@ -1,10 +1,16 @@
+use std::time::Instant;
+
 use super::*;
 pub use v1::{GetFile, GetKind};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[non_exhaustive]
 pub enum Body {
     GetFile(GetFile),
+    #[serde(with = "instant_serde")]
+    Ping(Instant),
+    #[serde(with = "instant_serde")]
+    Pong(Instant),
 }
 
 pub fn head(size: u16) -> Head {

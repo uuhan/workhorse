@@ -96,10 +96,12 @@ pub enum Commands {
     Get(GetOptions),
     #[command(name = "scp", alias = "cp", about = "拷贝服务器文件到本地, 类似于 scp")]
     Scp(ScpOptions),
-    #[command(name = "push", alias = "p", about = "推送代码到远程仓库")]
+    #[command(name = "push", about = "推送代码到远程仓库")]
     Push,
-    #[command(name = "pull", alias = "l", about = "拉取编译资产")]
+    #[command(name = "pull", about = "拉取编译资产")]
     Pull,
+    #[command(name = "ping", about = "服务器状态检查")]
+    Ping(PingOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -117,6 +119,12 @@ pub struct GetOptions {
 pub struct ScpOptions {
     pub source: String,
     pub dest: String,
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct PingOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
 }

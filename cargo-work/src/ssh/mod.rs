@@ -22,6 +22,7 @@ pub mod cargo;
 pub mod cmd;
 pub mod get;
 pub mod just;
+pub mod ping;
 pub mod scp;
 
 pub struct HorseClient {
