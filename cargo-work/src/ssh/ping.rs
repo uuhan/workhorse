@@ -64,6 +64,7 @@ pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
     //     }
     // }
 
+    let now = Instant::now();
     let mut ssh = HorseClient::connect(sk, "ping", host).await?;
     let mut channel = ssh.channel_open_session().await?;
 
@@ -88,7 +89,7 @@ pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
     let body = bincode::deserialize::<Body>(&body)?;
     match body {
         Body::Pong(instant) => {
-            println!("ping: {:?}", instant.elapsed());
+            println!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());
         }
         _ => {
             return Err(anyhow!("ping 失败!"));
