@@ -46,7 +46,12 @@ pub async fn run(sk: &Path, options: PullOptions) -> Result<()> {
         .remote
         .unwrap_or_else(|| options.horse.repo.unwrap_or_else(|| "horsed".to_string()));
 
-    let output = Command::new("git").arg("pull").arg(remote).output().await?;
+    let mut cmd = Command::new("git");
+    cmd.arg("pull").arg(remote);
+    if let Some(ref branch) = options.branch {
+        cmd.arg(branch);
+    }
+    let output = cmd.output().await?;
 
     tokio::io::stdout().write_all(&output.stdout).await?;
     tokio::io::stderr().write_all(&output.stderr).await?;

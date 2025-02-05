@@ -138,12 +138,14 @@ pub struct PingOptions {
 pub struct PushOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
+    pub branch: Option<String>,
 }
 
 #[derive(Clone, Debug, Args)]
 pub struct PullOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
+    pub branch: Option<String>,
 }
 
 #[derive(Clone, Debug, Args)]
