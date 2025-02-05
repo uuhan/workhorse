@@ -1,6 +1,8 @@
 use std::time::Instant;
 
 use super::*;
+use std::io::{self, Read};
+use tokio::io::{AsyncRead, AsyncReadExt};
 pub use v1::{GetFile, GetKind};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -20,6 +22,28 @@ pub fn head(size: u16) -> Head {
 impl Head {
     pub fn v2(&self) -> bool {
         self.version == 1
+    }
+}
+
+impl Body {
+    pub async fn read<R: AsyncRead + Unpin>(reader: &mut R) -> io::Result<Self> {
+        let mut head = [0u8; HEAD_SIZE];
+        reader.read_exact(&mut head).await?;
+        let head = Head::ref_from_bytes(&head).unwrap();
+
+        let mut body = vec![0u8; head.size as usize];
+        reader.read_exact(&mut body).await?;
+        Ok(bincode::deserialize::<Body>(&body).expect("malformed body"))
+    }
+
+    pub fn read_sync<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut head = [0u8; HEAD_SIZE];
+        reader.read_exact(&mut head)?;
+        let head = Head::ref_from_bytes(&head).unwrap();
+
+        let mut body = vec![0u8; head.size as usize];
+        reader.read_exact(&mut body)?;
+        Ok(bincode::deserialize::<Body>(&body).expect("malformed body"))
     }
 }
 

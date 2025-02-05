@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::io::{self, Read};
 use std::path::PathBuf;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub mod v1;
@@ -12,6 +14,20 @@ pub const HEAD_SIZE: usize = std::mem::size_of::<Head>();
 pub struct Head {
     pub version: u8,
     pub size: u16,
+}
+
+impl Head {
+    pub async fn read<R: AsyncRead + Unpin>(reader: &mut R) -> io::Result<Self> {
+        let mut head = [0u8; HEAD_SIZE];
+        reader.read_exact(&mut head).await?;
+        Ok(Head::read_from_bytes(&head).expect("malformed head"))
+    }
+
+    pub fn read_sync<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut head = [0u8; HEAD_SIZE];
+        reader.read_exact(&mut head)?;
+        Ok(Head::read_from_bytes(&head).expect("malformed head"))
+    }
 }
 
 mod instant_serde {

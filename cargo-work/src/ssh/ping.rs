@@ -4,11 +4,10 @@ use color_eyre::eyre::WrapErr;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
 use stable::data::v2::{self, Body};
-use stable::data::{Head, HEAD_SIZE};
 use std::path::Path;
 use std::time::Instant;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use zerocopy::{FromBytes, IntoBytes};
+use tokio::io::AsyncWriteExt;
+use zerocopy::IntoBytes;
 
 pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -91,14 +90,7 @@ pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
         sshin.write_all(head.as_bytes()).await?;
         sshin.write_all(&ping).await?;
 
-        let mut head = [0u8; HEAD_SIZE];
-        sshout.read_exact(&mut head).await?;
-        let head = Head::ref_from_bytes(&head).unwrap();
-
-        let mut body = vec![0u8; head.size as usize];
-        sshout.read_exact(&mut body).await?;
-
-        let body = bincode::deserialize::<Body>(&body)?;
+        let body = Body::read(&mut sshout).await?;
         match body {
             Body::Pong(instant) => {
                 println!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());

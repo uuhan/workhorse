@@ -77,10 +77,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         let mut ssh = cmd.spawn()?;
         let mut stdout = ssh.stdout.take().unwrap();
 
-        let mut header = [0u8; HEAD_SIZE];
-        stdout.read_exact(&mut header).await?;
-        let head = Head::ref_from_bytes(&header).unwrap();
-
+        let head = Head::read(&mut stdout).await?;
         let mut body = vec![0u8; head.size as usize];
         stdout.read_exact(&mut body).await?;
 
