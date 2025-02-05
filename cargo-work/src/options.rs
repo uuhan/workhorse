@@ -71,6 +71,9 @@ pub struct WorkOptions {
 #[derive(Clone, Debug, Subcommand)]
 #[command(version, display_order = 1)]
 pub enum Commands {
+    #[command(name = "init", about = "初始化项目")]
+    Init(InitOption),
+
     #[command(name = "build", alias = "b", about = "构建项目")]
     Build(Build),
     #[command(name = "zigbuild", about = "使用 zigbuild 构建项目")]
@@ -106,6 +109,9 @@ pub enum Commands {
     #[command(name = "ping", about = "服务器状态检查")]
     Ping(PingOptions),
 }
+
+#[derive(Clone, Debug, Args)]
+pub struct InitOption {}
 
 #[derive(Clone, Debug, Args)]
 pub struct GetOptions {

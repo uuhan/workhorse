@@ -46,6 +46,9 @@ async fn main() -> Result<()> {
                 }
             } else if let Some(commands) = w_opt.commands {
                 match commands {
+                    Commands::Init(_options) => {
+                        // TODO: 初始化工作目录
+                    }
                     Commands::Build(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
