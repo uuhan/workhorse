@@ -70,6 +70,8 @@ impl Drop for Writer {
 
         // 写入缓冲区结束
         self.buffer.finished();
+        tracing::debug!("writer finished");
+
         // 通知读取线程
         condvar.notify_all();
     }
@@ -171,6 +173,8 @@ impl Drop for Reader {
 
         // 写入缓冲区结束
         self.buffer.finished();
+        tracing::debug!("reader finished");
+
         // 通知读取线程
         condvar.notify_all();
     }

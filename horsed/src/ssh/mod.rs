@@ -309,7 +309,7 @@ impl AppServer {
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
 
-        let handle = self
+        let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
@@ -393,6 +393,8 @@ impl AppServer {
                     cout.write_all(&buf[..len]).await?;
                 }
 
+                cout.shutdown().await?;
+                handle.eof().await?;
                 return Ok(());
             }
 
@@ -436,6 +438,8 @@ impl AppServer {
                     cout.write_all(&buf[..len]).await?;
                 }
 
+                cout.shutdown().await?;
+                handle.eof().await?;
                 return Ok(());
             }
 
