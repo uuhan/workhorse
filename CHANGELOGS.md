@@ -1,3 +1,14 @@
+### v0.2.1
+
+- workhorse: remove russh-keys crate
+- horsed: use powershell.exe insted of cmd.exe
+- horsed: fix ssh get file hangs
+- cargo-work: work init support
+- workhorse: bump to v0.2.1
+- cargo-work: push & pull support <BRANCH> arg
+- stable: Head & Body fn read
+- horsed: fix just command run with no window
+
 ### v0.2.0
 
 - cargo-work: merge HorseOptions
