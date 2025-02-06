@@ -9,9 +9,10 @@ use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::{anyhow, bail, ContextCompat, Result};
-use key::PrivateKeyWithHashAlg;
-use russh::*;
-use russh_keys::*;
+use russh::{
+    keys::{key::PrivateKeyWithHashAlg, load_secret_key, PrivateKey, PublicKey},
+    *,
+};
 use tokio::io::AsyncWriteExt;
 use tokio::net::ToSocketAddrs;
 use tracing::info;
@@ -59,7 +60,7 @@ impl client::Handler for Client {
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &ssh_key::PublicKey,
+        _server_public_key: &PublicKey,
     ) -> Result<bool, Self::Error> {
         Ok(true)
     }

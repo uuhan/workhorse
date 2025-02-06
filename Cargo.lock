@@ -660,7 +660,6 @@ dependencies = [
  "rand_chacha",
  "ratatui 0.30.0-alpha.1",
  "russh",
- "russh-keys",
  "serde",
  "serde_json",
  "shell-escape",
