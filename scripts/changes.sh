@@ -1,5 +1,6 @@
 #!/bin/bash
 
-Tag="$1"
+LatestTag=$(git tag | tail -n 1)
+Tag="${1:-$LatestTag}"
 
-git log --pretty='- %B' "${Tag}"...HEAD | sed -e /^$/d
+git log --pretty='- %B' "${Tag}"...HEAD | sed -e /^$/d | uniq
