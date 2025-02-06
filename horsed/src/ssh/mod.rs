@@ -246,9 +246,14 @@ impl AppServer {
             #[cfg(windows)]
             match handle
                 .exec(
-                    Command::new("cmd.exe")
+                    // Who still uses cmd.exe?
+                    // Command::new("cmd.exe")
+                    //     .current_dir(&cmd_dir)
+                    //     .arg("/C")
+                    //     .args(command),
+                    Command::new("powershell.exe")
                         .current_dir(&cmd_dir)
-                        .arg("/C")
+                        .arg("-Command")
                         .args(command),
                 )
                 .await
@@ -260,6 +265,7 @@ impl AppServer {
                     tracing::error!("command failed: {}", err);
                 }
             }
+
             #[cfg(not(windows))]
             match handle
                 .exec(
