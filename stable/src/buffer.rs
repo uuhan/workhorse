@@ -79,7 +79,7 @@ impl Drop for Writer {
 
 impl Write for Writer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let (lock, condvar) = &**self.buffer;
+        let (mtx, condvar) = &**self.buffer;
 
         if buf.is_empty() {
             // 数据已经读取完毕, 但是缓冲区可能未满, 通知读取线程
@@ -87,23 +87,25 @@ impl Write for Writer {
             return Ok(0);
         }
 
-        let mut buffer = lock.lock();
+        let mut buffer = mtx.lock();
 
-        // 写入缓冲区结束
+        // 读取缓冲区结束
         if self.buffer.is_finished() {
             return Ok(0);
         }
 
         // 如果缓冲区满了, 等待读取线程读取
         while buffer.len() >= self.capacity {
-            // 写入缓冲区结束
+            // 读取缓冲区结束
             if self.buffer.is_finished() {
+                tracing::debug!("no reader available, stop write.");
+                // buf.len() != 0, but write finishes
                 return Ok(0);
             }
 
-            // 通知读取线程
+            // 通知读取缓冲区
             condvar.notify_all();
-            // 等待缓冲区读取
+            // 释放互斥锁, 等待缓冲区被读取
             condvar.wait(&mut buffer);
         }
 
@@ -120,6 +122,27 @@ impl Write for Writer {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        let (mtx, condvar) = &**self.buffer;
+        let mut buffer = mtx.lock();
+
+        // buffer 非空
+        while buffer.len() > 0 {
+            // 读取缓冲区结束
+            if self.buffer.is_finished() {
+                tracing::error!(
+                    "no reader available, stop write. buffe size: {}",
+                    buffer.len()
+                );
+
+                return Err(io::ErrorKind::Interrupted.into());
+            }
+
+            // 通知读取缓冲区
+            condvar.notify_all();
+            // 释放互斥锁, 等待缓冲区被读取
+            condvar.wait(&mut buffer);
+        }
+
         Ok(())
     }
 }
@@ -140,9 +163,9 @@ impl Read for Reader {
                 return Ok(0);
             }
 
-            // 通知写入线程
+            // 通知写入缓冲区
             condvar.notify_all();
-            // 等待缓冲区写入
+            // 释放锁, 等待缓冲区写入
             condvar.wait(&mut buffer);
         }
 
@@ -238,5 +261,25 @@ mod tests {
         });
 
         reader_thread.join().unwrap();
+    }
+
+    #[test]
+    fn test_write_flush() {
+        let (mut writer, mut reader) = new(3);
+        writer.write_all(b"012").unwrap();
+        reader.read_exact(&mut [0; 3]).unwrap();
+        writer.flush().unwrap();
+    }
+
+    #[test]
+    fn test_write_interrupt() {
+        let (mut writer, reader) = new(3);
+        writer.write_all(b"012").unwrap();
+        drop(reader);
+
+        assert_eq!(
+            writer.flush().err().unwrap().kind(),
+            io::ErrorKind::Interrupted
+        );
     }
 }
