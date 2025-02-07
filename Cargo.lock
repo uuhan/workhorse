@@ -650,6 +650,7 @@ dependencies = [
  "crossterm",
  "flate2",
  "fs4",
+ "futures",
  "git2",
  "indicatif",
  "indoc",

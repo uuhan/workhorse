@@ -385,6 +385,8 @@ impl AppServer {
                         size_out as f64 / size_in as f64 * 100.0
                     );
 
+                    tar.finish()?;
+
                     Ok(())
                 });
 
@@ -481,7 +483,7 @@ impl AppServer {
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
 
-        let handle = self
+        let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
@@ -516,6 +518,9 @@ impl AppServer {
                     break;
                 }
             }
+
+            cout.shutdown().await?;
+            handle.eof().await?;
 
             Ok(())
         });
@@ -657,7 +662,6 @@ impl AppServer {
             return Ok(());
         }
 
-        let t = task.clone();
         task.spawn(async move {
             let mut diff_input = handle.make_reader();
             let mut buf = vec![];
@@ -688,34 +692,28 @@ impl AppServer {
 
             let mut cmd = cmd.spawn()?;
 
-            let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
 
             let mut o_output = handle.make_writer();
 
-            t.spawn(async move {
-                while let Ok(len) = tokio::io::copy(&mut stdout, &mut o_output).await {
-                    // eof
-                    if len == 0 {
-                        break;
-                    }
-                }
-                Ok(())
-            });
-
-            const BUF_SIZE: usize = 1024 * 32;
-            let mut buf = [0u8; BUF_SIZE];
-
-            loop {
-                let read = stderr.read(&mut buf).await?;
-                if read == 0 {
+            let mut buf = [0u8; 1024];
+            while let Ok(len) = stderr.read(&mut buf).await {
+                if len == 0 {
                     break;
                 }
-                handle.log_raw(&buf[..read]).await?;
+
+                o_output.write_all(&buf[..len]).await?;
+                o_output.flush().await?;
             }
 
-            handle.info("构建完成").await?;
-            handle.exit(cmd.wait().await?).await?;
+            let exit_status = cmd.wait().await?;
+            if exit_status.success() {
+                handle.info("构建完成").await?;
+            } else {
+                handle.error("构建失败").await?;
+            }
+
+            handle.exit(exit_status).await?;
             Ok(())
         });
 

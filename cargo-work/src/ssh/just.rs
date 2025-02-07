@@ -77,22 +77,28 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
             host,
             [std::ffi::OsString::from(command)],
         );
+
         cmd.stdin(std::process::Stdio::piped());
         cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+
         let mut ssh = cmd.spawn()?;
-        let mut stdin = ssh.stdin.take().unwrap();
-        let mut stdout = ssh.stdout.take().unwrap();
-        let mut out = tokio::io::stdout();
+        let mut sshin = ssh.stdin.take().unwrap();
 
-        stdin.write_all(&diff).await?;
-        stdin.shutdown().await?;
-        drop(stdin);
+        sshin.write_all(&diff).await?;
+        sshin.shutdown().await?;
+        drop(sshin);
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
-            if len == 0 {
-                break;
-            }
-        }
+        let mut sshout = ssh.stdout.take().unwrap();
+        let mut ssherr = ssh.stderr.take().unwrap();
+        let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
+
+        let write_out = tokio::io::copy(&mut sshout, &mut stdout);
+        let write_err = tokio::io::copy(&mut ssherr, &mut stderr);
+
+        futures::future::try_join(write_out, write_err).await?;
+
         ssh.wait().await?;
     }
 
@@ -109,11 +115,23 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         stdin.shutdown().await?;
         drop(stdin);
 
-        let mut out = tokio::io::stdout();
-        let mut stdout = channel.make_reader();
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
-            if len == 0 {
-                break;
+        let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
+
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { ref data } => {
+                    stdout.write_all(data).await?;
+                    stdout.flush().await?;
+                }
+                ChannelMsg::ExtendedData { ref data, .. } => {
+                    stderr.write_all(data).await?;
+                    stderr.flush().await?;
+                }
+                ChannelMsg::Close => {}
+                ChannelMsg::Eof => {}
+                ChannelMsg::ExitStatus { exit_status } => {}
+                other => {}
             }
         }
 

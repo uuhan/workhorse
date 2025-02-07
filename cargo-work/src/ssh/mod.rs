@@ -107,7 +107,8 @@ impl HorseClient {
     ) -> Result<Self> {
         let key_pair = load_secret_key(key_path, None)?;
         let config = client::Config {
-            inactivity_timeout: Some(Duration::from_secs(5)),
+            inactivity_timeout: None,
+            keepalive_interval: Some(Duration::from_secs(3)),
             ..<_>::default()
         };
 

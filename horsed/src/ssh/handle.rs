@@ -241,6 +241,7 @@ impl ChannelHandle {
     }
 
     /// 类似 `self.log` 方法, 但是输出 &[u8] 数据到前端
+    #[allow(unused)]
     pub async fn log_raw(&self, raw: impl AsRef<[u8]>) -> HorseResult<()> {
         let raw = CryptoVec::from(raw.as_ref());
         if let Err(vec) = self.handle.extended_data(self.id, 1, raw).await {
