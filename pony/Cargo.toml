@@ -1,0 +1,8 @@
+[package]
+name = "pony"
+description = "continious deployment"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stable.workspace = true
