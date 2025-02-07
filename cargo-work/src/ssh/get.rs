@@ -80,7 +80,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let mut stdout = channel.make_reader();
 
     #[cfg(feature = "use-system-ssh")]
-    let mut stdout = {
+    let mut ssh = {
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
@@ -91,10 +91,10 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
         cmd.kill_on_drop(true);
         cmd.stdout(std::process::Stdio::piped());
-
-        let mut ssh = cmd.spawn()?;
-        ssh.stdout.take().unwrap()
+        cmd.spawn()?
     };
+    #[cfg(feature = "use-system-ssh")]
+    let mut stdout = ssh.stdout.take().unwrap();
 
     let head = Head::read(&mut stdout).await?;
     let mut body = vec![0u8; head.size as usize];

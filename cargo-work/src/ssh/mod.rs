@@ -9,7 +9,6 @@ use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::keys::*;
 use russh::*;
-use std::ffi::OsStr;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -205,7 +204,7 @@ fn run_system_ssh<K, V, Arg, Args>(
 where
     K: AsRef<str>,
     V: AsRef<str>,
-    Arg: AsRef<OsStr>,
+    Arg: AsRef<std::ffi::OsStr>,
     Args: std::iter::IntoIterator<Item = Arg>,
 {
     let mut cmd = tokio::process::Command::new("ssh");

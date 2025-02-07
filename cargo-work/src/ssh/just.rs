@@ -2,7 +2,6 @@ use super::*;
 use crate::options::JustOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
-use std::ffi::OsString;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
@@ -76,7 +75,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
             &[("REPO", repo_name), ("BRANCH", branch)],
             "just",
             host,
-            [OsString::from(command)],
+            [std::ffi::OsString::from(command)],
         );
         cmd.stdin(std::process::Stdio::piped());
         cmd.stdout(std::process::Stdio::piped());
@@ -104,8 +103,8 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         channel.set_env(true, "BRANCH", branch).await?;
         channel.exec(true, command.as_bytes()).await?;
 
-        let mut code = None;
         let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
 
         loop {
             // There's an event available on the session channel
@@ -121,13 +120,11 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
                     stdout.flush().await?;
                 }
                 // The command has returned an exit code
-                ChannelMsg::ExitStatus { exit_status } => {
-                    code = Some(exit_status);
-                }
+                ChannelMsg::ExitStatus { exit_status } => {}
 
                 ChannelMsg::ExtendedData { ref data, ext } => {
-                    stdout.write_all(data).await?;
-                    stdout.flush().await?;
+                    stderr.write_all(data).await?;
+                    stderr.flush().await?;
                 }
 
                 ChannelMsg::Eof => {
@@ -138,7 +135,6 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         }
 
         ssh.close().await?;
-        code.context("program did not exit cleanly")?;
     }
 
     Ok(())

@@ -2,7 +2,6 @@ use super::*;
 use crate::options::ScpOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
-use std::ffi::OsString;
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
@@ -45,24 +44,46 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut channel = {
+        use color_eyre::eyre::WrapErr;
+        let ssh = HorseClient::connect(sk, "scp", host).await?;
+        let channel = ssh.channel_open_session().await?;
+        channel.set_env(true, "REPO", repo_name).await?;
+        channel.set_env(true, "BRANCH", branch).await?;
+
+        channel
+            .exec(true, options.source.as_bytes())
+            .await
+            .wrap_err("exec")?;
+
+        channel
+    };
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut stdout = channel.make_reader();
+
     #[cfg(feature = "use-system-ssh")]
-    {
+    let mut ssh = {
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
             "scp",
             host,
-            [OsString::from(&options.source)],
+            [std::ffi::OsString::from(&options.source)],
         );
+        cmd.kill_on_drop(true);
         cmd.stdout(std::process::Stdio::piped());
-        let mut ssh = cmd.spawn()?;
-        let mut stdout = ssh.stdout.take().unwrap();
-        let mut file = tokio::fs::File::create_new(&options.dest).await?;
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
-            if len == 0 {
-                break;
-            }
+        cmd.spawn()?
+    };
+    #[cfg(feature = "use-system-ssh")]
+    let mut stdout = ssh.stdout.take().unwrap();
+
+    let mut file = tokio::fs::File::create_new(&options.dest).await?;
+
+    while let Ok(len) = tokio::io::copy(&mut stdout, &mut file).await {
+        if len == 0 {
+            break;
         }
     }
 

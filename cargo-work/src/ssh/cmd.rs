@@ -43,8 +43,26 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut channel = {
+        use color_eyre::eyre::WrapErr;
+        let ssh = HorseClient::connect(sk, "cmd", host).await?;
+        let channel = ssh.channel_open_session().await?;
+        channel.set_env(true, "REPO", repo_name).await?;
+        channel.set_env(true, "BRANCH", branch).await?;
+
+        channel
+            .exec(true, scripts.join(" ").as_bytes())
+            .await
+            .wrap_err("exec")?;
+
+        channel
+    };
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut stdout = channel.make_reader();
+
     #[cfg(feature = "use-system-ssh")]
-    {
+    let mut ssh = {
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
@@ -53,14 +71,16 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             scripts,
         );
         cmd.stdout(std::process::Stdio::piped());
-        let mut ssh = cmd.spawn()?;
-        let mut stdout = ssh.stdout.take().unwrap();
-        let mut cout = tokio::io::stdout();
+        cmd.spawn()?
+    };
+    #[cfg(feature = "use-system-ssh")]
+    let mut stdout = ssh.stdout.take().unwrap();
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
-            if len == 0 {
-                break;
-            }
+    let mut cout = tokio::io::stdout();
+
+    while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
+        if len == 0 {
+            break;
         }
     }
 
