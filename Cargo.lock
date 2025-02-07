@@ -2725,9 +2725,8 @@ dependencies = [
 
 [[package]]
 name = "pageant"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "032d6201d2fb765158455ae0d5a510c016bb6da7232e5040e39e9c8db12b0afc"
+version = "0.0.1-beta.3"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
 dependencies = [
  "bytes",
  "delegate",
@@ -3460,9 +3459,8 @@ dependencies = [
 
 [[package]]
 name = "russh"
-version = "0.49.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b206640a622d63529540fc48036aa39f211b2b71432a451156004f40655cdb4"
+version = "0.49.3-alpha.0"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -3510,8 +3508,7 @@ dependencies = [
 [[package]]
 name = "russh-cryptovec"
 version = "0.48.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d8e7e854e1a87e4be00fa287c98cad23faa064d0464434beaa9f014ec3baa98"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
 dependencies = [
  "libc",
  "ssh-encoding",
@@ -3521,8 +3518,7 @@ dependencies = [
 [[package]]
 name = "russh-keys"
 version = "0.49.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "788a2439ce385856585346beb37c48e7c9eb5de5f4f00736720a19ffdb3f5bb5"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
 dependencies = [
  "aes",
  "async-trait",
@@ -3595,8 +3591,7 @@ dependencies = [
 [[package]]
 name = "russh-util"
 version = "0.48.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92c7dd577958c0cefbc8f8a2c05c48c88c42e2fdb760dbe9b96ae31d4de97a1f"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
 dependencies = [
  "chrono",
  "tokio",
