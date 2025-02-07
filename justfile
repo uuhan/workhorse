@@ -13,6 +13,9 @@ install-horsed:
 install: install-work install-horsed
   @echo "[{{os()}}-{{arch()}}] 安装成功: cargo-work, horsed"
 
+changes:
+  @bash scripts/changes.sh
+
 get-release:
   cargo work get ./target/release/cargo-work -f
   cargo work get ./target/release/horsed -f
