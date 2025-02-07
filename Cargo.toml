@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["cargo-work", "horsed", "stable", "horsed/migration"]
+members = ["stable", "cargo-work", "horsed", "horsed/migration", "pony"]
 
 [workspace.dependencies]
 stable = { path = "./stable" }
