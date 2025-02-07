@@ -7,6 +7,7 @@ use fs4::fs_std::FileExt;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use stable::data::{v2::*, *};
+use std::io::IsTerminal;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -113,10 +114,15 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         return Err(anyhow!("协议错误: {:?} {:?}", head, body));
     };
 
-    // println!("文件信息: {}", get_file.path.display());
-    // println!("文件大小: {}", get_file.size);
+    let is_piped = !std::io::stdout().is_terminal();
 
-    if get_file.kind.is_file() && file_path.exists() && !options.force && !options.stdout {
+    if get_file.kind.is_file()
+        && file_path.exists()
+        && !options.force
+        && !options.stdout
+        && !is_piped
+    // Do Not Overwrite File
+    {
         return Err(anyhow!("文件已存在: {}", file_path.display()));
     }
 
@@ -140,7 +146,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     const BUF_SIZE: usize = 1024 * 32;
     let mut buf = [0u8; BUF_SIZE];
 
-    if options.stdout {
+    if options.stdout || is_piped {
         let mut decoder = ZlibDecoder::new(std::io::stdout());
 
         while let Ok(len) = stdout.read(&mut buf).await {
