@@ -1,3 +1,11 @@
+### v0.2.2
+
+- cargo-work: use russh client as default ssh client
+- cargo-work: fix just command with russh client
+- cargo-work: cmd & just & scp with russh client
+- cargo-work: get file with russh client
+- stable: buffer Writer flush()
+
 ### v0.2.1
 
 - workhorse: remove russh-keys crate
