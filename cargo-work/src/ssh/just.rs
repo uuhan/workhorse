@@ -46,29 +46,29 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         .unwrap_or_else(|| "master".to_owned());
     let command = options.command.unwrap_or("default".to_string());
 
+    // git diff HEAD
+    let mut cmd = tokio::process::Command::new("git");
+    #[cfg(target_os = "windows")]
+    {
+        #[allow(unused_imports)]
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.arg("diff").arg("HEAD");
+
+    let mut cmd = cmd.spawn()?;
+
+    let mut diff = vec![];
+    use tokio::io::AsyncReadExt;
+    cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
+    cmd.wait().await?;
+    // git diff HEAD
+
     #[cfg(feature = "use-system-ssh")]
     {
-        // git diff HEAD
-        let mut cmd = tokio::process::Command::new("git");
-        #[cfg(target_os = "windows")]
-        {
-            #[allow(unused_imports)]
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        cmd.stdout(std::process::Stdio::piped());
-        cmd.arg("diff").arg("HEAD");
-
-        let mut cmd = cmd.spawn()?;
-
-        let mut diff = vec![];
-        use tokio::io::AsyncReadExt;
-        cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
-        cmd.wait().await?;
-        // git diff HEAD
-
         // ssh just@horsed <ACTION>
         let mut cmd = super::run_system_ssh(
             sk,
@@ -85,6 +85,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut out = tokio::io::stdout();
 
         stdin.write_all(&diff).await?;
+        stdin.shutdown().await?;
         drop(stdin);
 
         while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
@@ -103,34 +104,16 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         channel.set_env(true, "BRANCH", branch).await?;
         channel.exec(true, command.as_bytes()).await?;
 
-        let mut stdout = tokio::io::stdout();
-        let mut stderr = tokio::io::stderr();
+        let mut stdin = channel.make_writer();
+        stdin.write_all(&diff).await?;
+        stdin.shutdown().await?;
+        drop(stdin);
 
-        loop {
-            // There's an event available on the session channel
-            let Some(msg) = channel.wait().await else {
+        let mut out = tokio::io::stdout();
+        let mut stdout = channel.make_reader();
+        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
+            if len == 0 {
                 break;
-            };
-            match msg {
-                ChannelMsg::Success => {}
-
-                // Write data to the terminal
-                ChannelMsg::Data { ref data } => {
-                    stdout.write_all(data).await?;
-                    stdout.flush().await?;
-                }
-                // The command has returned an exit code
-                ChannelMsg::ExitStatus { exit_status } => {}
-
-                ChannelMsg::ExtendedData { ref data, ext } => {
-                    stderr.write_all(data).await?;
-                    stderr.flush().await?;
-                }
-
-                ChannelMsg::Eof => {
-                    break;
-                }
-                e => {}
             }
         }
 
