@@ -7,7 +7,6 @@ use fs4::fs_std::FileExt;
 use git2::Repository;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use stable::data::{v2::*, *};
-use std::ffi::OsString;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -54,108 +53,127 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
-    #[cfg(feature = "use-system-ssh")]
-    {
-        let current_dir = std::env::current_dir().unwrap();
-        let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
+    let current_dir = std::env::current_dir().unwrap();
+    let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
 
-        if let Some(dir) = file_path.parent() {
-            if !dir.exists() {
-                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
-            }
+    if let Some(dir) = file_path.parent() {
+        if !dir.exists() {
+            std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
         }
+    }
 
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut channel = {
+        let ssh = HorseClient::connect(sk, "get", host).await?;
+        let channel = ssh.channel_open_session().await?;
+        channel.set_env(true, "REPO", repo_name).await?;
+        channel.set_env(true, "BRANCH", branch).await?;
+
+        channel
+            .exec(true, options.file.as_bytes())
+            .await
+            .wrap_err("exec")?;
+
+        channel
+    };
+    #[cfg(not(feature = "use-system-ssh"))]
+    let mut stdout = channel.make_reader();
+
+    #[cfg(feature = "use-system-ssh")]
+    let mut stdout = {
         let mut cmd = super::run_system_ssh(
             sk,
             &[("REPO", repo_name), ("BRANCH", branch)],
             "get",
             host,
-            [OsString::from(&options.file)],
+            [std::ffi::OsString::from(&options.file)],
         );
+
         cmd.kill_on_drop(true);
         cmd.stdout(std::process::Stdio::piped());
+
         let mut ssh = cmd.spawn()?;
-        let mut stdout = ssh.stdout.take().unwrap();
+        ssh.stdout.take().unwrap()
+    };
 
-        let head = Head::read(&mut stdout).await?;
-        let mut body = vec![0u8; head.size as usize];
-        stdout.read_exact(&mut body).await?;
+    let head = Head::read(&mut stdout).await?;
+    let mut body = vec![0u8; head.size as usize];
+    stdout.read_exact(&mut body).await?;
 
-        let get_file = if let Ok(get_file) = bincode::deserialize::<GetFile>(&body) {
-            get_file
-        } else if let Ok(body) = bincode::deserialize::<Body>(&body) {
-            match body {
-                Body::GetFile(get_file) => get_file,
-                body => {
-                    return Err(anyhow!("获取文件错误: {}", serde_json::to_string(&body)?));
-                }
+    let get_file = if let Ok(get_file) = bincode::deserialize::<GetFile>(&body) {
+        get_file
+    } else if let Ok(body) = bincode::deserialize::<Body>(&body) {
+        match body {
+            Body::GetFile(get_file) => get_file,
+            body => {
+                return Err(anyhow!("获取文件错误: {}", serde_json::to_string(&body)?));
             }
-        } else {
-            return Err(anyhow!("协议错误: {:?} {:?}", head, body));
-        };
-
-        // println!("文件信息: {}", get_file.path.display());
-        // println!("文件大小: {}", get_file.size);
-
-        if get_file.kind.is_file() && file_path.exists() && !options.force && !options.stdout {
-            return Err(anyhow!("文件已存在: {}", file_path.display()));
         }
+    } else {
+        return Err(anyhow!("协议错误: {:?} {:?}", head, body));
+    };
 
-        if get_file.kind.is_dir() {
-            file_path.set_extension("tar");
-        }
+    // println!("文件信息: {}", get_file.path.display());
+    // println!("文件大小: {}", get_file.size);
 
-        let mut downloaded: u64 = 0;
+    if get_file.kind.is_file() && file_path.exists() && !options.force && !options.stdout {
+        return Err(anyhow!("文件已存在: {}", file_path.display()));
+    }
 
-        let pb = if let Some(size) = get_file.size {
-            ProgressBar::new(size)
-        } else {
-            ProgressBar::no_length()
-        };
+    if get_file.kind.is_dir() {
+        file_path.set_extension("tar");
+    }
 
-        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+    let mut downloaded: u64 = 0;
+
+    let pb = if let Some(size) = get_file.size {
+        ProgressBar::new(size)
+    } else {
+        ProgressBar::no_length()
+    };
+
+    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
             .unwrap()
             .with_key("eta", |state: &ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
 
-        const BUF_SIZE: usize = 1024 * 32;
-        let mut buf = [0u8; BUF_SIZE];
+    const BUF_SIZE: usize = 1024 * 32;
+    let mut buf = [0u8; BUF_SIZE];
 
-        if options.stdout {
-            let mut decoder = ZlibDecoder::new(std::io::stdout());
+    if options.stdout {
+        let mut decoder = ZlibDecoder::new(std::io::stdout());
 
-            while let Ok(len) = stdout.read(&mut buf).await {
-                pb.set_position(downloaded);
+        while let Ok(len) = stdout.read(&mut buf).await {
+            pb.set_position(downloaded);
 
-                if len == 0 {
-                    break;
-                }
-
-                downloaded += len as u64;
-                decoder.write_all(&buf[..len])?;
+            if len == 0 {
+                break;
             }
 
-            decoder.finish()?;
-        } else {
-            let file = std::fs::File::create(&file_path)?;
-            file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
-            let mut decoder = ZlibDecoder::new(file);
+            downloaded += len as u64;
+            decoder.write_all(&buf[..len])?;
+        }
 
-            while let Ok(len) = stdout.read(&mut buf).await {
-                pb.set_position(decoder.total_out());
+        decoder.finish()?;
+    } else {
+        let file = std::fs::File::create(&file_path)?;
+        file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
+        let mut decoder = ZlibDecoder::new(file);
 
-                if len == 0 {
-                    break;
-                }
+        while let Ok(len) = stdout.read(&mut buf).await {
+            pb.set_position(decoder.total_out());
 
-                decoder.write_all(&buf[..len])?;
+            if len == 0 {
+                break;
             }
 
-            decoder.finish()?;
-        };
+            decoder.write_all(&buf[..len])?;
+        }
 
-        pb.finish();
-    }
+        decoder.finish()?;
+    };
+
+    pb.finish();
 
     Ok(())
 }
