@@ -48,6 +48,11 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         use color_eyre::eyre::WrapErr;
         let ssh = HorseClient::connect(sk, "cmd", host).await?;
         let channel = ssh.channel_open_session().await?;
+
+        if let Some(shell) = horse.shell {
+            channel.set_env(true, "SHELL", shell).await?;
+        }
+
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
 
@@ -63,13 +68,11 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
-        let mut cmd = super::run_system_ssh(
-            sk,
-            &[("REPO", repo_name), ("BRANCH", branch)],
-            "cmd",
-            host,
-            scripts,
-        );
+        let mut args = vec![("REPO", repo_name), ("BRANCH", branch)];
+        if let Some(shell) = shell {
+            args.push(("SHELL", shell));
+        }
+        let mut cmd = super::run_system_ssh(sk, &args, "cmd", host, scripts);
         cmd.stdout(std::process::Stdio::piped());
         cmd.spawn()?
     };

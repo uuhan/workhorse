@@ -203,8 +203,16 @@ impl AppServer {
     pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
 
-        let env_repo = self.env.get("REPO");
-        let env_branch = self.env.get("BRANCH");
+        let env_repo = self.env.remove("REPO");
+        let env_branch = self.env.remove("BRANCH");
+
+        let shell = if let Some(shell) = self.env.remove("SHELL") {
+            shell
+        } else if cfg!(windows) {
+            "powershell.exe".to_string()
+        } else {
+            "bash".to_string()
+        };
 
         // 如果命令中包含 REPO 或者 BRANCH 环境变量, 则切换到工作目录执行命令
         let cmd_dir = if let (Some(env_repo), Some(_)) = (env_repo, env_branch) {
@@ -251,10 +259,10 @@ impl AppServer {
                     //     .current_dir(&cmd_dir)
                     //     .arg("/C")
                     //     .args(command),
-                    Command::new("powershell.exe")
+                    Command::new(shell)
                         .current_dir(&cmd_dir)
-                        .arg("-Command")
-                        .args(command),
+                        .arg("-c")
+                        .arg(command.join(" ")),
                 )
                 .await
             {
@@ -269,7 +277,7 @@ impl AppServer {
             #[cfg(not(windows))]
             match handle
                 .exec(
-                    Command::new("sh")
+                    Command::new(shell)
                         .current_dir(&cmd_dir)
                         .arg("-c")
                         .arg(command.join(" ")),

@@ -35,8 +35,15 @@ async fn main() -> Result<()> {
     match cli.sub_commands {
         // 作为 cargo 子命令运行
         SubCommands::Work(w_opt) => {
-            let horse = w_opt.horse;
+            let mut horse = w_opt.horse;
             let scripts = w_opt.scripts;
+
+            if horse.shell.is_none() {
+                // 读取环境变量 HORSED_SHELL 作为默认 shell
+                if let Ok(shell) = std::env::var("HORSED_SHELL") {
+                    horse.shell.replace(shell);
+                }
+            }
 
             // cargo work -- <SCRIPTS>
             // e.g. cargo work -- ls -al
@@ -188,5 +195,9 @@ fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
 
     if options.repo_name.is_none() {
         options.repo_name = horse.repo_name.clone();
+    }
+
+    if options.shell.is_none() {
+        options.shell = horse.shell.clone();
     }
 }
