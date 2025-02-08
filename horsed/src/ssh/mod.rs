@@ -892,17 +892,13 @@ impl AppServer {
             loop {
                 tokio::select! {
                     e_len = tokio::io::copy(&mut stderr, &mut e_output), if !e_finish => {
-                        if let Ok(len) = e_len {
-                             if len == 0 {
-                                 e_finish = true;
-                             }
+                        if e_len? == 0 {
+                            e_finish = true;
                         }
                     }
                     o_len = tokio::io::copy(&mut stdout, &mut o_output), if !o_finish =>  {
-                        if let Ok(len) = o_len {
-                             if len == 0 {
-                                 o_finish = true;
-                             }
+                        if o_len? == 0 {
+                            o_finish = true;
                         }
                     }
                     else => {
