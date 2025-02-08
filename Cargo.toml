@@ -46,5 +46,5 @@ strum = { version = "0.26", features = ["derive"] }
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "c759c78" }
-ratatui = { git = "https://github.com/ratatui/ratatui" }
 russh = { git = "https://github.com/uuhan/russh", branch = "workhorse" }
+# ratatui = { git = "https://github.com/ratatui/ratatui" }

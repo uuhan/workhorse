@@ -4,7 +4,6 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style, Stylize},
-    symbols,
     widgets::{
         calendar::{CalendarEventStore, Monthly},
         Bar, BarChart, BarGroup, Block, Clear, LineGauge, Padding, Widget,
@@ -159,7 +158,5 @@ fn render_line_gauge(percent: f64, area: Rect, buf: &mut Buffer) {
         .style(Style::new().light_blue())
         .filled_style(Style::new().fg(filled_color))
         .unfilled_style(Style::new().fg(unfilled_color))
-        .filled_symbol(symbols::line::THICK_HORIZONTAL)
-        .unfilled_symbol(symbols::line::THICK_HORIZONTAL)
         .render(area, buf);
 }
