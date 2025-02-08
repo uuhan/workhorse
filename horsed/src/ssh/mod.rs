@@ -685,6 +685,7 @@ impl AppServer {
             }
 
             cmd.current_dir(&work_path);
+            cmd.arg("--color=always");
             cmd.arg(command.join(" "));
 
             cmd.stdout(Stdio::piped());
@@ -692,19 +693,38 @@ impl AppServer {
 
             let mut cmd = cmd.spawn()?;
 
+            let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
 
             let mut o_output = handle.make_writer();
+            let err_fut = async move {
+                let mut buf = [0u8; 1024];
+                while let Ok(len) = stderr.read(&mut buf).await {
+                    if len == 0 {
+                        break;
+                    }
 
-            let mut buf = [0u8; 1024];
-            while let Ok(len) = stderr.read(&mut buf).await {
-                if len == 0 {
-                    break;
+                    o_output.write_all(&buf[..len]).await?;
+                    o_output.flush().await?;
                 }
+                Ok::<_, HorseError>(())
+            };
 
-                o_output.write_all(&buf[..len]).await?;
-                o_output.flush().await?;
-            }
+            let mut o_output = handle.make_writer();
+            let out_fut = async move {
+                let mut buf = [0u8; 1024];
+                while let Ok(len) = stdout.read(&mut buf).await {
+                    if len == 0 {
+                        break;
+                    }
+
+                    o_output.write_all(&buf[..len]).await?;
+                    o_output.flush().await?;
+                }
+                Ok::<_, HorseError>(())
+            };
+
+            futures::future::try_join(out_fut, err_fut).await?;
 
             let exit_status = cmd.wait().await?;
             if exit_status.success() {
