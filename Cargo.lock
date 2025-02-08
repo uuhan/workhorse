@@ -637,7 +637,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-work"
-version = "0.2.3-alpha.1"
+version = "0.2.3-alpha.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -723,9 +723,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.12"
+version = "1.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755717a7de9ec452bf7f3f1a3099085deabd7f2962b861dae91ecd7a365903d2"
+checksum = "c7777341816418c02e033934a09f20dc0ccaf65a5201ef8a450ae0105a573fda"
 dependencies = [
  "jobserver",
  "libc",
@@ -1854,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "horsed"
-version = "0.2.3-alpha.1"
+version = "0.2.3-alpha.2"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -2726,7 +2726,7 @@ dependencies = [
 [[package]]
 name = "pageant"
 version = "0.0.1-beta.3"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
 dependencies = [
  "bytes",
  "delegate",
@@ -3465,88 +3465,41 @@ dependencies = [
 [[package]]
 name = "russh"
 version = "0.49.3-alpha.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
 dependencies = [
  "aes",
  "aes-gcm",
  "async-trait",
+ "bcrypt-pbkdf",
  "bitflags 2.8.0",
+ "block-padding",
  "byteorder",
  "bytes",
  "cbc",
  "chacha20",
  "ctr",
  "curve25519-dalek",
- "delegate",
- "des",
- "digest",
- "elliptic-curve",
- "flate2",
- "futures",
- "generic-array",
- "hex-literal",
- "hmac",
- "log",
- "num-bigint",
- "once_cell",
- "p256",
- "p384",
- "p521",
- "poly1305",
- "rand",
- "rand_core",
- "rsa",
- "russh-cryptovec",
- "russh-keys",
- "russh-sftp",
- "russh-util",
- "sha1",
- "sha2",
- "signature",
- "ssh-encoding",
- "ssh-key",
- "subtle",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "russh-cryptovec"
-version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
-dependencies = [
- "libc",
- "ssh-encoding",
- "winapi",
-]
-
-[[package]]
-name = "russh-keys"
-version = "0.49.2"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
-dependencies = [
- "aes",
- "async-trait",
- "bcrypt-pbkdf",
- "block-padding",
- "byteorder",
- "bytes",
- "cbc",
- "ctr",
  "data-encoding",
+ "delegate",
  "der",
+ "des",
  "digest",
  "ecdsa",
  "ed25519-dalek",
  "elliptic-curve",
+ "flate2",
  "futures",
+ "generic-array",
  "getrandom 0.2.15",
+ "hex-literal",
  "hmac",
  "home",
  "inout",
  "log",
  "md5",
+ "num-bigint",
  "num-integer",
+ "once_cell",
  "p256",
  "p384",
  "p521",
@@ -3555,10 +3508,12 @@ dependencies = [
  "pkcs1",
  "pkcs5",
  "pkcs8",
+ "poly1305",
  "rand",
  "rand_core",
  "rsa",
  "russh-cryptovec",
+ "russh-sftp",
  "russh-util",
  "sec1",
  "serde",
@@ -3568,11 +3523,22 @@ dependencies = [
  "spki",
  "ssh-encoding",
  "ssh-key",
+ "subtle",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "typenum",
  "zeroize",
+]
+
+[[package]]
+name = "russh-cryptovec"
+version = "0.48.0"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
+dependencies = [
+ "libc",
+ "ssh-encoding",
+ "winapi",
 ]
 
 [[package]]
@@ -3596,7 +3562,7 @@ dependencies = [
 [[package]]
 name = "russh-util"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#20745902ab949e02776f0bf95dfa0bbb320fd2b1"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
 dependencies = [
  "chrono",
  "tokio",
