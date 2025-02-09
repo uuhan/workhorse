@@ -27,6 +27,7 @@ use stable::{
     task::TaskManager,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -409,6 +410,7 @@ impl AppServer {
                     cout.write_all(&buf[..len]).await?;
                 }
 
+                tracing::info!("目录传输完成!");
                 cout.shutdown().await?;
                 handle.eof().await?;
                 return Ok(());
@@ -454,6 +456,7 @@ impl AppServer {
                     cout.write_all(&buf[..len]).await?;
                 }
 
+                tracing::info!("文件传输完成!");
                 cout.shutdown().await?;
                 handle.eof().await?;
                 return Ok(());
@@ -1004,6 +1007,7 @@ impl AppServer {
     }
 }
 
+#[async_trait::async_trait]
 impl Server for AppServer {
     type Handler = Self;
     /// 创建新连接
@@ -1015,6 +1019,62 @@ impl Server for AppServer {
     /// 处理会话错误
     fn handle_session_error(&mut self, error: <Self::Handler as Handler>::Error) {
         tracing::error!("会话错误: {:?}", error);
+    }
+
+    async fn run_on_socket(
+        &mut self,
+        config: Arc<Config>,
+        socket: &TcpListener,
+    ) -> Result<(), std::io::Error> {
+        if config.maximum_packet_size > 65535 {
+            tracing::error!(
+                "Maximum packet size ({:?}) should not larger than a TCP packet (65535)",
+                config.maximum_packet_size
+            );
+        }
+
+        let (error_tx, mut error_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut tm = TaskManager::default();
+        let handle = tm.spawn_handle();
+
+        loop {
+            tokio::select! {
+                accept_result = socket.accept() => {
+                    match accept_result {
+                        Ok((socket, _)) => {
+                            let config = config.clone();
+                            let handler = self.new_client(socket.peer_addr().ok());
+                            let error_tx = error_tx.clone();
+                            handle.spawn(async move {
+                                let session = match run_stream(config, socket, handler).await {
+                                    Ok(s) => s,
+                                    Err(e) => {
+                                        let _ = error_tx.send(e);
+                                        panic!("Connection setup failed");
+                                    }
+                                };
+                                match session.await {
+                                    Ok(_) => tracing::debug!("Connection closed"),
+                                    Err(e) => {
+                                        tracing::debug!("Connection closed with error");
+                                        let _ = error_tx.send(e.into());
+                                    }
+                                }
+                                Ok(())
+                            });
+                        }
+                        _ => break,
+                    }
+                },
+                Some(error) = error_rx.recv() => {
+                    self.handle_session_error(error);
+                }
+            }
+        }
+
+        tm.terminate();
+
+        Ok(())
     }
 }
 

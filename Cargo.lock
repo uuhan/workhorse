@@ -2726,7 +2726,7 @@ dependencies = [
 [[package]]
 name = "pageant"
 version = "0.0.1-beta.3"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#9eb42d15e55602335dd967651d3b5916ffc025bb"
 dependencies = [
  "bytes",
  "delegate",
@@ -3465,10 +3465,11 @@ dependencies = [
 [[package]]
 name = "russh"
 version = "0.49.3-alpha.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#9eb42d15e55602335dd967651d3b5916ffc025bb"
 dependencies = [
  "aes",
  "aes-gcm",
+ "anyhow",
  "async-trait",
  "bcrypt-pbkdf",
  "bitflags 2.8.0",
@@ -3495,7 +3496,6 @@ dependencies = [
  "hmac",
  "home",
  "inout",
- "log",
  "md5",
  "num-bigint",
  "num-integer",
@@ -3504,6 +3504,7 @@ dependencies = [
  "p384",
  "p521",
  "pageant",
+ "parking_lot",
  "pbkdf2",
  "pkcs1",
  "pkcs5",
@@ -3527,6 +3528,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
+ "tracing",
  "typenum",
  "zeroize",
 ]
@@ -3534,7 +3536,7 @@ dependencies = [
 [[package]]
 name = "russh-cryptovec"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#9eb42d15e55602335dd967651d3b5916ffc025bb"
 dependencies = [
  "libc",
  "ssh-encoding",
@@ -3562,7 +3564,7 @@ dependencies = [
 [[package]]
 name = "russh-util"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#d77dbc7971e16c8e9566e4c0cdb986f3d83f9f02"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#9eb42d15e55602335dd967651d3b5916ffc025bb"
 dependencies = [
  "chrono",
  "tokio",
