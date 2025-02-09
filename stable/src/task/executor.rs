@@ -1,10 +1,10 @@
 use super::*;
 use std::{future::Future, sync::Arc};
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TaskType {
     Async,
-    Block,
+    Blocking,
 }
 
 #[rustfmt::skip]
@@ -55,7 +55,7 @@ fn build_executor() -> TaskExecutor {
 
     (move |fut, tt| match tt {
         TaskType::Async => handler.spawn(fut).map(drop),
-        TaskType::Block => handler
+        TaskType::Blocking => handler
             .spawn_blocking(move || {
                 let rt = tokio::runtime::Handle::current();
                 rt.block_on(fut)

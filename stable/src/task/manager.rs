@@ -36,6 +36,7 @@ pub struct SpawnEssentialTaskHandle {
 }
 
 impl SpawnTaskHandle {
+    #[tracing::instrument(skip_all, level = "debug")]
     pub fn spawn<T>(&self, task: T) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,
@@ -43,12 +44,15 @@ impl SpawnTaskHandle {
         self.spawn_inner::<T>(task, TaskType::Async)
     }
 
+    #[tracing::instrument(skip_all, level = "debug")]
     pub fn spawn_blocking<T>(&self, task: T) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner::<T>(task, TaskType::Block)
+        self.spawn_inner::<T>(task, TaskType::Blocking)
     }
+
+    #[tracing::instrument(skip(self, task), level = "debug")]
     fn spawn_inner<T>(&self, task: T, tt: TaskType) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,
@@ -129,6 +133,7 @@ impl SpawnEssentialTaskHandle {
         self.essential_failed_tx.close_channel();
     }
 
+    #[tracing::instrument(skip_all, level = "debug")]
     pub fn spawn<T>(&self, task: T) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,
@@ -136,13 +141,15 @@ impl SpawnEssentialTaskHandle {
         self.spawn_inner(task, TaskType::Async)
     }
 
+    #[tracing::instrument(skip_all, level = "debug")]
     pub fn spawn_blocking<T>(&self, task: T) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,
     {
-        self.spawn_inner(task, TaskType::Block)
+        self.spawn_inner(task, TaskType::Blocking)
     }
 
+    #[tracing::instrument(skip(self, task), level = "debug")]
     fn spawn_inner<T>(&self, task: T, tt: TaskType) -> TaskHandler
     where
         T: Future<Output = Result<()>> + Send + 'static,

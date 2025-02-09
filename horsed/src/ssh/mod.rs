@@ -1021,6 +1021,7 @@ impl Server for AppServer {
         tracing::error!("会话错误: {:?}", error);
     }
 
+    #[tracing::instrument(skip_all, level = "debug")]
     async fn run_on_socket(
         &mut self,
         config: Arc<Config>,
@@ -1082,6 +1083,7 @@ impl Server for AppServer {
 impl Handler for AppServer {
     type Error = HorseError;
 
+    #[tracing::instrument(skip_all, fields(channel=%channel.id()))]
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
@@ -1096,7 +1098,8 @@ impl Handler for AppServer {
     /// makes sure rejection happens in time
     /// `config.auth_rejection_time`, except if this method takes more
     /// than that.
-    async fn auth_password(&mut self, action: &str, _password: &str) -> Result<Auth, Self::Error> {
+    #[tracing::instrument(skip(self))]
+    async fn auth_password(&mut self, action: &str, password: &str) -> Result<Auth, Self::Error> {
         tracing::info!("尝试使用密码执行: {action}");
         Ok(Auth::Reject {
             proceed_with_methods: None,
@@ -1110,12 +1113,13 @@ impl Handler for AppServer {
     /// that rejection happens in constant time
     /// `config.auth_rejection_time`, except if this method takes more
     /// time than that.
+    #[tracing::instrument(skip(self, pk))]
     async fn auth_publickey_offered(
         &mut self,
         action: &str,
         pk: &PublicKey,
     ) -> Result<Auth, Self::Error> {
-        tracing::info!("Auth Publickey Offered: {}, {:?}", action, pk.to_openssh());
+        tracing::info!("PubKey: {:?}", pk.to_openssh());
         Ok(Auth::Accept)
     }
 
@@ -1125,6 +1129,7 @@ impl Handler for AppServer {
     /// Russh guarantees that rejection happens in constant time
     /// `config.auth_rejection_time`, except if this method takes more
     /// time than that.
+    #[tracing::instrument(skip(self, pk))]
     async fn auth_publickey(&mut self, action: &str, pk: &PublicKey) -> HorseResult<Auth> {
         #[allow(deprecated)]
         let data = base64::encode(&pk.to_bytes().context("pk bytes")?);
@@ -1148,7 +1153,7 @@ impl Handler for AppServer {
 
         self.action = action.to_string();
 
-        tracing::info!("Action: {action}, Login As: {}", user.name);
+        tracing::info!("Login As: {}", user.name);
         Ok(Auth::Accept)
     }
 
@@ -1158,9 +1163,10 @@ impl Handler for AppServer {
     /// Russh guarantees that rejection happens in constant time
     /// `config.auth_rejection_time`, except if this method takes more
     /// time than that.
+    #[tracing::instrument(skip(self, _certificate))]
     async fn auth_openssh_certificate(
         &mut self,
-        _user: &str,
+        user: &str,
         _certificate: &Certificate,
     ) -> Result<Auth, Self::Error> {
         Ok(Auth::Reject {
@@ -1169,14 +1175,16 @@ impl Handler for AppServer {
     }
 
     /// The client requests an X11 connection.
+    #[allow(unused)]
+    #[tracing::instrument(skip(self, session))]
     async fn x11_request(
         &mut self,
-        _channel: ChannelId,
-        _single_connection: bool,
-        _x11_auth_protocol: &str,
-        _x11_auth_cookie: &str,
-        _x11_screen_number: u32,
-        _session: &mut Session,
+        channel: ChannelId,
+        single_connection: bool,
+        x11_auth_protocol: &str,
+        x11_auth_cookie: &str,
+        x11_screen_number: u32,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
         // session.channel_success(channel);
         Ok(())
@@ -1185,12 +1193,14 @@ impl Handler for AppServer {
     /// The client wants to set the given environment variable. Check
     /// these carefully, as it is dangerous to allow any variable
     /// environment to be set.
+    #[allow(unused)]
+    #[tracing::instrument(skip(self, session))]
     async fn env_request(
         &mut self,
         channel: ChannelId,
         key: &str,
         value: &str,
-        _session: &mut Session,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("[{channel}] ssh env request: {key}={value}");
         self.env
@@ -1317,9 +1327,8 @@ impl Handler for AppServer {
 }
 
 impl Drop for AppServer {
-    fn drop(&mut self) {
-        tracing::info!("Drop AppServer");
-    }
+    #[tracing::instrument(skip(self))]
+    fn drop(&mut self) {}
 }
 
 pub async fn run() -> HorseResult<()> {
