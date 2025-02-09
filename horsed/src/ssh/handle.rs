@@ -64,6 +64,7 @@ impl ChannelHandle {
     }
 
     /// 调用远程命令, 并将输入输出流通过通道传输
+    #[tracing::instrument(skip(self))]
     pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
         #[cfg(target_os = "windows")]
         {

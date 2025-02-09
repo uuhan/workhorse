@@ -262,6 +262,7 @@ impl AppServer {
                     //     .args(command),
                     Command::new(shell)
                         .current_dir(&cmd_dir)
+                        .kill_on_drop(true)
                         .arg("-c")
                         .arg(command.join(" ")),
                 )
@@ -280,6 +281,7 @@ impl AppServer {
                 .exec(
                     Command::new(shell)
                         .current_dir(&cmd_dir)
+                        .kill_on_drop(true)
                         .arg("-c")
                         .arg(command.join(" ")),
                 )
