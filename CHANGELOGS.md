@@ -1,3 +1,17 @@
+### v0.2.3
+
+- README
+- add some tracing logs
+- horsed: use custom run_on_socket implement
+- workhorse: use russh v0.49.3-alpha.0
+- cargo-work: support specify shell intepreter
+- horsed: fix cargo command fault tolerance
+- horsed: fix just command stdout & stderr
+- cargo-work: use ratatui-0.30.0-alpha.1
+- cargo-work: get output to stdout if it is piped
+- workhorse: pre-release for v0.2.3
+- russh: use patched repo to fix "early eof" issue
+
 ### v0.2.2
 
 - cargo-work: use russh client as default ssh client
