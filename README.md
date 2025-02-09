@@ -137,6 +137,17 @@ cargo work get target
 cargo work -- scoop install vcpkg
 ```
 
+默认 Windows 系统使用 `powershell.exe`, 非 Windows 系统使用 `bash` 执行命令,
+你也可以使用 `--shell` 来指定你喜欢的解释器:
+
+```bash
+# 使用 nushell 作为 shell
+cargo work -s nu -- ls
+# 也可以使用环境变量 `HORSED_SHELL` 指定 shell
+export HORSED_SHELL=nu
+cargo work ls
+```
+
 cargo-work 也支持显式传入机器地址:
 
 ```bash

@@ -140,6 +140,17 @@ You can also run any command remotely:
 cargo work -- scoop install vcpkg
 ```
 
+The default intepreter is `powershell.exe` on Windows, and `bash` on Linux/MacOS.
+You can also specify the interpreter by `--shell` option:
+
+```bash
+# use nushell as the interpreter
+cargo work --shell nu -- ls
+# or use the env variabel `HORSED_SHELL` to set the interpreter
+export HORSED_SHELL=nu
+cargo work ls
+```
+
 You can pass the horsed target apparently to any cargo command:
 
 ```bash
