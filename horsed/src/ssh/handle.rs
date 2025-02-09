@@ -62,7 +62,7 @@ impl ChannelHandle {
     /// `exec_request`, 发送请求状态，并结束通道
     #[tracing::instrument(skip(self))]
     pub async fn exit(&self, exit_status: ExitStatus) -> HorseResult<()> {
-        tracing::debug!("exit");
+        tracing::info!("channel exit");
         self.handle
             .exit_status_request(self.id, exit_status.code().unwrap_or(128) as _)
             .await
@@ -178,13 +178,13 @@ impl DerefMut for ChannelHandle {
 }
 
 impl Drop for ChannelHandle {
-    #[tracing::instrument(skip(self), fields(id=%self.id), level="debug", name = "ChannelHandle::drop")]
+    #[tracing::instrument(skip(self), fields(id=%self.id), name = "ChannelHandle::drop")]
     fn drop(&mut self) {
         use tracing::Instrument;
-        let span = tracing::debug_span!("drop");
+        let span = tracing::info_span!("drop");
         futures::executor::block_on(
             async move {
-                tracing::debug!("cleanup");
+                tracing::info!("cleanup");
                 let _ = self.eof().await;
                 let _ = self.close().await;
             }

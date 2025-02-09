@@ -252,7 +252,7 @@ impl AppServer {
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         let task = self.tm.spawn_handle();
-        let span = tracing::info_span!("handle.exec", command = ?command, cmd_dir = ?cmd_dir);
+        let span = tracing::info_span!("spawn", command = ?command, cmd_dir = ?cmd_dir);
         task.spawn(
             async move {
                 let mut cmd = Command::new(shell);
@@ -273,7 +273,6 @@ impl AppServer {
                     .arg("-c")
                     .arg(command.join(" "));
 
-                tracing::info!("spawn");
                 let mut cmd = cmd.spawn()?;
 
                 let mut stdout = cmd.stdout.take().unwrap();
@@ -288,7 +287,14 @@ impl AppServer {
                 let (c1, c2) = futures::future::try_join(cout_fut, eout_fut).await?;
                 tracing::debug!("write: stdout={}, stderr={}", c1, c2);
 
-                handle.exit(cmd.wait().await?).await?;
+                let status = cmd.wait().await?;
+                if status.success() {
+                    tracing::info!("成功");
+                } else {
+                    tracing::warn!("失败: {}", status);
+                }
+
+                handle.exit(status).await?;
                 Ok(())
             }
             .instrument(span),
@@ -585,6 +591,7 @@ impl AppServer {
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
     /// 目前主要用于跟 git 工作流配合
     ///
+    #[tracing::instrument(skip_all)]
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("[just] {}", command.join(" "));
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
