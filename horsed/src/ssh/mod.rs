@@ -30,6 +30,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::sync::Mutex;
+use tracing::Instrument;
 
 mod handle;
 pub mod setup;
@@ -201,6 +202,7 @@ impl AppServer {
     }
 
     /// 服务端执行命令
+    #[tracing::instrument(skip_all)]
     pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
 
@@ -245,57 +247,52 @@ impl AppServer {
             std::env::current_dir()?
         };
 
-        let mut handle = self
+        let handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         let task = self.tm.spawn_handle();
+        let span = tracing::info_span!("handle.exec", command = ?command, cmd_dir = ?cmd_dir);
+        task.spawn(
+            async move {
+                let mut cmd = Command::new(shell);
+                #[cfg(target_os = "windows")]
+                {
+                    #[allow(unused_imports)]
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        task.spawn(async move {
-            #[cfg(windows)]
-            match handle
-                .exec(
-                    // Who still uses cmd.exe?
-                    // Command::new("cmd.exe")
-                    //     .current_dir(&cmd_dir)
-                    //     .arg("/C")
-                    //     .args(command),
-                    Command::new(shell)
-                        .current_dir(&cmd_dir)
-                        .kill_on_drop(true)
-                        .arg("-c")
-                        .arg(command.join(" ")),
-                )
-                .await
-            {
-                Ok(mut cmd) => {
-                    handle.exit(cmd.wait().await?).await?;
+                    cmd.creation_flags(CREATE_NO_WINDOW);
                 }
-                Err(err) => {
-                    tracing::error!("command failed: {}", err);
-                }
-            }
 
-            #[cfg(not(windows))]
-            match handle
-                .exec(
-                    Command::new(shell)
-                        .current_dir(&cmd_dir)
-                        .kill_on_drop(true)
-                        .arg("-c")
-                        .arg(command.join(" ")),
-                )
-                .await
-            {
-                Ok(mut cmd) => {
-                    handle.exit(cmd.wait().await?).await?;
-                }
-                Err(err) => {
-                    tracing::error!("command failed: {}", err);
-                }
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
+
+                cmd.current_dir(&cmd_dir)
+                    .kill_on_drop(true)
+                    .arg("-c")
+                    .arg(command.join(" "));
+
+                tracing::info!("spawn");
+                let mut cmd = cmd.spawn()?;
+
+                let mut stdout = cmd.stdout.take().unwrap();
+                let mut stderr = cmd.stderr.take().unwrap();
+
+                let mut cout = handle.make_writer();
+                let mut eout = handle.make_writer();
+
+                let cout_fut = tokio::io::copy(&mut stdout, &mut cout);
+                let eout_fut = tokio::io::copy(&mut stderr, &mut eout);
+
+                let (c1, c2) = futures::future::try_join(cout_fut, eout_fut).await?;
+                tracing::debug!("write: stdout={}, stderr={}", c1, c2);
+
+                handle.exit(cmd.wait().await?).await?;
+                Ok(())
             }
-            Ok(())
-        });
+            .instrument(span),
+        );
 
         Ok(())
     }
@@ -1048,6 +1045,7 @@ impl Server for AppServer {
                             let config = config.clone();
                             let handler = self.new_client(socket.peer_addr().ok());
                             let error_tx = error_tx.clone();
+                            let span = tracing::debug_span!("socket.accept", socket=?socket.peer_addr());
                             handle.spawn(async move {
                                 let session = match run_stream(config, socket, handler).await {
                                     Ok(s) => s,
@@ -1060,11 +1058,11 @@ impl Server for AppServer {
                                     Ok(_) => tracing::debug!("Connection closed"),
                                     Err(e) => {
                                         tracing::debug!("Connection closed with error");
-                                        let _ = error_tx.send(e.into());
+                                        let _ = error_tx.send(e);
                                     }
                                 }
                                 Ok(())
-                            });
+                            }.instrument(span));
                         }
                         _ => break,
                     }
@@ -1329,8 +1327,10 @@ impl Handler for AppServer {
 }
 
 impl Drop for AppServer {
-    #[tracing::instrument(skip(self))]
-    fn drop(&mut self) {}
+    #[tracing::instrument(skip(self), name = "AppServer::drop", level = "debug")]
+    fn drop(&mut self) {
+        tracing::debug!("cleanup");
+    }
 }
 
 pub async fn run() -> HorseResult<()> {

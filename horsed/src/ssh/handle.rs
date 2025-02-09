@@ -45,18 +45,24 @@ impl ChannelHandle {
         self.ch.wait().await
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn eof(&mut self) -> HorseResult<()> {
+        tracing::debug!("eof");
         let _ = self.handle.eof(self.id).await;
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn close(&mut self) -> HorseResult<()> {
+        tracing::debug!("close");
         let _ = self.handle.close(self.id).await;
         Ok(())
     }
 
     /// `exec_request`, 发送请求状态，并结束通道
+    #[tracing::instrument(skip(self))]
     pub async fn exit(&self, exit_status: ExitStatus) -> HorseResult<()> {
+        tracing::debug!("exit");
         self.handle
             .exit_status_request(self.id, exit_status.code().unwrap_or(128) as _)
             .await
@@ -65,72 +71,8 @@ impl ChannelHandle {
 
     /// 调用远程命令, 并将输入输出流通过通道传输
     #[tracing::instrument(skip(self))]
-    pub async fn exec(&mut self, cmd: &mut Command) -> HorseResult<Child> {
-        #[cfg(target_os = "windows")]
-        {
-            #[allow(unused_imports)]
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
-
-        let mut cmd = cmd.spawn()?;
-
-        let mut stdout = cmd.stdout.take().unwrap();
-        let mut stderr = cmd.stderr.take().unwrap();
-
-        let mut eout = self.make_writer();
-        let mut cout = self.make_writer();
-
-        let mut o_ready = false;
-        let mut e_ready = false;
-        loop {
-            if o_ready && e_ready {
-                break;
-            }
-            tokio::select! {
-                o = tokio::io::copy(&mut stdout, &mut cout), if !o_ready => {
-                    match o {
-                        Ok(len) => {
-                            tracing::debug!("send data: {}", len);
-                            if len == 0 {
-                                o_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("send data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                e = tokio::io::copy(&mut stderr, &mut eout), if !e_ready => {
-                    match e {
-                        Ok(len) => {
-                            if len == 0 {
-                                e_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("send data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                else => {
-                    break;
-                }
-            }
-        }
-
-        Ok(cmd)
-    }
-
-    /// 调用远程命令, 并将输入输出流通过通道传输
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {
+        use futures::future::try_join3;
         #[cfg(target_os = "windows")]
         {
             #[allow(unused_imports)]
@@ -153,57 +95,11 @@ impl ChannelHandle {
         let mut eout = self.make_writer();
         let (mut cout, mut cin) = self.make_io_pair();
 
-        let mut i_ready = false;
-        let mut o_ready = false;
-        let mut e_ready = false;
-        loop {
-            tokio::select! {
-                i = tokio::io::copy(&mut cin, &mut stdin), if !i_ready => {
-                    match i {
-                        Ok(len) => {
-                            tracing::debug!("send data: {}", len);
-                            if len == 0 {
-                                i_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("send data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                o = tokio::io::copy(&mut stdout, &mut cout), if !o_ready => {
-                    match o {
-                        Ok(len) => {
-                            tracing::debug!("send data: {}", len);
-                            if len == 0 {
-                                o_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("send data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                e = tokio::io::copy(&mut stderr, &mut eout), if !e_ready => {
-                    match e {
-                        Ok(len) => {
-                            if len == 0 {
-                                e_ready = true;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("send data error: {}", e);
-                            break;
-                        }
-                    }
-                },
-                else => {
-                    break;
-                }
-            }
-        }
+        let i_fut = tokio::io::copy(&mut cin, &mut stdin);
+        let o_fut = tokio::io::copy(&mut stdout, &mut cout);
+        let e_fut = tokio::io::copy(&mut stderr, &mut eout);
+
+        try_join3(i_fut, o_fut, e_fut).await?;
 
         Ok(cmd)
     }
@@ -282,11 +178,17 @@ impl DerefMut for ChannelHandle {
 }
 
 impl Drop for ChannelHandle {
+    #[tracing::instrument(skip(self), fields(id=%self.id), level="debug", name = "ChannelHandle::drop")]
     fn drop(&mut self) {
-        tracing::debug!("channel {} dropped", self.id);
-        futures::executor::block_on(async move {
-            let _ = self.eof().await;
-            let _ = self.close().await;
-        });
+        use tracing::Instrument;
+        let span = tracing::debug_span!("drop");
+        futures::executor::block_on(
+            async move {
+                tracing::debug!("cleanup");
+                let _ = self.eof().await;
+                let _ = self.close().await;
+            }
+            .instrument(span),
+        );
     }
 }
