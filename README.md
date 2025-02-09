@@ -16,13 +16,22 @@ n. 驮马，做粗工者，重负荷机器
 - MacOS
 - Windows
 
+### 安装
+
+你可以从 [发布页面](https://github.com/uuhan/workhorse/releases) 下载二进制文件。
+
+或者，你可以使用 `cargo` 安装：
+
+```bash
+cargo install --git https://github.com/uuhan/workhorse.git horsed
+cargo install --git https://github.com/uuhan/workhorse.git cargo-work
+```
+
 ### 如何使用？
 
 #### Horsed - 服务器端
 
 在终端中运行 `horsed` 命令，它会启动一个监听在 2222 端口的服务器。
-
-你可以从 [发布页面](https://github.com/uuhan/workhorse/releases) 下载二进制文件。
 
 ```bash
 # 在一个干净的目录中，存储所有文件。
@@ -84,8 +93,6 @@ ssh -p 2222 cmd@127.0.0.1 -- ls
 ```
 
 ##### 2. `cargo-work` 客户端工具
-
-你可以从 [发布页面](https://github.com/uuhan/workhorse/releases) 下载二进制文件。
 
 目前，Workhorse 客户端是一个 cargo 子命令，专为 Rust 项目构建。你可以远程运行几乎任何 cargo 命令，例如：
 

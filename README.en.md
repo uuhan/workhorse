@@ -12,14 +12,23 @@ Just focus on writing code, and leave the compilation to [牛马](https://github
 - MacOS
 - Windows
 
+### Instalation
+
+You can download the binary file from the [release page](https://github.com/uuhan/workhorse/releases)
+
+Or, you can build it from source code:
+
+```bash
+cargo install --git https://github.com/uuhan/workhorse.git horsed
+cargo install --git https://github.com/uuhan/workhorse.git cargo-work
+```
+
 ### How to Use It?
 
 #### Horsed - The Server Side
 
 You just run the horsed command in your terminal, and it will start a server
 listening on port 2222.
-
-You can download the binary file from the [release page](https://github.com/uuhan/workhorse/releases)
 
 ```bash
 # In a clean directory which will store all the files.
@@ -85,8 +94,6 @@ ssh -p 2222 cmd@127.0.0.1 -- ls
 ```
 
 ##### 2. The `cargo-work` Client Tool
-
-You can download the binary file from the [release page](https://github.com/uuhan/workhorse/releases)
 
 Currently workhorse client is a cargo subcommand, and is built for rust projects.
 You can run almost any cargo command remotely, like:
