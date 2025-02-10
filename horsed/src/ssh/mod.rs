@@ -705,6 +705,7 @@ impl AppServer {
             cmd.arg("--color=always");
             cmd.arg(command.join(" "));
 
+            cmd.kill_on_drop(true);
             cmd.stdout(Stdio::piped());
             cmd.stderr(Stdio::piped());
 
