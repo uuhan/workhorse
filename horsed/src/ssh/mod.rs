@@ -1053,7 +1053,9 @@ impl Server for AppServer {
                             let handler = self.new_client(socket.peer_addr().ok());
                             let error_tx = error_tx.clone();
                             let span = tracing::debug_span!("socket.accept", socket=?socket.peer_addr());
-                            handle.spawn(async move {
+
+                            // FIXME: windows with wireless network hangs when transfer files?
+                            handle.spawn_blocking(async move {
                                 let session = match run_stream(config, socket, handler).await {
                                     Ok(s) => s,
                                     Err(e) => {
