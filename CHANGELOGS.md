@@ -1,3 +1,14 @@
+### v0.2.4
+
+- horsed: more tracing logs
+- workhorse: RUSTFLAGS="--cfg tokio_unstable" to add tokio-console support on port 6669
+- horsed: fix just command kill on drop
+- horsed: seems the stream handler may block?
+- workhorse: cleanup deps
+- horsed: fix bad cmd stdout & stderr copy logic
+- horsed: kill cmd process after drop
+- README
+
 ### v0.2.3
 
 - README
