@@ -88,8 +88,10 @@ pub fn runtime_metrics() {
 
     tracing::debug!("线程池大小: {}", metrics.num_workers());
     tracing::debug!("活跃线程数: {}", metrics.num_alive_tasks());
-    tracing::debug!("阻塞线程数: {}", metrics.num_blocking_threads());
-    tracing::debug!("空闲线程数: {}", metrics.num_idle_blocking_threads());
+    tracing::debug!("任务队列长度: {}", metrics.global_queue_depth());
+    // tokio_stable
+    // tracing::debug!("阻塞线程数: {}", metrics.num_blocking_threads());
+    // tracing::debug!("空闲线程数: {}", metrics.num_idle_blocking_threads());
 }
 
 async fn signal_wrapper<F>(func: F)
