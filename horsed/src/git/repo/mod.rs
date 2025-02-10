@@ -6,6 +6,7 @@ use std::{
 };
 use tokio::process::Command;
 
+#[derive(Debug)]
 pub struct Repo {
     dir: PathBuf,
 }
@@ -32,6 +33,7 @@ impl Repo {
     }
 
     /// 创建一个裸仓库, 用于存放代码
+    #[tracing::instrument(skip(path), fields(path = ?path.as_ref()))]
     pub async fn create_bare(path: impl AsRef<Path>) -> HorseResult<Repo> {
         tracing::debug!("CREATE BARE REPO: {}", path.as_ref().display());
 
@@ -64,6 +66,7 @@ impl Repo {
     }
 
     /// 从远程仓库克隆代码
+    #[tracing::instrument(skip_all, fields(from = ?from.as_ref(), to = ?to.as_ref(), branch = branch))]
     pub async fn clone(
         from: impl AsRef<Path>,
         to: impl AsRef<Path>,
@@ -93,6 +96,7 @@ impl Repo {
     }
 
     /// 从远程仓库检出代码
+    #[tracing::instrument(skip(to), fields(to = ?to.as_ref()))]
     pub async fn checkout(&self, to: impl AsRef<Path>, branch: Option<&str>) -> HorseResult<Self> {
         #[allow(unused_mut)]
         let mut cmd = Command::new("git");
@@ -117,13 +121,15 @@ impl Repo {
 
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
-            tracing::error!("GIT CHECKOUT ERR: {}", err);
+            tracing::error!("{}", err);
+        } else {
+            tracing::info!("[git] checkout done");
         }
 
-        tracing::info!("[git] checkout done");
         Ok(Repo::from(to))
     }
 
+    #[tracing::instrument(skip(to, patch), fields(to = ?to.as_ref(), patch = patch.as_ref().len()))]
     pub async fn apply(&self, to: impl AsRef<Path>, patch: impl AsRef<[u8]>) -> HorseResult<()> {
         let mut cmd = Command::new("git");
 
@@ -158,6 +164,7 @@ impl Repo {
         Ok(())
     }
 
+    #[tracing::instrument(skip(message), fields(message = message.as_ref()))]
     pub async fn push_changes(&self, message: impl AsRef<str>) -> HorseResult<()> {
         Command::new("git")
             .current_dir(&self.dir)

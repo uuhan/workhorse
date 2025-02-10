@@ -61,10 +61,15 @@ impl ChannelHandle {
 
     /// `exec_request`, 发送请求状态，并结束通道
     #[tracing::instrument(skip(self))]
-    pub async fn exit(&self, exit_status: ExitStatus) -> HorseResult<()> {
-        tracing::info!("channel exit");
+    pub async fn exit(&self, status: ExitStatus) -> HorseResult<()> {
+        if status.success() {
+            tracing::info!("channel exit");
+        } else {
+            tracing::error!("channel exit");
+        }
+
         self.handle
-            .exit_status_request(self.id, exit_status.code().unwrap_or(128) as _)
+            .exit_status_request(self.id, status.code().unwrap_or(128) as _)
             .await
             .map_err(|_| anyhow::anyhow!("EXIT STATUS REQUEST").into())
     }

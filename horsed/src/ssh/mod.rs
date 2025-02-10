@@ -80,7 +80,7 @@ impl AppServer {
     pub async fn run(&mut self) -> HorseResult<()> {
         let key = key_init();
         let config = Config {
-            inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
+            inactivity_timeout: None,
             auth_rejection_time: std::time::Duration::from_secs(1),
             auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
             keys: vec![key],
@@ -94,10 +94,10 @@ impl AppServer {
     }
 
     /// 服务端 git 命令处理
+    #[tracing::instrument(skip(self), err)]
     pub async fn git(&mut self, command: Vec<String>) -> HorseResult<()> {
         // git clone ssh://git@127.0.0.1:2222/repos/a
         // git-upload-pack '/repos/a'
-        tracing::info!("GIT: {}", command.join(" "));
         let mut handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
 
         let git = &command.first().context("FIXME: GIT PUSH/CLONE")?;
@@ -202,7 +202,7 @@ impl AppServer {
     }
 
     /// 服务端执行命令
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self), err)]
     pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
 
@@ -304,6 +304,7 @@ impl AppServer {
     }
 
     /// 获取服务端文件
+    #[tracing::instrument(skip(self), err)]
     pub async fn get(&mut self, files: Vec<String>) -> HorseResult<()> {
         tracing::info!("GET: {}", files.join(" "));
 
@@ -591,7 +592,7 @@ impl AppServer {
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
     /// 目前主要用于跟 git 工作流配合
     ///
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip(self), err)]
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("[just] {}", command.join(" "));
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
@@ -679,6 +680,7 @@ impl AppServer {
             return Ok(());
         }
 
+        let just_span = tracing::info_span!("just");
         task.spawn(async move {
             let mut diff_input = handle.make_reader();
             let mut buf = vec![];
@@ -751,7 +753,7 @@ impl AppServer {
                 handle.error("构建失败").await?;
             }
 
-            handle.exit(exit_status).await?;
+            handle.exit(exit_status).instrument(just_span).await?;
             Ok(())
         });
 
@@ -774,6 +776,7 @@ impl AppServer {
     /// ```bash
     /// ssh -o SetEnv="REPO=workhorse BRANCH=main CARGO_BUILD=yyy" cargo@xxx.xxx.xxx.xxx -- build
     /// ```
+    #[tracing::instrument(skip(self), err)]
     pub async fn cargo(&mut self, command: Vec<String>) -> HorseResult<()> {
         let env_repo = self
             .env
@@ -884,6 +887,7 @@ impl AppServer {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
+        let cargo_span = tracing::info_span!("cargo", command = ?cmd);
         task.spawn(async move {
             let mut o_output = handle.make_writer();
             let mut e_output = handle.make_writer();
@@ -905,30 +909,18 @@ impl AppServer {
             let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
 
-            let mut e_finish = false;
-            let mut o_finish = false;
-            loop {
-                tokio::select! {
-                    e_len = tokio::io::copy(&mut stderr, &mut e_output), if !e_finish => {
-                        if e_len? == 0 {
-                            e_finish = true;
-                        }
-                    }
-                    o_len = tokio::io::copy(&mut stdout, &mut o_output), if !o_finish =>  {
-                        if o_len? == 0 {
-                            o_finish = true;
-                        }
-                    }
-                    else => {
-                        break;
-                    }
-                }
-            }
+            let o_fut = tokio::io::copy(&mut stdout, &mut o_output);
+            let e_fut = tokio::io::copy(&mut stderr, &mut e_output);
+
+            futures::future::try_join(o_fut, e_fut).await?;
 
             e_output.shutdown().await.context("shutdown e_output")?;
             o_output.shutdown().await.context("shutdown o_output")?;
 
-            handle.exit(cmd.wait().await?).await?;
+            handle
+                .exit(cmd.wait().await?)
+                .instrument(cargo_span)
+                .await?;
             Ok(())
         });
 
@@ -1212,7 +1204,7 @@ impl Handler for AppServer {
         value: &str,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        tracing::info!("[{channel}] ssh env request: {key}={value}");
+        tracing::info!("{}", key);
         self.env
             .insert(key.to_uppercase().to_string(), value.to_string());
         Ok(())
