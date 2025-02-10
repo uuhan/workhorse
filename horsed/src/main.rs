@@ -15,7 +15,7 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     try_join,
 };
-use tracing_subscriber::EnvFilter;
+use tracing_appender::non_blocking::WorkerGuard;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: 从配置文件中读取并设置一些环境变量
@@ -48,18 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if cli.foreground {
-        let env_filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-        let file_appender = tracing_appender::rolling::never(".", "horsed.log");
-        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-
-        let ts = tracing_subscriber::fmt().with_env_filter(env_filter);
-
-        if cli.show_log {
-            ts.init();
-        } else {
-            ts.with_writer(non_blocking).init();
-        }
+        let _guard = horsed::init_log(cli.show_log);
 
         let mut tm = TaskManager::default();
         let mut tm1 = TaskManager::default();

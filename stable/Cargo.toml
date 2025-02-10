@@ -3,6 +3,9 @@ name = "stable"
 version = "0.2.1"
 edition = "2021"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+
 [dependencies]
 anyhow.workspace = true
 bincode.workspace = true
