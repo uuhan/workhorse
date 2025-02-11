@@ -3,7 +3,7 @@ use crate::options::JustOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
 use std::path::Path;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -62,7 +62,6 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let mut cmd = cmd.spawn()?;
 
     let mut diff = vec![];
-    use tokio::io::AsyncReadExt;
     cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
     cmd.wait().await?;
     // git diff HEAD
@@ -70,13 +69,12 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     #[cfg(feature = "use-system-ssh")]
     {
         // ssh just@horsed <ACTION>
-        let mut cmd = super::run_system_ssh(
-            sk,
-            &[("REPO", repo_name), ("BRANCH", branch)],
-            "just",
-            host,
-            [std::ffi::OsString::from(command)],
-        );
+        let mut envs = vec![("REPO", repo_name), ("BRANCH", branch)];
+        if let Some(justfile) = options.file {
+            envs.push(("JUSTFILE", justfile));
+        }
+        let mut cmd =
+            super::run_system_ssh(sk, &envs, "just", host, [std::ffi::OsString::from(command)]);
 
         cmd.stdin(std::process::Stdio::piped());
         cmd.stdout(std::process::Stdio::piped());
@@ -108,6 +106,9 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        if let Some(justfile) = options.file {
+            channel.set_env(true, "JUSTFILE", justfile).await?;
+        }
         channel.exec(true, command.as_bytes()).await?;
 
         let mut stdin = channel.make_writer();

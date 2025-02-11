@@ -69,7 +69,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
         let mut args = vec![("REPO", repo_name), ("BRANCH", branch)];
-        if let Some(shell) = shell {
+        if let Some(shell) = horse.shell {
             args.push(("SHELL", shell));
         }
         let mut cmd = super::run_system_ssh(sk, &args, "cmd", host, scripts);

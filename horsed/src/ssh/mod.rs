@@ -602,10 +602,11 @@ impl AppServer {
     #[tracing::instrument(skip(self), err)]
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("[just] {}", command.join(" "));
-        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+        let env_repo = self.env.remove("REPO").context("REPO 环境变量未设置")?;
+        let env_branch = self.env.remove("BRANCH").context("BRANCH 环境变量未设置")?;
+        let justfile = self.env.remove("JUSTFILE");
 
-        let mut repo_path = PathBuf::from(env_repo);
+        let mut repo_path = PathBuf::from(&env_repo);
         // 去除开头的 /
         if repo_path.starts_with("/") {
             repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
@@ -678,7 +679,7 @@ impl AppServer {
         handle.info(format!("检出分支: {}", env_branch)).await?;
 
         if let Err(err) = repo
-            .checkout(&work_path, Some(env_branch))
+            .checkout(&work_path, Some(&env_branch))
             .await
             .context("检出代码失败")
         {
@@ -711,6 +712,20 @@ impl AppServer {
             }
 
             cmd.current_dir(&work_path);
+
+            // user defined justfile
+            if let Some(justfile) = justfile {
+                cmd.arg("-f");
+                cmd.arg(justfile);
+            } else {
+                // justfile.<os>
+                let justfile = format!("justfile.{}", std::env::consts::OS);
+                if let Ok(true) = std::fs::exists(&justfile) {
+                    cmd.arg("-f");
+                    cmd.arg(justfile);
+                }
+            }
+
             cmd.arg("--color=always");
             cmd.arg(command.join(" "));
 
