@@ -29,7 +29,7 @@ use opentelemetry_sdk::{
     Resource,
 };
 use opentelemetry_semantic_conventions::{
-    attribute::{DEPLOYMENT_ENVIRONMENT_NAME, SERVICE_NAME, SERVICE_VERSION},
+    attribute::{DEPLOYMENT_ENVIRONMENT_NAME, OS_TYPE, SERVICE_NAME, SERVICE_VERSION},
     SCHEMA_URL,
 };
 use std::time::Duration;
@@ -42,6 +42,14 @@ fn resource() -> Resource {
             KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
             KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
             KeyValue::new(DEPLOYMENT_ENVIRONMENT_NAME, "develop"),
+            #[cfg(target_os = "windows")]
+            KeyValue::new(OS_TYPE, "windows"),
+            #[cfg(target_os = "macos")]
+            KeyValue::new(OS_TYPE, "macos"),
+            #[cfg(target_os = "linux")]
+            KeyValue::new(OS_TYPE, "linux"),
+            #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+            KeyValue::new(OS_TYPE, "unknown"),
         ],
         SCHEMA_URL,
     )

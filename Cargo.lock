@@ -2975,7 +2975,7 @@ dependencies = [
 [[package]]
 name = "pageant"
 version = "0.0.1-beta.3"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#754f71a0f1436e88cb2a80a3900b32f6b52a5d2b"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#5bc7fa9a5f04ecfb247b621151d0b8a6932fb03f"
 dependencies = [
  "bytes",
  "delegate",
@@ -3725,7 +3725,7 @@ dependencies = [
 [[package]]
 name = "russh"
 version = "0.49.3-alpha.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#754f71a0f1436e88cb2a80a3900b32f6b52a5d2b"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#5bc7fa9a5f04ecfb247b621151d0b8a6932fb03f"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -3788,7 +3788,7 @@ dependencies = [
 [[package]]
 name = "russh-cryptovec"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#754f71a0f1436e88cb2a80a3900b32f6b52a5d2b"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#5bc7fa9a5f04ecfb247b621151d0b8a6932fb03f"
 dependencies = [
  "libc",
  "ssh-encoding",
@@ -3816,7 +3816,7 @@ dependencies = [
 [[package]]
 name = "russh-util"
 version = "0.48.0"
-source = "git+https://github.com/uuhan/russh?branch=workhorse#754f71a0f1436e88cb2a80a3900b32f6b52a5d2b"
+source = "git+https://github.com/uuhan/russh?branch=workhorse#5bc7fa9a5f04ecfb247b621151d0b8a6932fb03f"
 dependencies = [
  "chrono",
  "tokio",

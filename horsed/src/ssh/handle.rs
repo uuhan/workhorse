@@ -45,14 +45,14 @@ impl ChannelHandle {
         self.ch.wait().await
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), level = "debug")]
     pub async fn eof(&self) -> HorseResult<()> {
         tracing::debug!("eof");
         let _ = self.handle.eof(self.id).await;
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), level = "debug")]
     pub async fn close(&self) -> HorseResult<()> {
         tracing::debug!("close");
         let _ = self.handle.close(self.id).await;
@@ -60,7 +60,7 @@ impl ChannelHandle {
     }
 
     /// `exec_request`, 发送请求状态，并结束通道
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), level = "debug")]
     pub async fn exit(&self, status: ExitStatus) -> HorseResult<()> {
         if status.success() {
             tracing::info!("channel exit");
@@ -80,7 +80,7 @@ impl ChannelHandle {
     }
 
     /// 调用远程命令, 并将输入输出流通过通道传输
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), level = "debug")]
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {
         use futures::future::try_join3;
         #[cfg(target_os = "windows")]
@@ -188,7 +188,7 @@ impl DerefMut for ChannelHandle {
 }
 
 impl Drop for ChannelHandle {
-    #[tracing::instrument(skip(self), fields(id=%self.id), name = "ChannelHandle::drop")]
+    #[tracing::instrument(skip(self), fields(id=%self.id), name = "ChannelHandle::drop", level = "debug")]
     fn drop(&mut self) {
         tracing::debug!("cleanup");
     }
