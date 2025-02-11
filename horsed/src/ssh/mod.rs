@@ -559,6 +559,7 @@ impl AppServer {
 
             let mut body = vec![0u8; head.size as usize];
             reader.read_exact(&mut body).await?;
+            drop(reader);
 
             let pong = if let Ok(body) = bincode::deserialize::<Body>(&body) {
                 match body {
@@ -580,6 +581,12 @@ impl AppServer {
                 .write_all(v2::head(pong.len() as _).as_bytes())
                 .await?;
             writer.write_all(&pong).await?;
+
+            writer.shutdown().await?;
+            drop(writer);
+
+            handle.eof().await?;
+            handle.close().await?;
 
             Ok(())
         });

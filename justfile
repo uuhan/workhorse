@@ -9,10 +9,10 @@ install-work:
 
 install-horsed-with-console:
   @env RUSTFLAGS="--cfg tokio_unstable" \
-  cargo install --path ./horsed --bin horsed --color=always
+  cargo install --path ./horsed --bin horsed --color=always --features opentelemetry
 
 install-horsed:
-  @cargo install --path ./horsed --bin horsed --color=always
+  @cargo install --path ./horsed --bin horsed --color=always --features opentelemetry
 
 install: install-work install-horsed
   @echo "[{{os()}}-{{arch()}}] 安装成功: cargo-work, horsed"
