@@ -1045,28 +1045,33 @@ impl Server for AppServer {
                             let config = config.clone();
                             let handler = self.new_client(socket.peer_addr().ok());
                             let error_tx = error_tx.clone();
-                            let span = tracing::debug_span!("socket.accept", socket=?socket.peer_addr());
 
+                            let span = tracing::info_span!("socket.accept", socket=?socket.peer_addr());
                             // FIXME: windows with wireless network hangs when transfer files?
                             handle.spawn_blocking(async move {
+                                tracing::debug!("handle-socket");
                                 let session = match run_stream(config, socket, handler).await {
                                     Ok(s) => s,
                                     Err(e) => {
                                         let _ = error_tx.send(e);
-                                        panic!("Connection setup failed");
+                                        panic!("session-setup-failed");
                                     }
                                 };
+
                                 match session.await {
-                                    Ok(_) => tracing::debug!("Connection closed"),
+                                    Ok(_) => tracing::debug!("session-closed"),
                                     Err(e) => {
-                                        tracing::debug!("Connection closed with error");
                                         let _ = error_tx.send(e);
                                     }
                                 }
+
                                 Ok(())
                             }.instrument(span));
                         }
-                        _ => break,
+                        err => {
+                            tracing::error!("accept-error: {:?}", err);
+                            break;
+                        },
                     }
                 },
                 Some(error) = error_rx.recv() => {

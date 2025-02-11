@@ -185,15 +185,6 @@ impl DerefMut for ChannelHandle {
 impl Drop for ChannelHandle {
     #[tracing::instrument(skip(self), fields(id=%self.id), name = "ChannelHandle::drop")]
     fn drop(&mut self) {
-        use tracing::Instrument;
-        let span = tracing::info_span!("drop");
-        futures::executor::block_on(
-            async move {
-                tracing::info!("cleanup");
-                let _ = self.eof().await;
-                let _ = self.close().await;
-            }
-            .instrument(span),
-        );
+        tracing::debug!("cleanup");
     }
 }
