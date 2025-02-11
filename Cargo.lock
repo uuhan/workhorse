@@ -671,7 +671,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-work"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "horsed"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anstyle",
  "anyhow",

@@ -1,3 +1,9 @@
+### v0.2.5
+
+- horsed: fix tracing registry
+- horsed: add `opentelemetry` feature to support otlp exporter
+- horsed: fix a bad dead lock issue
+
 ### v0.2.4
 
 - horsed: more tracing logs
