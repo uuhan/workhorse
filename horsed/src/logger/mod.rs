@@ -40,13 +40,16 @@ pub fn init(show_log: bool) {
         FILE_GUARD.0.clone()
     };
 
-    let layer = tracing_subscriber::fmt::layer()
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(non_blocking)
         .with_thread_ids(true)
         .with_target(true)
         .with_file(false)
-        .with_line_number(true)
-        .with_filter(env_filter);
+        .with_line_number(true);
+
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt_layer);
 
     #[cfg(tokio_unstable)]
     {
@@ -64,20 +67,16 @@ pub fn init(show_log: bool) {
         #[cfg(feature = "opentelemetry")]
         {
             let meter = OTEL_GUARD.meter_provider.clone();
-            let tracer = OTEL_GUARD.tracer_provider.tracer("tracing-otel-subscriber");
-            tracing_subscriber::registry()
+            let tracer = OTEL_GUARD.tracer_provider.tracer(env!("CARGO_PKG_NAME"));
+            registry
                 .with(console_layer)
-                .with(layer)
                 .with(MetricsLayer::new(meter))
                 .with(OpenTelemetryLayer::new(tracer))
                 .init();
         }
 
         #[cfg(not(feature = "opentelemetry"))]
-        tracing_subscriber::registry()
-            .with(console_layer)
-            .with(layer)
-            .init();
+        registry.with(console_layer).init();
     }
 
     #[cfg(not(tokio_unstable))]
@@ -85,15 +84,14 @@ pub fn init(show_log: bool) {
         #[cfg(feature = "opentelemetry")]
         {
             let meter = OTEL_GUARD.meter_provider.clone();
-            let tracer = OTEL_GUARD.tracer_provider.tracer("tracing-otel-subscriber");
-            tracing_subscriber::registry()
-                .with(layer)
+            let tracer = OTEL_GUARD.tracer_provider.tracer(env!("CARGO_PKG_NAME"));
+            registry
                 .with(MetricsLayer::new(meter))
                 .with(OpenTelemetryLayer::new(tracer))
                 .init();
         }
 
         #[cfg(not(feature = "opentelemetry"))]
-        tracing_subscriber::registry().with(layer).init();
+        registry.init();
     }
 }
