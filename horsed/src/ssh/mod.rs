@@ -330,7 +330,7 @@ impl AppServer {
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
 
-        let mut handle = self
+        let handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
@@ -500,7 +500,7 @@ impl AppServer {
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
 
-        let mut handle = self
+        let handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;

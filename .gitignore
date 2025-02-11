@@ -3,3 +3,4 @@
 horsed.key
 *.tar
 vendor
+.env

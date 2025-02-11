@@ -48,8 +48,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if cli.foreground {
-        let _guard = horsed::init_log(cli.show_log);
-
         let mut tm = TaskManager::default();
         let mut tm1 = TaskManager::default();
 
@@ -58,6 +56,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let h = tm.spawn_handle();
 
         task.spawn(async move {
+            horsed::logger::init(cli.show_log);
+
             tracing::info!("数据库初始化...");
             let db = horsed::db::db();
             if let Err(err) = Migrator::up(&db, None).await {

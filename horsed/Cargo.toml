@@ -29,6 +29,19 @@ bincode.workspace = true
 tar.workspace = true
 clean-path.workspace = true
 flate2.workspace = true
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry-semantic-conventions = { workspace = true, features = [
+  "semconv_experimental",
+], optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry-stdout = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, features = [
+  "grpc-tonic",
+], optional = true }
+opentelemetry_sdk = { workspace = true, features = [
+  "rt-tokio",
+  "url",
+], optional = true }
 
 anstyle = "1.0.2"
 base64 = "0.22.1"
@@ -46,3 +59,14 @@ thiserror = "2.0.9"
 
 [target.'cfg(tokio_unstable)'.dependencies]
 console-subscriber = { version = "0.4", features = ["parking_lot"] }
+
+[features]
+default = ["opentelemetry"]
+opentelemetry = [
+  "dep:opentelemetry",
+  "dep:opentelemetry_sdk",
+  "dep:opentelemetry-otlp",
+  "dep:opentelemetry-stdout",
+  "dep:opentelemetry-semantic-conventions",
+  "dep:tracing-opentelemetry",
+]

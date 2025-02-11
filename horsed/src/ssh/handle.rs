@@ -46,14 +46,14 @@ impl ChannelHandle {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn eof(&mut self) -> HorseResult<()> {
+    pub async fn eof(&self) -> HorseResult<()> {
         tracing::debug!("eof");
         let _ = self.handle.eof(self.id).await;
         Ok(())
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn close(&mut self) -> HorseResult<()> {
+    pub async fn close(&self) -> HorseResult<()> {
         tracing::debug!("close");
         let _ = self.handle.close(self.id).await;
         Ok(())
@@ -68,10 +68,15 @@ impl ChannelHandle {
             tracing::error!("channel exit");
         }
 
-        self.handle
+        let _ = self
+            .handle
             .exit_status_request(self.id, status.code().unwrap_or(128) as _)
-            .await
-            .map_err(|_| anyhow::anyhow!("EXIT STATUS REQUEST").into())
+            .await;
+
+        self.eof().await?;
+        self.close().await?;
+
+        Ok(())
     }
 
     /// 调用远程命令, 并将输入输出流通过通道传输
