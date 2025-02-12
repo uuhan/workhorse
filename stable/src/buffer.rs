@@ -221,17 +221,20 @@ mod tests {
         assert_eq!(r, size);
     }
 
-    #[test]
-    fn test_write_more() {
-        let (mut writer, mut reader) = new(3);
+    #[rstest]
+    #[case(b"1234567890", 3)]
+    fn test_write_more(#[case] data: &[u8], #[case] size: usize) {
+        let (mut writer, mut reader) = new(size);
 
+        let data = data.to_vec();
         let _ = std::thread::spawn(move || {
-            writer.write_all(b"0123456789").unwrap();
+            writer.write_all(&data).unwrap();
             assert_eq!(writer.total(), 10);
         });
 
         let reader_thread = std::thread::spawn(move || {
             let mut buf = [0; 10];
+
             assert_eq!(reader.read(&mut buf).unwrap(), 3);
             assert_eq!(reader.read(&mut buf).unwrap(), 3);
             assert_eq!(reader.read(&mut buf).unwrap(), 3);
@@ -242,12 +245,14 @@ mod tests {
         reader_thread.join().unwrap();
     }
 
-    #[test]
-    fn test_write_zero() {
-        let (mut writer, mut reader) = new(3);
+    #[rstest]
+    #[case(b"", 3)]
+    fn test_write_zero(#[case] data: &[u8], #[case] size: usize) {
+        let (mut writer, mut reader) = new(size);
 
+        let data = data.to_vec();
         let _ = std::thread::spawn(move || {
-            writer.write_all(&[]).unwrap();
+            writer.write_all(&data).unwrap();
             assert_eq!(writer.total(), 0);
         });
 
