@@ -57,12 +57,6 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let current_dir = std::env::current_dir().unwrap();
     let mut file_path = current_dir.join(PathBuf::from(&options.file)).clean();
 
-    if let Some(dir) = file_path.parent() {
-        if !dir.exists() {
-            std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
-        }
-    }
-
     #[cfg(not(feature = "use-system-ssh"))]
     let mut channel = {
         let ssh = HorseClient::connect(sk, "get", host).await?;
@@ -121,6 +115,7 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         && !options.force
         && !options.stdout
         && !is_piped
+        && options.outfile.is_none()
     // Do Not Overwrite File
     {
         return Err(anyhow!("文件已存在: {}", file_path.display()));
@@ -162,6 +157,15 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
 
         decoder.finish()?;
     } else {
+        // use user specified output file
+        let file_path = options.outfile.unwrap_or(file_path);
+
+        if let Some(dir) = file_path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
+            }
+        }
+
         let file = std::fs::File::create(&file_path)?;
         file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
         let mut decoder = ZlibDecoder::new(file);
