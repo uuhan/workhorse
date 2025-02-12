@@ -254,6 +254,7 @@ impl<T> Future for Promise<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     #[test]
     fn test_promise_resolve() {
         let promise = Promise::new(|promise| promise.resolve(0));
@@ -293,11 +294,10 @@ mod tests {
         assert_eq!(promise.timeout(Duration::from_millis(100)), Ok(Some(0)));
     }
 
-    #[test]
-    fn test_promise_await() {
-        futures::executor::block_on(async {
-            let promise = Promise::new(|promise| promise.resolve(0));
-            assert_eq!(promise.await, Some(0));
-        });
+    #[rstest]
+    #[case(0)]
+    async fn test_promise_await(#[case] result: i32) {
+        let promise = Promise::new(move |promise| promise.resolve(result));
+        assert_eq!(promise.await, Some(result));
     }
 }

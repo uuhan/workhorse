@@ -4697,6 +4697,7 @@ name = "stable"
 version = "0.2.6"
 dependencies = [
  "anyhow",
+ "async-std",
  "bincode",
  "crossbeam",
  "futures",
