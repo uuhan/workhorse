@@ -206,22 +206,19 @@ impl Drop for Reader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_write_less() {
-        let (mut writer, mut reader) = new(10);
+    use rstest::rstest;
 
-        let _ = std::thread::spawn(move || {
-            writer.write_all(b"012").unwrap();
-            assert_eq!(writer.total(), 3);
-        });
+    #[rstest]
+    #[case(b"1234567890", 2)]
+    fn test_buffer(#[case] data: &[u8], #[case] size: usize) {
+        let (mut writer, mut reader) = new(size);
 
-        let reader_thread = std::thread::spawn(move || {
-            let mut buf = [0; 10];
-            assert_eq!(reader.read(&mut buf).unwrap(), 3);
-            assert_eq!(reader.read(&mut buf).unwrap(), 0);
-        });
+        let size = writer.write(data).unwrap();
+        assert_eq!(writer.total(), size);
 
-        reader_thread.join().unwrap();
+        let mut buf = vec![0; size];
+        let r = reader.read(&mut buf).unwrap();
+        assert_eq!(r, size);
     }
 
     #[test]

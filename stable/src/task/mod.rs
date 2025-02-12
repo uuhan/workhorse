@@ -13,10 +13,14 @@ use tokio::runtime::Runtime;
 
 pub mod executor;
 pub mod manager;
+mod pool;
+pub mod promise;
 pub mod signal;
 
 pub use executor::TaskExecutor;
 pub use manager::{SpawnEssentialTaskHandle, SpawnTaskHandle, TaskManager};
+pub use pool::spawn;
+pub use promise::*;
 
 type TracingUnboundedSender<T> = UnboundedSender<T>;
 type TracingUnboundedReceiver<T> = UnboundedReceiver<T>;
