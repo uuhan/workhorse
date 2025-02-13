@@ -108,29 +108,6 @@ fn db() -> DbConn {
 }
 
 #[rstest]
-async fn test_setup_server_auth(key: &PrivateKey, db: &DbConn) {
-    let config = server::Config {
-        inactivity_timeout: None,
-        auth_rejection_time: std::time::Duration::from_secs(0),
-        auth_rejection_time_initial: None,
-        keys: vec![key.clone()],
-        keepalive_interval: None,
-        ..Default::default()
-    };
-
-    let tm = TaskManager::default();
-    let handle = tm.spawn_essential_handle();
-    let mut setup_server = SetupServer::new(handle, db.clone(), true);
-
-    tokio::spawn(async move { setup_server.run(config, ("127.0.0.1", 2223)).await });
-
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-    let ssh = TestClient::connect(key.clone(), "any", ("127.0.0.1", 2223)).await;
-    assert!(ssh.is_ok());
-}
-
-#[rstest]
 async fn test_ssh_server_auth(key: &PrivateKey, db: &DbConn) {
     let config = server::Config {
         inactivity_timeout: None,
@@ -144,7 +121,7 @@ async fn test_ssh_server_auth(key: &PrivateKey, db: &DbConn) {
     let tm = TaskManager::default();
     let handle = tm.spawn_essential_handle();
     let mut setup_server = SetupServer::new(handle, db.clone(), true);
-    tokio::spawn(async move { setup_server.run(config, ("127.0.0.1", 2223)).await });
+    tokio::spawn(async move { setup_server.run(config, ("127.0.0.1", 1223)).await });
 
     let config = server::Config {
         inactivity_timeout: None,
@@ -156,14 +133,13 @@ async fn test_ssh_server_auth(key: &PrivateKey, db: &DbConn) {
     };
 
     let mut ssh_server = AppServer::new(db.clone());
-    tokio::spawn(async move { ssh_server.run(config, ("127.0.0.1", 2222)).await });
+    tokio::spawn(async move { ssh_server.run(config, ("127.0.0.1", 1222)).await });
 
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-    let ssh = TestClient::connect(key.clone(), "any", ("127.0.0.1", 2223)).await;
+    let ssh = TestClient::connect(key.clone(), "any", ("127.0.0.1", 1223)).await;
     assert!(ssh.is_ok());
 
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    let ssh = TestClient::connect(key.clone(), "ping", ("127.0.0.1", 2222)).await;
+    let ssh = TestClient::connect(key.clone(), "ping", ("127.0.0.1", 1222)).await;
     assert!(ssh.is_ok());
 }
