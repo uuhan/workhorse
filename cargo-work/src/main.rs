@@ -1,6 +1,6 @@
 use cargo_work::{
+    command::{cargo, cmd, get, just, ping, pull, push, scp, ssh},
     options::*,
-    ssh::{cargo, cmd, get, just, ping, pull, push, scp, ssh},
 };
 use clap::Parser;
 use color_eyre::Result;
