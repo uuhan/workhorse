@@ -1952,6 +1952,7 @@ version = "0.2.5"
 dependencies = [
  "anstyle",
  "anyhow",
+ "async-std",
  "async-trait",
  "base64 0.22.1",
  "bincode",
@@ -1974,6 +1975,7 @@ dependencies = [
  "paste",
  "rand_core",
  "ratatui 0.29.0",
+ "rstest",
  "russh",
  "sea-orm",
  "serde",

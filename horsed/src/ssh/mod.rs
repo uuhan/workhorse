@@ -16,7 +16,7 @@ use flate2::Compression;
 use russh::keys::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
-use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
+use sea_orm::{DatabaseConnection, DbConn, EntityTrait, ModelTrait};
 use shellwords::split;
 use stable::buffer;
 use stable::{
@@ -27,7 +27,7 @@ use stable::{
     task::TaskManager,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::Instrument;
@@ -37,7 +37,10 @@ pub mod setup;
 use handle::ChannelHandle;
 use v2::Body;
 
-struct AppServer {
+#[cfg(test)]
+mod tests;
+
+pub struct AppServer {
     /// 一些共享数据
     clients: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
     /// 任务管理器
@@ -57,7 +60,7 @@ impl Clone for AppServer {
         Self {
             clients: self.clients.clone(),
             tm: TaskManager::default(),
-            db: DB.clone(),
+            db: self.db.clone(),
             handle: None,
             action: String::new(),
             env: HashMap::new(),
@@ -66,30 +69,23 @@ impl Clone for AppServer {
 }
 
 impl AppServer {
-    pub fn new() -> Self {
+    pub fn new(db: DbConn) -> Self {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             tm: TaskManager::default(),
             handle: None,
-            db: DB.clone(),
+            db,
             action: String::new(),
             env: HashMap::new(),
         }
     }
 
-    pub async fn run(&mut self) -> HorseResult<()> {
-        let key = key_init();
-        let config = Config {
-            inactivity_timeout: None,
-            auth_rejection_time: std::time::Duration::from_secs(1),
-            auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
-            keys: vec![key],
-            keepalive_interval: Some(std::time::Duration::from_secs(5)),
-            ..Default::default()
-        };
-
-        self.run_on_address(Arc::new(config), ("0.0.0.0", 2222))
-            .await?;
+    pub async fn run<A: ToSocketAddrs + Send>(
+        &mut self,
+        config: Config,
+        addrs: A,
+    ) -> HorseResult<()> {
+        self.run_on_address(Arc::new(config), addrs).await?;
         Ok(())
     }
 
@@ -1069,8 +1065,7 @@ impl Server for AppServer {
                             let error_tx = error_tx.clone();
 
                             let span = tracing::info_span!("socket.accept", socket=?socket.peer_addr());
-                            // FIXME: windows with wireless network hangs when transfer files?
-                            handle.spawn_blocking(async move {
+                            handle.spawn(async move {
                                 tracing::debug!("handle-socket");
                                 let session = match run_stream(config, socket, handler).await {
                                     Ok(s) => s,
@@ -1240,11 +1235,11 @@ impl Handler for AppServer {
     /// The client requests a shell.
     async fn shell_request(
         &mut self,
-        _channel: ChannelId,
-        _session: &mut Session,
+        channel: ChannelId,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
         tracing::info!("ssh shell request");
-        // session.channel_success(channel)?;
+        session.channel_success(channel)?;
         Ok(())
     }
 
@@ -1287,6 +1282,24 @@ impl Handler for AppServer {
         session.channel_success(channel_id)?;
 
         Ok(())
+    }
+
+    /// Used for reverse-forwarding ports, see
+    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-7).
+    /// If `port` is 0, you should set it to the allocated port number.
+    #[tracing::instrument(skip(self, session), level = "info")]
+    async fn tcpip_forward(
+        &mut self,
+        address: &str,
+        port: &mut u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        // let handle = session.handle();
+        // let address = address.to_string();
+        // let port = *port;
+        tracing::info!("tcpip-forward");
+        let _ = session;
+        Ok(true)
     }
 
     /// The client asks to start the subsystem with the given name
@@ -1363,7 +1376,20 @@ impl Drop for AppServer {
 }
 
 pub async fn run() -> HorseResult<()> {
-    let mut server = AppServer::new();
-    server.run().await.expect("Failed running server");
+    let key = key_init();
+    let config = Config {
+        inactivity_timeout: None,
+        auth_rejection_time: std::time::Duration::from_secs(1),
+        auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
+        keys: vec![key],
+        keepalive_interval: Some(std::time::Duration::from_secs(5)),
+        ..Default::default()
+    };
+
+    let mut server = AppServer::new(DB.clone());
+    server
+        .run(config, ("0.0.0.0", 2222))
+        .await
+        .expect("Failed running server");
     Ok(())
 }

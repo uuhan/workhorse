@@ -14,36 +14,35 @@ use russh::keys::{Algorithm, PrivateKey, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId};
 use sea_orm::{
-    ActiveModelTrait,
-    ActiveValue::Set,
-    ColumnTrait, QueryFilter, TransactionTrait, {EntityTrait, ModelTrait},
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DbConn, EntityTrait, ModelTrait, QueryFilter,
+    TransactionTrait,
 };
 use stable::task::SpawnEssentialTaskHandle;
 use std::sync::Arc;
+use tokio::net::ToSocketAddrs;
 
 #[derive(Clone)]
-struct SetupServer {
+pub struct SetupServer {
     pub handle: SpawnEssentialTaskHandle,
+    pub db: DbConn,
     pub in_danger: bool,
 }
 
 impl SetupServer {
-    pub fn new(handle: SpawnEssentialTaskHandle, in_danger: bool) -> Self {
-        Self { handle, in_danger }
+    pub fn new(handle: SpawnEssentialTaskHandle, db: DbConn, in_danger: bool) -> Self {
+        Self {
+            handle,
+            db,
+            in_danger,
+        }
     }
 
-    pub async fn run(&mut self) -> HorseResult<()> {
-        let config = Config {
-            inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
-            auth_rejection_time: std::time::Duration::from_secs(1),
-            auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
-            keys: vec![PrivateKey::random(&mut OsRng, Algorithm::Ed25519).context("random key")?],
-            keepalive_interval: Some(std::time::Duration::from_secs(5)),
-            ..Default::default()
-        };
-
-        self.run_on_address(Arc::new(config), ("0.0.0.0", 2223))
-            .await?;
+    pub async fn run<A: ToSocketAddrs + Send>(
+        &mut self,
+        config: Config,
+        addrs: A,
+    ) -> HorseResult<()> {
+        self.run_on_address(Arc::new(config), addrs).await?;
 
         Ok(())
     }
@@ -85,7 +84,7 @@ impl Handler for SetupServer {
         #[allow(deprecated)]
         let key = base64::encode(&pk.to_bytes().context("pk bytes")?);
 
-        let conn = DB.clone();
+        let conn = self.db.clone();
 
         // Check if the key is already in the database
         if let Some(pk) = SshPk::find_by_id((alg.to_string(), key.clone()))
@@ -176,5 +175,16 @@ impl Handler for SetupServer {
 }
 
 pub async fn run(handle: SpawnEssentialTaskHandle, in_danger: bool) -> HorseResult<()> {
-    SetupServer::new(handle, in_danger).run().await
+    let config = Config {
+        inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
+        auth_rejection_time: std::time::Duration::from_secs(1),
+        auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
+        keys: vec![PrivateKey::random(&mut OsRng, Algorithm::Ed25519).context("random key")?],
+        keepalive_interval: Some(std::time::Duration::from_secs(5)),
+        ..Default::default()
+    };
+
+    SetupServer::new(handle, DB.clone(), in_danger)
+        .run(config, ("0.0.0.0", 2223))
+        .await
 }

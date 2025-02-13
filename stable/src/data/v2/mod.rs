@@ -21,7 +21,7 @@ pub fn head(size: u16) -> Head {
 
 impl Head {
     pub fn v2(&self) -> bool {
-        self.version == 1
+        self.version == 2
     }
 }
 
