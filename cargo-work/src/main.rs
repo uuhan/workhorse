@@ -1,6 +1,6 @@
 use cargo_work::{
     options::*,
-    ssh::{cargo, cmd, get, just, ping, pull, push, scp},
+    ssh::{cargo, cmd, get, just, ping, pull, push, scp, ssh},
 };
 use clap::Parser;
 use color_eyre::Result;
@@ -156,6 +156,13 @@ async fn main() -> Result<()> {
                     Commands::Ping(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = ping::run(&key, options).await {
+                            eprintln!("执行失败: {}", err);
+                        }
+                    }
+
+                    Commands::Ssh(mut options) => {
+                        merge_options(&mut options.horse, &horse);
+                        if let Err(err) = ssh::run(&key, options).await {
                             eprintln!("执行失败: {}", err);
                         }
                     }

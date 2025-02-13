@@ -110,6 +110,8 @@ pub enum Commands {
     Pull(PullOptions),
     #[command(name = "ping", about = "服务器状态检查")]
     Ping(PingOptions),
+    #[command(name = "ssh", about = "连接服务器")]
+    Ssh(SshOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -134,6 +136,30 @@ pub struct ScpOptions {
     pub dest: String,
     #[clap(flatten)]
     pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct SshOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    #[clap(
+        short = 'L',
+        name = "[LOCAL_IP:]LOCAL_PORT:DESTINATION:DESTINATION_PORT",
+        help = "转发本地端口到远程端口"
+    )]
+    pub forward_local_port: Option<String>,
+    #[clap(
+        short = 'R',
+        name = "[REMOTE:]REMOTE_PORT:DESTINATION:DESTINATION_PORT",
+        help = "转发远程端口到本地端口"
+    )]
+    pub forward_remote_port: Option<String>,
+    #[clap(
+        short = 'D',
+        name = "[LOCAL_IP:]LOCAL_PORT",
+        help = "动态转发经由远程服务器"
+    )]
+    pub forward_dynamic_port: Option<String>,
 }
 
 #[derive(Clone, Debug, Args)]
