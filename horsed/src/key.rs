@@ -23,11 +23,11 @@ pub fn key_init() -> PrivateKey {
     let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).expect("无法生成私钥");
 
     #[cfg(windows)]
-    key.write_openssh_file(path, ssh_key::LineEnding::CRLF)
+    key.write_openssh_file(path, russh::keys::ssh_key::LineEnding::CRLF)
         .expect("无法写入私钥文件");
 
     #[cfg(not(windows))]
-    key.write_openssh_file(path, ssh_key::LineEnding::LF)
+    key.write_openssh_file(path, russh::keys::ssh_key::LineEnding::LF)
         .expect("无法写入私钥文件");
 
     key

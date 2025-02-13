@@ -1,8 +1,8 @@
 use base64::DecodeError;
 use displaydoc::Display as DocDisplay;
+use russh::keys::ssh_key::Error as SshKeyError;
 use russh::Error as SshError;
 use sea_orm::DbErr;
-use ssh_key::Error as SshKeyError;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, DocDisplay, ThisError)]
