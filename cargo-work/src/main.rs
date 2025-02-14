@@ -167,6 +167,15 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
+            } else {
+                // default to ping server 3 times
+                let options = PingOptions {
+                    horse: horse.clone(),
+                    count: Some(3),
+                };
+                if let Err(err) = ping::run(&key, options).await {
+                    eprintln!("执行失败: {}", err);
+                }
             }
         }
 
