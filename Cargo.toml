@@ -44,6 +44,7 @@ strum = { version = "0.26", features = ["derive"] }
 rstest = "0.24"
 # rstest test only
 async-std = { version = "1.13", features = ["attributes"] }
+notify = { version = "8", features = ["serde"] }
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "c759c78" }

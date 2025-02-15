@@ -47,6 +47,8 @@ pub struct HorseOptions {
     pub remote: Option<String>,
     #[clap(short, long, help = "指定脚本解释器")]
     pub shell: Option<String>,
+    #[clap(short, long, help = "指定脚本解释器")]
+    pub watch: bool,
 }
 
 #[derive(Clone, Debug, Subcommand)]
@@ -112,6 +114,8 @@ pub enum Commands {
     Ping(PingOptions),
     #[command(name = "ssh", about = "连接服务器")]
     Ssh(SshOptions),
+    #[command(name = "watch", about = "监控文件变动并执行命令")]
+    Watch(WatchOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -160,6 +164,17 @@ pub struct SshOptions {
         help = "动态转发经由远程服务器"
     )]
     pub forward_dynamic_port: Option<String>,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct WatchOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    #[clap(short, long, help = "检测任意文件变动")]
+    pub any: bool,
+    #[clap(short, long, help = "指定目录路径")]
+    pub path: Option<PathBuf>,
+    pub commands: Vec<String>,
 }
 
 #[derive(Clone, Debug, Args)]

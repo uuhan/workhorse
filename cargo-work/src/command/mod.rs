@@ -26,6 +26,7 @@ pub mod pull;
 pub mod push;
 pub mod scp;
 pub mod ssh;
+pub mod watch;
 
 pub struct HorseClient {
     handle: Handle<Client>,
