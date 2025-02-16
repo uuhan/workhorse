@@ -1329,7 +1329,7 @@ impl Handler for AppServer {
     /// Called when a new TCP/IP is created.
     /// Return value indicates whether the channel request should be granted.
     #[allow(unused_variables)]
-    #[tracing::instrument(skip(self, session), level = "info")]
+    #[tracing::instrument(skip(self, session, channel), level = "info", fields(channel=%channel.id()))]
     async fn channel_open_direct_tcpip(
         &mut self,
         mut channel: Channel<Msg>,
@@ -1341,32 +1341,35 @@ impl Handler for AppServer {
     ) -> Result<bool, Self::Error> {
         let task = self.tm.spawn_handle();
         let host_to_connect = host_to_connect.to_string();
-        task.spawn(async move {
-            tracing::info!("connect to {}:{}", host_to_connect, port_to_connect);
+        let tcpip_span = tracing::info_span!("connect");
+        task.spawn(
+            async move {
+                let socket = TcpSocket::new_v4()?;
+                let mut stream = socket
+                    .connect(format!("{}:{}", host_to_connect, port_to_connect).parse()?)
+                    .await?;
 
-            let socket = TcpSocket::new_v4()?;
-            let mut stream = socket
-                .connect(format!("{}:{}", host_to_connect, port_to_connect).parse()?)
-                .await?;
+                tracing::info!("success");
+                let (mut reader, mut writer) = stream.split();
 
-            tracing::info!("connect to {}:{} success", host_to_connect, port_to_connect);
-            let (mut reader, mut writer) = stream.split();
+                let mut ch_writer = channel.make_writer();
+                let mut ch_reader = channel.make_reader();
 
-            let mut ch_writer = channel.make_writer();
-            let mut ch_reader = channel.make_reader();
+                let reader_fut = tokio::io::copy(&mut reader, &mut ch_writer);
+                let writer_fut = tokio::io::copy(&mut ch_reader, &mut writer);
 
-            let reader_fut = tokio::io::copy(&mut reader, &mut ch_writer);
-            let writer_fut = tokio::io::copy(&mut ch_reader, &mut writer);
+                futures::future::try_join(reader_fut, writer_fut).await?;
 
-            futures::future::try_join(reader_fut, writer_fut).await?;
+                tracing::info!("done");
+                ch_writer.shutdown().await?;
+                drop(ch_reader);
 
-            ch_writer.shutdown().await?;
-            drop(ch_reader);
-
-            channel.eof().await?;
-            channel.close().await?;
-            Ok(())
-        });
+                channel.eof().await?;
+                channel.close().await?;
+                Ok(())
+            }
+            .instrument(tcpip_span),
+        );
         Ok(true)
     }
 
