@@ -27,7 +27,7 @@ use stable::{
     task::TaskManager,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::{TcpListener, TcpSocket, ToSocketAddrs};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::Instrument;
@@ -1294,14 +1294,98 @@ impl Handler for AppServer {
         port: &mut u32,
         session: &mut Session,
     ) -> Result<bool, Self::Error> {
-        // let handle = session.handle();
-        // let address = address.to_string();
-        // let port = *port;
-        tracing::info!("tcpip-forward");
+        let address = address.to_string();
+        let port = *port;
+
+        let tcpip_forward_span = tracing::info_span!("tcpip-forward");
+        let task = self.tm.spawn_handle();
+
+        task.spawn(
+            async move {
+                tracing::info!("forwarding {}:{}", address, port);
+                Ok(())
+            }
+            .instrument(tcpip_forward_span),
+        );
+
         let _ = session;
         Ok(true)
     }
 
+    /// Used to stop the reverse-forwarding of a port, see
+    /// [RFC4254](https://tools.ietf.org/html/rfc4254#section-7).
+    #[tracing::instrument(skip(self, session), level = "info")]
+    #[allow(unused)]
+    async fn cancel_tcpip_forward(
+        &mut self,
+        address: &str,
+        port: u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        tracing::info!("cancel");
+        Ok(true)
+    }
+
+    /// Called when a new TCP/IP is created.
+    /// Return value indicates whether the channel request should be granted.
+    #[allow(unused_variables)]
+    #[tracing::instrument(skip(self, session), level = "info")]
+    async fn channel_open_direct_tcpip(
+        &mut self,
+        mut channel: Channel<Msg>,
+        host_to_connect: &str,
+        port_to_connect: u32,
+        originator_address: &str,
+        originator_port: u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        let task = self.tm.spawn_handle();
+        let host_to_connect = host_to_connect.to_string();
+        task.spawn(async move {
+            tracing::info!("connect to {}:{}", host_to_connect, port_to_connect);
+
+            let socket = TcpSocket::new_v4()?;
+            let mut stream = socket
+                .connect(format!("{}:{}", host_to_connect, port_to_connect).parse()?)
+                .await?;
+
+            tracing::info!("connect to {}:{} success", host_to_connect, port_to_connect);
+            let (mut reader, mut writer) = stream.split();
+
+            let mut ch_writer = channel.make_writer();
+            let mut ch_reader = channel.make_reader();
+
+            let reader_fut = tokio::io::copy(&mut reader, &mut ch_writer);
+            let writer_fut = tokio::io::copy(&mut ch_reader, &mut writer);
+
+            futures::future::try_join(reader_fut, writer_fut).await?;
+
+            ch_writer.shutdown().await?;
+            drop(ch_reader);
+
+            channel.eof().await?;
+            channel.close().await?;
+            Ok(())
+        });
+        Ok(true)
+    }
+
+    /// Called when a new forwarded connection comes in.
+    /// <https://www.rfc-editor.org/rfc/rfc4254#section-7>
+    #[allow(unused_variables)]
+    #[tracing::instrument(skip(self, session), level = "info")]
+    async fn channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        host_to_connect: &str,
+        port_to_connect: u32,
+        originator_address: &str,
+        originator_port: u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        tracing::info!("open");
+        Ok(true)
+    }
     /// The client asks to start the subsystem with the given name
     /// (such as sftp).
     async fn subsystem_request(

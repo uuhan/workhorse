@@ -7,7 +7,7 @@ use futures::{
 };
 use git2::Repository;
 use notify::{
-    event::{CreateKind, ModifyKind, RenameMode},
+    event::{CreateKind, ModifyKind},
     Config, Event, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use std::path::Path;
@@ -115,8 +115,4 @@ fn async_watcher() -> notify::Result<(RecommendedWatcher, Receiver<notify::Resul
     )?;
 
     Ok((watcher, rx))
-}
-
-async fn async_watch<P: AsRef<Path>>(path: P) -> notify::Result<()> {
-    Ok(())
 }
