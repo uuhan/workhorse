@@ -1,6 +1,6 @@
 use super::*;
 use crate::options::SshOptions;
-use color_eyre::eyre::{anyhow, ContextCompat, Result};
+use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
 use git2::Repository;
 use std::path::Path;
 use tokio::net::TcpListener;
@@ -45,7 +45,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
-    let ssh = HorseClient::connect(sk, "ssh", host).await?;
+    let mut ssh = HorseClient::connect(sk, "ssh", host).await?;
 
     if let Some(forward_local_port) = options.forward_local_port {
         let mut addrs = forward_local_port.split(":").collect::<Vec<&str>>();
@@ -64,24 +64,52 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
         while let Ok((mut socket, addr)) = listener.accept().await {
             println!("Accepted connection from {:?}", addr);
-            let (mut reader, mut writer) = socket.split();
 
-            let mut channel = ssh
+            let mut channel = match ssh
                 .channel_open_direct_tcpip(&remote_host, remote_port, &local_host, local_port)
-                .await?;
-            let mut ch_writer = channel.make_writer();
-            let mut ch_reader = channel.make_reader();
+                .await
+                .wrap_err("tcp forward failed!")
+            {
+                Ok(channel) => channel,
+                Err(e) => {
+                    eprintln!("tcpip forward failed: {:?}", e);
+                    ssh.close().await?;
+                    return Ok(());
+                }
+            };
 
-            loop {
-                tokio::select! {
-                    _ = tokio::io::copy(&mut reader, &mut ch_writer) => {
-                        break;
-                    }
-                    _ = tokio::io::copy(&mut ch_reader, &mut writer) => {
-                        break;
+            tokio::spawn(async move {
+                let (mut reader, mut writer) = socket.split();
+                let mut ch_writer = channel.make_writer();
+                let mut ch_reader = channel.make_reader();
+
+                loop {
+                    tokio::select! {
+                        r = tokio::io::copy(&mut reader, &mut ch_writer) => {
+                            if let Err(e) = r {
+                                eprintln!("Copy from socket to channel failed: {:?}", e);
+                                break;
+                            }
+                            if let Ok(len) = r {
+                                if len == 0 {
+                                    break;
+                                }
+                            }
+                        }
+                        w = tokio::io::copy(&mut ch_reader, &mut writer) => {
+                            if let Err(e) = w {
+                                eprintln!("Copy from channel to socket failed: {:?}", e);
+                                break;
+                            }
+                            if let Ok(len) = w {
+                                if len == 0 {
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
-            }
+            });
         }
     }
 

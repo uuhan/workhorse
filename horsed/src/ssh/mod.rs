@@ -1342,13 +1342,21 @@ impl Handler for AppServer {
         let task = self.tm.spawn_handle();
         let host_to_connect = host_to_connect.to_string();
         let tcpip_span = tracing::info_span!("connect");
+
+        let socket = TcpSocket::new_v4()?;
+        let Ok(mut stream) = socket
+            .connect(
+                format!("{}:{}", host_to_connect, port_to_connect)
+                    .parse()
+                    .context("addr parse")?,
+            )
+            .await
+        else {
+            return Ok(false);
+        };
+
         task.spawn(
             async move {
-                let socket = TcpSocket::new_v4()?;
-                let mut stream = socket
-                    .connect(format!("{}:{}", host_to_connect, port_to_connect).parse()?)
-                    .await?;
-
                 tracing::info!("success");
                 let (mut reader, mut writer) = stream.split();
 
@@ -1370,6 +1378,7 @@ impl Handler for AppServer {
             }
             .instrument(tcpip_span),
         );
+
         Ok(true)
     }
 
