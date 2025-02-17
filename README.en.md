@@ -76,6 +76,7 @@ Currently the supported actions are:
 - just: run just command defined in _justfile_
 - get: get the build artifact from remote server
 - scp: like scp, to copy files from remote server to local
+- ssh: local(-L) and reverse(-R) port forward
 
 Workhorse is designed to work with two kinds of clients:
 

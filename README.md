@@ -77,6 +77,7 @@ Workhorse 将普通的 `<Action>@<The Horsed Server>` 视为远程操作执行�
 - just：运行 _justfile_ 中定义的 just 命令
 - get：从远程服务器获取构建产物
 - scp：类似 scp，将文件从远程服务器复制到本地
+- ssh: 本地(-L)、反向(-R)端口转发
 
 Workhorse 设计支持两种客户端：
 
