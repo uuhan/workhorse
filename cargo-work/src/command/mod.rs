@@ -4,6 +4,7 @@ use color_eyre::eyre::{bail, Result};
 use colored::Colorize;
 use git2::Remote;
 use git2::Repository;
+use russh::client::Msg;
 use russh::client::{self, DisconnectReason, Handle, Handler};
 use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::ssh_key::PublicKey;
@@ -14,6 +15,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::net::TcpSocket;
 use tokio::net::ToSocketAddrs;
 use url::Url;
 
@@ -98,6 +100,62 @@ impl Handler for Client {
     ) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    /// Called when the server opens a channel for a new remote port forwarding connection
+    #[allow(unused_variables)]
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        connected_address: &str,
+        connected_port: u32,
+        originator_address: &str,
+        originator_port: u32,
+        session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        println!(
+            "{}:{} <- {}:{}",
+            connected_address, connected_port, originator_address, originator_port
+        );
+
+        let socket = TcpSocket::new_v4()?;
+        let Ok(mut stream) = socket
+            .connect(
+                format!("{}:{}", connected_address, connected_port)
+                    .parse()
+                    .unwrap(),
+            )
+            .await
+        else {
+            session.disconnect(Disconnect::ByApplication, "", "English")?;
+            return Ok(());
+        };
+
+        tokio::spawn(async move {
+            let mut ch_stream = channel.into_stream();
+            tokio::io::copy_bidirectional(&mut ch_stream, &mut stream)
+                .await
+                .unwrap();
+
+            Ok::<_, Self::Error>(())
+        });
+
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    async fn channel_open_confirmation(
+        &mut self,
+        channel: ChannelId,
+        max_packet_size: u32,
+        window_size: u32,
+        session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        // println!(
+        //     "channel open: {:?} {} {}",
+        //     channel, max_packet_size, window_size
+        // );
+        Ok(())
+    }
 }
 
 impl HorseClient {
@@ -119,7 +177,10 @@ impl HorseClient {
 
         let mut handle = client::connect(config, addrs, sh).await?;
         let auth_res = handle
-            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(key_pair), None)?)
+            .authenticate_publickey(
+                user,
+                PrivateKeyWithHashAlg::new(Arc::new(key_pair), Some(HashAlg::Sha256))?,
+            )
             .await?;
 
         if !auth_res {

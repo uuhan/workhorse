@@ -47,6 +47,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
     let mut ssh = HorseClient::connect(sk, "ssh", host).await?;
 
+    // ssh -L
     if let Some(forward_local_port) = options.forward_local_port {
         let mut addrs = forward_local_port.split(":").collect::<Vec<&str>>();
         addrs.reverse();
@@ -62,10 +63,10 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
         println!("Listening on {}", local_addr);
         let listener = TcpListener::bind(local_addr).await?;
 
-        while let Ok((mut socket, addr)) = listener.accept().await {
+        while let Ok((mut stream, addr)) = listener.accept().await {
             println!("Accepted connection from {:?}", addr);
 
-            let mut channel = match ssh
+            let channel = match ssh
                 .channel_open_direct_tcpip(&remote_host, remote_port, &local_host, local_port)
                 .await
                 .wrap_err("tcp forward failed!")
@@ -78,38 +79,22 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
                 }
             };
 
-            tokio::spawn(async move {
-                let (mut reader, mut writer) = socket.split();
-                let mut ch_writer = channel.make_writer();
-                let mut ch_reader = channel.make_reader();
+            let mut ch_stream = channel.into_stream();
+            tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
+        }
+    }
 
-                loop {
-                    tokio::select! {
-                        r = tokio::io::copy(&mut reader, &mut ch_writer) => {
-                            if let Err(e) = r {
-                                eprintln!("Copy from socket to channel failed: {:?}", e);
-                                break;
-                            }
-                            if let Ok(len) = r {
-                                if len == 0 {
-                                    break;
-                                }
-                            }
-                        }
-                        w = tokio::io::copy(&mut ch_reader, &mut writer) => {
-                            if let Err(e) = w {
-                                eprintln!("Copy from channel to socket failed: {:?}", e);
-                                break;
-                            }
-                            if let Ok(len) = w {
-                                if len == 0 {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+    // ssh -R
+    if let Some(forward_remote_port) = options.forward_remote_port {
+        ssh.tcpip_forward(forward_remote_port, 0).await?;
+
+        let mut channel = ssh
+            .channel_open_session()
+            .await
+            .with_context(|| "channel_open_session error.")?;
+
+        while let Some(msg) = channel.wait().await {
+            println!("{:?}", msg);
         }
     }
 

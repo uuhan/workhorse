@@ -1294,21 +1294,82 @@ impl Handler for AppServer {
         port: &mut u32,
         session: &mut Session,
     ) -> Result<bool, Self::Error> {
-        let address = address.to_string();
-        let port = *port;
+        // let address = address.to_string();
+        //
+        let mut addrs = address.split(":").collect::<Vec<&str>>();
+        addrs.reverse();
+        let local_port = addrs
+            .first()
+            .unwrap()
+            .parse::<u32>()
+            .context("port parse")?;
+        let local_host = addrs
+            .get(1)
+            .unwrap()
+            .parse::<String>()
+            .context("host parse")?;
+        let remote_port = addrs.get(2).unwrap().parse::<u32>().context("port parse")?;
+        let remote_host = addrs
+            .get(3)
+            .and_then(|s| s.parse::<String>().ok())
+            .unwrap_or("127.0.0.1".to_string());
 
         let tcpip_forward_span = tracing::info_span!("tcpip-forward");
         let task = self.tm.spawn_handle();
 
+        tracing::info!("forwarding: {}", address);
+        let addr = format!("{}:{}", remote_host, remote_port);
+
+        let listener = match TcpListener::bind(&addr).await {
+            Ok(l) => l,
+            Err(err) => {
+                tracing::error!("bind error: {:?}", err);
+                return Ok(false);
+            }
+        };
+
+        tracing::info!("bind success");
+
+        let handle = session.handle();
         task.spawn(
             async move {
-                tracing::info!("forwarding {}:{}", address, port);
+                // listen on server
+                while let Ok((mut stream, peer)) = listener.accept().await {
+                    tracing::info!("accepted from {}", peer);
+                    match handle
+                        .channel_open_forwarded_tcpip(
+                            &local_host,
+                            local_port,
+                            peer.ip().to_string(),
+                            peer.port() as _,
+                        )
+                        .await
+                    {
+                        Err(err) => {
+                            tracing::error!("channel-open-forwarded-tcpip error: {:?}", err);
+                        }
+                        Ok(mut channel) => {
+                            tracing::info!("open channel");
+                            let mut ch_writer = channel.make_writer();
+                            let mut ch_reader = channel.make_reader();
+                            let (mut reader, mut writer) = stream.split();
+
+                            let writer_fut = tokio::io::copy(&mut reader, &mut ch_writer);
+                            let reader_fut = tokio::io::copy(&mut ch_reader, &mut writer);
+
+                            futures::future::try_join(writer_fut, reader_fut).await?;
+                            drop(ch_reader);
+
+                            channel.eof().await?;
+                            tracing::info!("done");
+                        }
+                    }
+                }
                 Ok(())
             }
             .instrument(tcpip_forward_span),
         );
 
-        let _ = session;
         Ok(true)
     }
 
@@ -1355,6 +1416,8 @@ impl Handler for AppServer {
             return Ok(false);
         };
 
+        let task = self.tm.spawn_handle();
+
         task.spawn(
             async move {
                 tracing::info!("success");
@@ -1373,7 +1436,6 @@ impl Handler for AppServer {
                 drop(ch_reader);
 
                 channel.eof().await?;
-                channel.close().await?;
                 Ok(())
             }
             .instrument(tcpip_span),
