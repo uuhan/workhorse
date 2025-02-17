@@ -1294,31 +1294,13 @@ impl Handler for AppServer {
         port: &mut u32,
         session: &mut Session,
     ) -> Result<bool, Self::Error> {
-        // let address = address.to_string();
-        //
-        let mut addrs = address.split(":").collect::<Vec<&str>>();
-        addrs.reverse();
-        let local_port = addrs
-            .first()
-            .unwrap()
-            .parse::<u32>()
-            .context("port parse")?;
-        let local_host = addrs
-            .get(1)
-            .unwrap()
-            .parse::<String>()
-            .context("host parse")?;
-        let remote_port = addrs.get(2).unwrap().parse::<u32>().context("port parse")?;
-        let remote_host = addrs
-            .get(3)
-            .and_then(|s| s.parse::<String>().ok())
-            .unwrap_or("127.0.0.1".to_string());
-
         let tcpip_forward_span = tracing::info_span!("tcpip-forward");
         let task = self.tm.spawn_handle();
+        let address = address.to_string();
+        let port = *port;
 
         tracing::info!("forwarding: {}", address);
-        let addr = format!("{}:{}", remote_host, remote_port);
+        let addr = format!("{}:{}", address, port);
 
         let listener = match TcpListener::bind(&addr).await {
             Ok(l) => l,
@@ -1338,8 +1320,8 @@ impl Handler for AppServer {
                     tracing::info!("accepted from {}", peer);
                     match handle
                         .channel_open_forwarded_tcpip(
-                            &local_host,
-                            local_port,
+                            &address,
+                            port,
                             peer.ip().to_string(),
                             peer.port() as _,
                         )

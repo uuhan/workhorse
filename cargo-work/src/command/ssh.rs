@@ -45,10 +45,10 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
-    let mut ssh = HorseClient::connect(sk, "ssh", host).await?;
-
     // ssh -L
     if let Some(forward_local_port) = options.forward_local_port {
+        let mut ssh = HorseClient::connect(sk, "ssh", host, None, None).await?;
+
         let mut addrs = forward_local_port.split(":").collect::<Vec<&str>>();
         addrs.reverse();
         let remote_port = addrs.first().unwrap().parse::<u32>()?;
@@ -61,10 +61,13 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
         let local_addr = format!("{}:{}", local_host, local_port);
         println!("Listening on {}", local_addr);
-        let listener = TcpListener::bind(local_addr).await?;
+        let listener = TcpListener::bind(&local_addr).await?;
 
         while let Ok((mut stream, addr)) = listener.accept().await {
-            println!("Accepted connection from {:?}", addr);
+            println!(
+                "{:?} -> {} -> {}:{}",
+                addr, local_addr, remote_host, remote_port
+            );
 
             let channel = match ssh
                 .channel_open_direct_tcpip(&remote_host, remote_port, &local_host, local_port)
@@ -86,7 +89,29 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
     // ssh -R
     if let Some(forward_remote_port) = options.forward_remote_port {
-        ssh.tcpip_forward(forward_remote_port, 0).await?;
+        let mut addrs = forward_remote_port.split(":").collect::<Vec<&str>>();
+        addrs.reverse();
+        let local_port = addrs
+            .first()
+            .unwrap()
+            .parse::<u32>()
+            .context("port parse")?;
+        let local_host = addrs
+            .get(1)
+            .unwrap()
+            .parse::<String>()
+            .context("host parse")?;
+        let remote_port = addrs.get(2).unwrap().parse::<u32>().context("port parse")?;
+        let remote_host = addrs
+            .get(3)
+            .and_then(|s| s.parse::<String>().ok())
+            .unwrap_or("127.0.0.1".to_string());
+
+        let mut ssh =
+            HorseClient::connect(sk, "ssh", host, Some(local_host), Some(local_port)).await?;
+
+        ssh.tcpip_forward(&remote_host, remote_port).await?;
+        println!("(Remote) Listening on {}:{}", remote_host, remote_port);
 
         let mut channel = ssh
             .channel_open_session()

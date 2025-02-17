@@ -114,8 +114,8 @@ pub enum Commands {
     Ping(PingOptions),
     #[command(name = "ssh", about = "连接服务器")]
     Ssh(SshOptions),
-    #[command(name = "watch", about = "监控文件变动并执行命令")]
-    Watch(WatchOptions),
+    // #[command(name = "watch", about = "监控文件变动并执行命令")]
+    // Watch(WatchOptions),
 }
 
 #[derive(Clone, Debug, Args)]

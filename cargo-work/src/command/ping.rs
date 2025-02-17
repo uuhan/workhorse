@@ -76,7 +76,7 @@ pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
         idx = idx.wrapping_add(1);
 
         let now = Instant::now();
-        let mut ssh = HorseClient::connect(sk, "ping", host).await?;
+        let mut ssh = HorseClient::connect(sk, "ping", host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
 
         channel.exec(true, &[]).await.wrap_err("ssh exec")?;

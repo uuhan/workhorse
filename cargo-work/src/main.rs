@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use cargo_work::{
     command::{cargo, cmd, get, just, ping, pull, push, scp, ssh, watch},
     options::*,
@@ -165,14 +166,12 @@ async fn main() -> Result<()> {
                         if let Err(err) = ssh::run(&key, options).await {
                             eprintln!("执行失败: {}", err);
                         }
-                    }
-
-                    Commands::Watch(mut options) => {
-                        merge_options(&mut options.horse, &horse);
-                        if let Err(err) = watch::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
-                        }
-                    }
+                    } // Commands::Watch(mut options) => {
+                      //     merge_options(&mut options.horse, &horse);
+                      //     if let Err(err) = watch::run(&key, options).await {
+                      //         eprintln!("执行失败: {}", err);
+                      //     }
+                      // }
                 }
             } else {
                 // default to ping server 3 times

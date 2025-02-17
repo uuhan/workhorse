@@ -34,7 +34,10 @@ pub struct HorseClient {
     handle: Handle<Client>,
 }
 
-pub struct Client {}
+pub struct Client {
+    pub forward_host: Option<String>,
+    pub forward_port: Option<u32>,
+}
 
 #[async_trait::async_trait]
 impl Handler for Client {
@@ -112,18 +115,20 @@ impl Handler for Client {
         originator_port: u32,
         session: &mut client::Session,
     ) -> Result<(), Self::Error> {
+        let host = self
+            .forward_host
+            .as_ref()
+            .map_or(connected_address, |v| v.as_str());
+        let port = self.forward_port.unwrap_or(connected_port);
+
         println!(
-            "{}:{} <- {}:{}",
-            connected_address, connected_port, originator_address, originator_port
+            "{}:{} <- {}:{} <- {}:{}",
+            host, port, connected_address, connected_port, originator_address, originator_port
         );
 
         let socket = TcpSocket::new_v4()?;
         let Ok(mut stream) = socket
-            .connect(
-                format!("{}:{}", connected_address, connected_port)
-                    .parse()
-                    .unwrap(),
-            )
+            .connect(format!("{}:{}", host, port).parse().unwrap())
             .await
         else {
             session.disconnect(Disconnect::ByApplication, "", "English")?;
@@ -164,6 +169,8 @@ impl HorseClient {
         key_path: P,
         user: impl Into<String>,
         addrs: A,
+        forward_host: Option<String>,
+        forward_port: Option<u32>,
     ) -> Result<Self> {
         let key_pair = load_secret_key(key_path, None)?;
         let config = client::Config {
@@ -173,7 +180,10 @@ impl HorseClient {
         };
 
         let config = Arc::new(config);
-        let sh = Client {};
+        let sh = Client {
+            forward_host,
+            forward_port,
+        };
 
         let mut handle = client::connect(config, addrs, sh).await?;
         let auth_res = handle

@@ -46,7 +46,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
     #[cfg(not(feature = "use-system-ssh"))]
     let mut channel = {
         use color_eyre::eyre::WrapErr;
-        let ssh = HorseClient::connect(sk, "cmd", host).await?;
+        let ssh = HorseClient::connect(sk, "cmd", host, None, None).await?;
         let channel = ssh.channel_open_session().await?;
 
         if let Some(shell) = horse.shell {
