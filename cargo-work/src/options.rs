@@ -167,6 +167,7 @@ pub struct SshOptions {
         help = "动态转发经由远程服务器"
     )]
     pub forward_dynamic_port: Option<String>,
+    pub commands: Vec<String>,
 }
 
 #[derive(Clone, Debug, Args)]

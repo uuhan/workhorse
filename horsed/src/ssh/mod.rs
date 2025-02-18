@@ -13,6 +13,7 @@ use clean_path::Clean;
 use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
+use pty_process::{Pts, Pty, Size};
 use russh::keys::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
@@ -41,8 +42,10 @@ use v2::Body;
 mod tests;
 
 pub struct AppServer {
+    /// 客户端连接
+    id: usize,
     /// 一些共享数据
-    clients: Arc<Mutex<HashMap<ChannelId, ChannelHandle>>>,
+    clients: Arc<Mutex<HashMap<usize, (Pty, Pts)>>>,
     /// 任务管理器
     tm: TaskManager,
     /// 数据库连接
@@ -58,6 +61,7 @@ pub struct AppServer {
 impl Clone for AppServer {
     fn clone(&self) -> Self {
         Self {
+            id: self.id,
             clients: self.clients.clone(),
             tm: TaskManager::default(),
             db: self.db.clone(),
@@ -71,6 +75,7 @@ impl Clone for AppServer {
 impl AppServer {
     pub fn new(db: DbConn) -> Self {
         Self {
+            id: 0,
             clients: Arc::new(Mutex::new(HashMap::new())),
             tm: TaskManager::default(),
             handle: None,
@@ -537,6 +542,101 @@ impl AppServer {
 
             Ok(())
         });
+
+        Ok(())
+    }
+
+    /// 执行 ssh 命令
+    #[tracing::instrument(skip(self))]
+    pub async fn ssh(&mut self, mut commands: Vec<String>) -> HorseResult<()> {
+        tracing::info!("SSH: {}", commands.join(" "));
+
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+
+        let mut repo_path = PathBuf::from(env_repo);
+        // 去除开头的 /
+        if repo_path.starts_with("/") {
+            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        }
+
+        // 清理路径
+        repo_path = repo_path.clean();
+
+        // 裸仓库名称统一添加 .git 后缀
+        if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+            tracing::error!("无效仓库路径: {:?}", repo_path);
+            return Ok(());
+        }
+
+        let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
+
+        let mut handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+        let task = self.tm.spawn_handle();
+        #[cfg(windows)]
+        let shell = commands.pop().unwrap_or("powershell.exe".to_string());
+        #[cfg(not(windows))]
+        let shell = commands.pop().unwrap_or("bash".to_string());
+
+        let ssh_span = tracing::info_span!("ssh", shell, commands = ?commands);
+        let clients = self.clients.clone();
+        let id = self.id;
+
+        task.spawn(
+            async move {
+                let mut cmd = pty_process::Command::new(shell);
+
+                #[cfg(target_os = "windows")]
+                {
+                    #[allow(unused_imports)]
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+                    cmd = cmd.creation_flags(CREATE_NO_WINDOW);
+                }
+
+                cmd = cmd
+                    .kill_on_drop(true)
+                    .current_dir(&work_path)
+                    .args(&commands);
+
+                let mut clients = clients.lock().await;
+                // TODO: resize at runtime?
+                let Some((pty, pts)) = clients.remove(&id) else {
+                    tracing::error!("empty pty?: {}", id);
+                    handle.eof().await?;
+                    handle.close().await?;
+                    return Ok(());
+                };
+
+                let mut cmd = cmd.spawn(pts)?;
+                let (mut stdout, mut stdin) = pty.into_split();
+
+                let mut ch_writer = handle.make_writer();
+                let mut ch_reader = handle.make_reader();
+
+                let reader_fut = tokio::io::copy(&mut ch_reader, &mut stdin);
+                let writer_fut = tokio::io::copy(&mut stdout, &mut ch_writer);
+
+                if let Err(err) = futures::future::try_join(reader_fut, writer_fut).await {
+                    tracing::error!("io error: {:?}", err);
+                }
+
+                drop(ch_reader);
+
+                handle.exit(cmd.wait().await?).await?;
+                handle.eof().await?;
+                handle.close().await?;
+
+                Ok(())
+            }
+            .instrument(ssh_span),
+        );
 
         Ok(())
     }
@@ -1027,10 +1127,13 @@ impl AppServer {
 #[async_trait::async_trait]
 impl Server for AppServer {
     type Handler = Self;
+
     /// 创建新连接
     fn new_client(&mut self, peer: Option<std::net::SocketAddr>) -> Self {
         tracing::info!("新建连接: {:?}", peer);
-        self.clone()
+        let this = self.clone();
+        self.id += 1;
+        this
     }
 
     /// 处理会话错误
@@ -1243,6 +1346,51 @@ impl Handler for AppServer {
         Ok(())
     }
 
+    /// The client's window size has changed.
+    async fn window_change_request(
+        &mut self,
+        _: ChannelId,
+        col_width: u32,
+        row_height: u32,
+        _: u32,
+        _: u32,
+        _: &mut Session,
+    ) -> Result<(), Self::Error> {
+        let clients = self.clients.lock().await;
+        if let Some((pty, _)) = clients.get(&self.id) {
+            pty.resize(Size::new(col_width as _, row_height as _))
+                .context("resize pty")?;
+        }
+
+        Ok(())
+    }
+
+    #[allow(unused)]
+    #[tracing::instrument(skip(self, session, modes))]
+    async fn pty_request(
+        &mut self,
+        channel: ChannelId,
+        term: &str,
+        col_width: u32,
+        row_height: u32,
+        pix_width: u32,
+        pix_height: u32,
+        modes: &[(russh::Pty, u32)],
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        tracing::info!("pty request: {}x{}", col_width, row_height);
+
+        let (pty, pts) = pty_process::open().context("open pty")?;
+        pty.resize(Size::new(col_width as _, row_height as _))
+            .context("resize pty")?;
+
+        let mut clients = self.clients.lock().await;
+        clients.insert(self.id, (pty, pts));
+
+        session.channel_success(channel)?;
+        Ok(())
+    }
+
     /// The client sends a command to execute, to be passed to a
     /// shell. Make sure to check the command before doing so.
     async fn exec_request(
@@ -1255,6 +1403,7 @@ impl Handler for AppServer {
         let command = split(command).context(format!("无效命令: {command}"))?;
 
         match self.action.as_str() {
+            "ping" => self.ping(command).await?,
             "git" => self.git(command).await?,
             "cmd" => self.cmd(command).await?,
             "cargo" => self.cargo(command).await?,
@@ -1270,7 +1419,7 @@ impl Handler for AppServer {
             // }
             "get" => self.get(command).await?,
             "scp" => self.scp(command).await?,
-            "ping" => self.ping(command).await?,
+            "ssh" => self.ssh(command).await?,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle.error(format!("不支持的命令: {action}")).await?;

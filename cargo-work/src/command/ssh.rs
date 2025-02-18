@@ -86,6 +86,8 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
             let mut ch_stream = channel.into_stream();
             tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
         }
+
+        return Ok(());
     }
 
     // ssh -R
@@ -129,7 +131,37 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
         while let Some(msg) = channel.wait().await {
             println!("{:?}", msg);
         }
+
+        return Ok(());
     }
+
+    // default shell
+
+    let mut ssh =
+        HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
+
+    let channel = ssh.channel_open_session().await?;
+    channel.set_env(true, "REPO", repo_name).await?;
+    channel.set_env(true, "BRANCH", branch).await?;
+
+    crossterm::terminal::enable_raw_mode()?;
+
+    let code = {
+        ssh.shell(
+            &options
+                .commands
+                .into_iter()
+                .map(|x| shell_escape::escape(x.into()))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .await?
+    };
+
+    crossterm::terminal::disable_raw_mode()?;
+
+    println!("exit code: {}", code);
+    ssh.close().await?;
 
     Ok(())
 }
