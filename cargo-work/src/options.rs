@@ -11,6 +11,7 @@ pub use crate::mac::test::Test;
 pub use crate::mac::zigbuild::Zigbuild;
 pub use crate::mac::CargoKind;
 use clap::{Args, Parser, Subcommand};
+use russh::keys::HashAlg;
 use std::path::PathBuf;
 
 /// 命令行参数
@@ -36,6 +37,8 @@ pub struct Cli {
 pub struct HorseOptions {
     #[clap(short, long = "ssh-key", help = "指定私钥文件路径")]
     pub key: Option<PathBuf>,
+    #[clap(long = "key-hash-alg", help = "指定私钥文件哈希算法")]
+    pub key_hash_alg: Option<HashAlg>,
     #[clap(
         long = "repo",
         help = "指定仓库地址, 例如: ssh://127.0.0.1:2222/uuhan/workhorse"

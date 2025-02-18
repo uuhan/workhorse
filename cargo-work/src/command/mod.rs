@@ -167,6 +167,7 @@ impl HorseClient {
     #[allow(unused)]
     async fn connect<P: AsRef<Path>, A: ToSocketAddrs>(
         key_path: P,
+        key_hash_alg: Option<HashAlg>,
         user: impl Into<String>,
         addrs: A,
         forward_host: Option<String>,
@@ -189,7 +190,10 @@ impl HorseClient {
         let auth_res = handle
             .authenticate_publickey(
                 user,
-                PrivateKeyWithHashAlg::new(Arc::new(key_pair), Some(HashAlg::Sha256))?,
+                PrivateKeyWithHashAlg::new(
+                    Arc::new(key_pair),
+                    key_hash_alg.or(Default::default()),
+                )?,
             )
             .await?;
 

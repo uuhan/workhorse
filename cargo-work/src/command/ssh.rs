@@ -47,7 +47,8 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
     // ssh -L
     if let Some(forward_local_port) = options.forward_local_port {
-        let mut ssh = HorseClient::connect(sk, "ssh", host, None, None).await?;
+        let mut ssh =
+            HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
 
         let mut addrs = forward_local_port.split(":").collect::<Vec<&str>>();
         addrs.reverse();
@@ -107,8 +108,15 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
             .and_then(|s| s.parse::<String>().ok())
             .unwrap_or("127.0.0.1".to_string());
 
-        let mut ssh =
-            HorseClient::connect(sk, "ssh", host, Some(local_host), Some(local_port)).await?;
+        let mut ssh = HorseClient::connect(
+            sk,
+            options.horse.key_hash_alg,
+            "ssh",
+            host,
+            Some(local_host),
+            Some(local_port),
+        )
+        .await?;
 
         ssh.tcpip_forward(&remote_host, remote_port).await?;
         println!("(Remote) Listening on {}:{}", remote_host, remote_port);

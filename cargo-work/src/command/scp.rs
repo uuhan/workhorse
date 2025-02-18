@@ -47,7 +47,8 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
     #[cfg(not(feature = "use-system-ssh"))]
     let mut channel = {
         use color_eyre::eyre::WrapErr;
-        let ssh = HorseClient::connect(sk, "scp", host, None, None).await?;
+        let ssh =
+            HorseClient::connect(sk, options.horse.key_hash_alg, "scp", host, None, None).await?;
         let channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;

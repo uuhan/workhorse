@@ -69,7 +69,15 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
-        let mut ssh = HorseClient::connect(sk, "cargo", host, None, None).await?;
+        let mut ssh = HorseClient::connect(
+            sk,
+            options.horse_options().key_hash_alg,
+            "cargo",
+            host,
+            None,
+            None,
+        )
+        .await?;
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
