@@ -179,6 +179,22 @@ cargo work build --remote horsed-linux
 cargo work build --remote horsed-macos
 ```
 
+You can perform both forward and reverse port forwarding:
+
+```bash
+# Forward local port 3000 to the remote machine, all local requests will go to the server
+cargo work ssh -L 3000:127.0.0.1:3000
+# Or use the standard ssh tool, ensuring compatibility with the ssh protocol
+ssh -L 3000:127.0.0.1:3000
+```
+
+```bash
+# Reverse forward server port 3000 to local, all requests to the server will come to the local machine
+cargo work ssh -R 3000:127.0.0.1:3000
+# Or use the standard ssh tool, ensuring compatibility with the ssh protocol
+ssh -R 3000:127.0.0.1:3000
+```
+
 More help info can be found by running:
 
 ```bash

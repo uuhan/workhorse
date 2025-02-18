@@ -176,6 +176,22 @@ cargo work build --remote horsed-linux
 cargo work build --remote horsed-macos
 ```
 
+你可以进行正向, 反向端口转发:
+
+```bash
+# 正向转发本地 3000 端口到远程机器，所有本地请求会去往服务器
+cargo work ssh -L 3000:127.0.0.1:3000
+# 或者使用标准的 ssh 工具, 实现上保证 ssh 协议兼容性
+ssh -L 3000:127.0.0.1:3000
+```
+
+```bash
+# 反向转发服务器 3000 端口到本地，所有对服务器的请求会来到本地
+cargo work ssh -R 3000:127.0.0.1:3000
+# 或者使用标准的 ssh 工具，实现上保证 ssh 协议兼容性
+ssh -R 3000:127.0.0.1:3000
+```
+
 更多的帮助信息可以通过查看帮助获取:
 
 ```bash
