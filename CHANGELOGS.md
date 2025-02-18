@@ -1,6 +1,6 @@
 ### v0.2.6
 
-- workhorse: cargo work ssh to get a shell
+- workhorse: cargo work ssh to get a shell (no windows support)
 - cargo-work: HorseOptions --key-hash-alg: sha256(default), sha512
 - workhorse: ssh -L & -R compatible with openssh
 - horsed: channel_open_direct_tcpip tracing
