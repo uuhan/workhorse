@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables, dead_code)]
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -13,6 +14,7 @@ use clean_path::Clean;
 use colored::{Color, Colorize};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
+#[cfg(not(windows))]
 use pty_process::{Pts, Pty, Size};
 use russh::keys::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
@@ -44,6 +46,7 @@ mod tests;
 pub struct AppServer {
     /// 客户端连接
     id: usize,
+    #[cfg(not(windows))]
     /// 一些共享数据
     clients: Arc<Mutex<HashMap<usize, (Pty, Pts)>>>,
     /// 任务管理器
@@ -62,6 +65,7 @@ impl Clone for AppServer {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
+            #[cfg(not(windows))]
             clients: self.clients.clone(),
             tm: TaskManager::default(),
             db: self.db.clone(),
@@ -76,6 +80,7 @@ impl AppServer {
     pub fn new(db: DbConn) -> Self {
         Self {
             id: 0,
+            #[cfg(not(windows))]
             clients: Arc::new(Mutex::new(HashMap::new())),
             tm: TaskManager::default(),
             handle: None,
@@ -548,6 +553,7 @@ impl AppServer {
 
     /// 执行 ssh 命令
     #[tracing::instrument(skip(self))]
+    #[allow(unused_mut, unreachable_code)]
     pub async fn ssh(&mut self, mut commands: Vec<String>) -> HorseResult<()> {
         tracing::info!("SSH: {}", commands.join(" "));
 
@@ -573,20 +579,33 @@ impl AppServer {
         // 构建目录不包含 .git 后缀
         work_path.set_extension("");
 
+        #[allow(unused_mut)]
         let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
-        let task = self.tm.spawn_handle();
+
+        #[cfg(windows)]
+        {
+            handle.error("SSH 命令暂不支持 Windows").await?;
+            handle.eof().await?;
+            handle.close().await?;
+            return Ok(());
+        }
+
         #[cfg(windows)]
         let shell = commands.pop().unwrap_or("powershell.exe".to_string());
         #[cfg(not(windows))]
         let shell = commands.pop().unwrap_or("bash".to_string());
 
         let ssh_span = tracing::info_span!("ssh", shell, commands = ?commands);
-        let clients = self.clients.clone();
         let id = self.id;
 
+        #[cfg(not(windows))]
+        let task = self.tm.spawn_handle();
+        #[cfg(not(windows))]
+        let clients = self.clients.clone();
+        #[cfg(not(windows))]
         task.spawn(
             async move {
                 let mut cmd = pty_process::Command::new(shell);
@@ -1346,6 +1365,7 @@ impl Handler for AppServer {
         Ok(())
     }
 
+    #[cfg(not(windows))]
     /// The client's window size has changed.
     async fn window_change_request(
         &mut self,
@@ -1365,6 +1385,7 @@ impl Handler for AppServer {
         Ok(())
     }
 
+    #[cfg(not(windows))]
     #[allow(unused)]
     #[tracing::instrument(skip(self, session, modes))]
     async fn pty_request(

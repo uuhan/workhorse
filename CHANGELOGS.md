@@ -1,3 +1,22 @@
+### v0.2.6
+
+- workhorse: cargo work ssh to get a shell
+- cargo-work: HorseOptions --key-hash-alg: sha256(default), sha512
+- workhorse: ssh -L & -R compatible with openssh
+- horsed: channel_open_direct_tcpip tracing
+- cargo-work: watch command dev in progress
+- cargo-work: set a fallback command for `cargo work`
+- cargo-work: rename src/ssh to src/command
+- horsed: remove `ssh-keys` crate
+- horsed: fix test with different ports
+- horsed: ssh server tests
+- cargo-work: ssh command to do some ssh stuff, e.g. port forwarding
+- stable: more rstest
+- cargo-work: get file with `--outfile` option
+- stable: add a thread pool
+- horsed: just support os specified file `justfile.<os>`
+- horsed: fix ping cleanup
+
 ### v0.2.5
 
 - horsed: fix tracing registry
