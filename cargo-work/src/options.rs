@@ -50,7 +50,7 @@ pub struct HorseOptions {
     pub remote: Option<String>,
     #[clap(short, long, help = "指定脚本解释器")]
     pub shell: Option<String>,
-    #[clap(short, long, help = "指定脚本解释器")]
+    #[clap(short, long, help = "检测代码变动")]
     pub watch: bool,
 }
 
@@ -157,7 +157,7 @@ pub struct SshOptions {
     pub forward_local_port: Option<String>,
     #[clap(
         short = 'R',
-        name = "[REMOTE:]REMOTE_PORT:DESTINATION:DESTINATION_PORT",
+        name = "[REMOTE_IP:]REMOTE_PORT:DESTINATION:DESTINATION_PORT",
         help = "转发远程端口到本地端口"
     )]
     pub forward_remote_port: Option<String>,
