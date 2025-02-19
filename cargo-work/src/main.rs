@@ -141,8 +141,7 @@ async fn main() -> Result<()> {
                             eprintln!("执行失败: {}", err);
                         }
                     }
-                    Commands::Push(mut options) => {
-                        merge_options(&mut options.horse, &horse);
+                    Commands::Push(options) => {
                         if let Err(err) = push::run(&key, options).await {
                             eprintln!("执行失败: {}", err);
                         }

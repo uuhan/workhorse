@@ -193,8 +193,7 @@ pub struct PingOptions {
 
 #[derive(Clone, Debug, Args)]
 pub struct PushOptions {
-    #[clap(flatten)]
-    pub horse: HorseOptions,
+    pub remote: String,
     pub branch: Option<String>,
 }
 
