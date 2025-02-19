@@ -207,6 +207,10 @@ fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
         options.key = horse.key.clone();
     }
 
+    if options.key_hash_alg.is_none() {
+        options.key_hash_alg = horse.key_hash_alg;
+    }
+
     if options.repo.is_none() {
         options.repo = horse.repo.clone();
     }
@@ -222,4 +226,8 @@ fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
     if options.shell.is_none() {
         options.shell = horse.shell.clone();
     }
+
+    options.watch = options.watch || horse.watch;
+
+    options.env.append(&mut horse.env.clone());
 }
