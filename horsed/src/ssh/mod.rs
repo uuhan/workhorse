@@ -1502,39 +1502,43 @@ impl Handler for AppServer {
         tracing::info!("bind success");
 
         let handle = session.handle();
+        let socket_task = task.clone();
         task.spawn(
             async move {
                 // listen on server
                 while let Ok((mut stream, peer)) = listener.accept().await {
-                    tracing::info!("accepted from {}", peer);
-                    match handle
-                        .channel_open_forwarded_tcpip(
-                            &address,
-                            port,
-                            peer.ip().to_string(),
-                            peer.port() as _,
-                        )
-                        .await
-                    {
-                        Err(err) => {
-                            tracing::error!("channel-open-forwarded-tcpip error: {:?}", err);
+                    let handle = handle.clone();
+                    let address = address.clone();
+                    socket_task.spawn(async move {
+                        tracing::info!("accepted from {}", peer);
+                        match handle
+                            .channel_open_forwarded_tcpip(
+                                &address,
+                                port,
+                                peer.ip().to_string(),
+                                peer.port() as _,
+                            )
+                            .await
+                        {
+                            Err(err) => {
+                                tracing::error!("channel-open-forwarded-tcpip error: {:?}", err);
+                            }
+                            Ok(mut channel) => {
+                                tracing::info!("open channel");
+                                let mut ch_writer = channel.make_writer();
+                                let mut ch_reader = channel.make_reader();
+                                let (mut reader, mut writer) = stream.split();
+
+                                let writer_fut = tokio::io::copy(&mut reader, &mut ch_writer);
+                                let reader_fut = tokio::io::copy(&mut ch_reader, &mut writer);
+
+                                futures::future::try_join(writer_fut, reader_fut).await?;
+                                tracing::info!("done");
+                            }
                         }
-                        Ok(mut channel) => {
-                            tracing::info!("open channel");
-                            let mut ch_writer = channel.make_writer();
-                            let mut ch_reader = channel.make_reader();
-                            let (mut reader, mut writer) = stream.split();
 
-                            let writer_fut = tokio::io::copy(&mut reader, &mut ch_writer);
-                            let reader_fut = tokio::io::copy(&mut ch_reader, &mut writer);
-
-                            futures::future::try_join(writer_fut, reader_fut).await?;
-                            drop(ch_reader);
-
-                            channel.eof().await?;
-                            tracing::info!("done");
-                        }
-                    }
+                        Ok(())
+                    });
                 }
                 Ok(())
             }
