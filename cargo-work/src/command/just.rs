@@ -69,12 +69,22 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     #[cfg(feature = "use-system-ssh")]
     {
         // ssh just@horsed <ACTION>
-        let mut envs = vec![("REPO", repo_name), ("BRANCH", branch)];
-        if let Some(justfile) = options.file {
-            envs.push(("JUSTFILE", justfile));
+        use std::collections::HashMap;
+        let mut envs = HashMap::new();
+        envs.insert("REPO".to_string(), repo_name);
+        envs.insert("BRANCH".to_string(), branch);
+
+        for kv in options.horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            envs.insert(k.to_string(), v.to_string());
         }
+
+        if let Some(justfile) = options.file {
+            envs.insert("JUSTFILE".to_string(), justfile);
+        }
+
         let mut cmd =
-            super::run_system_ssh(sk, &envs, "just", host, [std::ffi::OsString::from(command)]);
+            super::run_system_ssh(sk, envs, "just", host, [std::ffi::OsString::from(command)]);
 
         cmd.stdin(std::process::Stdio::piped());
         cmd.stdout(std::process::Stdio::piped());
@@ -107,6 +117,10 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        for kv in options.horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            channel.set_env(true, k, v).await?;
+        }
         if let Some(justfile) = options.file {
             channel.set_env(true, "JUSTFILE", justfile).await?;
         }

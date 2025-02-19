@@ -55,6 +55,10 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        for kv in horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            channel.set_env(true, k, v).await?;
+        }
 
         channel
             .exec(true, scripts.join(" ").as_bytes())
@@ -68,11 +72,20 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
-        let mut args = vec![("REPO", repo_name), ("BRANCH", branch)];
+        use std::collections::HashMap;
+        let mut envs = HashMap::new();
+        envs.insert("REPO".to_string(), repo_name);
+        envs.insert("BRANCH".to_string(), branch);
         if let Some(shell) = horse.shell {
-            args.push(("SHELL", shell));
+            envs.insert("SHELL".to_string(), shell);
         }
-        let mut cmd = super::run_system_ssh(sk, &args, "cmd", host, scripts);
+
+        for kv in horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            envs.insert(k.to_string(), v.to_string());
+        }
+
+        let mut cmd = super::run_system_ssh(sk, envs, "cmd", host, scripts);
         cmd.stdout(std::process::Stdio::piped());
         cmd.spawn()?
     };

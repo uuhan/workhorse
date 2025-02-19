@@ -50,6 +50,8 @@ pub struct HorseOptions {
     pub remote: Option<String>,
     #[clap(short, long, help = "指定脚本解释器")]
     pub shell: Option<String>,
+    #[clap(short, long, help = "指定环境变量, e.g. --env KEY=VALUE")]
+    pub env: Vec<String>,
     #[clap(short, long, help = "检测代码变动")]
     pub watch: bool,
 }

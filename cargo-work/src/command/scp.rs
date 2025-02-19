@@ -52,6 +52,16 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
         let channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        for kv in options.horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            channel
+                .set_env(
+                    true,
+                    shell_escape::escape(k.into()),
+                    shell_escape::escape(v.into()),
+                )
+                .await?;
+        }
 
         channel
             .exec(true, options.source.as_bytes())
@@ -65,9 +75,22 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
+        use std::collections::HashMap;
+        let mut envs = HashMap::new();
+        envs.insert("REPO".to_string(), repo_name);
+        envs.insert("BRANCH".to_string(), branch);
+
+        for kv in options.horse.env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            envs.insert(
+                shell_escape::escape(k.into()).to_string(),
+                shell_escape::escape(v.into()).to_string(),
+            );
+        }
+
         let mut cmd = super::run_system_ssh(
             sk,
-            &[("REPO", repo_name), ("BRANCH", branch)],
+            envs,
             "scp",
             host,
             [std::ffi::OsString::from(&options.source)],

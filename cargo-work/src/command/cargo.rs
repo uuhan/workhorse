@@ -81,6 +81,10 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        for kv in options.horse_options().env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            channel.set_env(true, k, v).await?;
+        }
         channel
             .set_env(true, "ZIGBUILD", options.use_zigbuild().to_string())
             .await?;
@@ -116,24 +120,27 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(feature = "use-system-ssh")]
     {
+        use std::collections::HashMap;
+        let mut envs = HashMap::new();
+        envs.insert("REPO".to_string(), repo_name);
+        envs.insert("BRANCH".to_string(), branch);
+        envs.insert("ZIGBUILD".to_string(), options.use_zigbuild().to_string());
+        envs.insert(
+            "CARGO_OPTIONS".to_string(),
+            format!("\'{}\'", serde_json::to_string(options.cargo_options())?),
+        );
+
+        for kv in options.horse_options().env.iter() {
+            let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+            envs.insert(k.to_string(), v.to_string());
+        }
+
         // ssh cargo@horsed build --
         let mut args = vec![std::ffi::OsString::from(options.name())];
         args.extend(options.options().into_iter());
-        let mut cmd = super::run_system_ssh(
-            sk,
-            &[
-                ("REPO", repo_name),
-                ("BRANCH", branch),
-                ("ZIGBUILD", options.use_zigbuild().to_string()),
-                (
-                    "CARGO_OPTIONS",
-                    format!("\'{}\'", serde_json::to_string(options.cargo_options())?),
-                ),
-            ],
-            "cargo",
-            host,
-            args,
-        );
+
+        let mut cmd = super::run_system_ssh(sk, envs, "cargo", host, args);
+
         cmd.stdout(std::process::Stdio::piped());
         cmd.stdin(std::process::Stdio::piped());
         let mut ssh = cmd.spawn().wrap_err("ssh")?;

@@ -212,10 +212,10 @@ impl AppServer {
     pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("CMD: {}", command.join(" "));
 
-        let env_repo = self.env.remove("REPO");
-        let env_branch = self.env.remove("BRANCH");
+        let env_repo = self.env.get("REPO").cloned();
+        let env_branch = self.env.get("BRANCH").cloned();
 
-        let shell = if let Some(shell) = self.env.remove("SHELL") {
+        let shell = if let Some(shell) = self.env.get("SHELL").cloned() {
             shell
         } else if cfg!(windows) {
             "powershell.exe".to_string()
@@ -259,9 +259,11 @@ impl AppServer {
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         let task = self.tm.spawn_handle();
         let span = tracing::info_span!("spawn", command = ?command, cmd_dir = ?cmd_dir);
+        let mut cmd = Command::new(&shell);
+        cmd.envs(&self.env);
+
         task.spawn(
             async move {
-                let mut cmd = Command::new(shell);
                 #[cfg(target_os = "windows")]
                 {
                     #[allow(unused_imports)]
@@ -279,7 +281,7 @@ impl AppServer {
                     .arg("-c")
                     .arg(command.join(" "));
 
-                let mut cmd = cmd.spawn()?;
+                let mut cmd = cmd.spawn().context(format!("spawn: `{}`", shell))?;
 
                 let mut stdout = cmd.stdout.take().unwrap();
                 let mut stderr = cmd.stderr.take().unwrap();
@@ -599,6 +601,7 @@ impl AppServer {
         let shell = commands.pop().unwrap_or("bash".to_string());
 
         let ssh_span = tracing::info_span!("ssh", shell, commands = ?commands);
+        let env = self.env.clone();
         let id = self.id;
 
         #[cfg(not(windows))]
@@ -608,7 +611,8 @@ impl AppServer {
         #[cfg(not(windows))]
         task.spawn(
             async move {
-                let mut cmd = pty_process::Command::new(shell);
+                let mut cmd = pty_process::Command::new(&shell);
+                cmd = cmd.envs(&env);
 
                 #[cfg(target_os = "windows")]
                 {
@@ -633,7 +637,7 @@ impl AppServer {
                     return Ok(());
                 };
 
-                let mut cmd = cmd.spawn(pts)?;
+                let mut cmd = cmd.spawn(pts).context(format!("spawn: `{}`", shell))?;
                 let (mut stdout, mut stdin) = pty.into_split();
 
                 let mut ch_writer = handle.make_writer();
@@ -717,9 +721,17 @@ impl AppServer {
     #[tracing::instrument(skip(self), err)]
     pub async fn just(&mut self, command: Vec<String>) -> HorseResult<()> {
         tracing::info!("[just] {}", command.join(" "));
-        let env_repo = self.env.remove("REPO").context("REPO 环境变量未设置")?;
-        let env_branch = self.env.remove("BRANCH").context("BRANCH 环境变量未设置")?;
-        let justfile = self.env.remove("JUSTFILE");
+        let env_repo = self
+            .env
+            .get("REPO")
+            .cloned()
+            .context("REPO 环境变量未设置")?;
+        let env_branch = self
+            .env
+            .get("BRANCH")
+            .cloned()
+            .context("BRANCH 环境变量未设置")?;
+        let justfile = self.env.get("JUSTFILE").cloned();
 
         let mut repo_path = PathBuf::from(&env_repo);
         // 去除开头的 /
@@ -804,6 +816,7 @@ impl AppServer {
         }
 
         let just_span = tracing::info_span!("just");
+        let env = self.env.clone();
         task.spawn(async move {
             let mut diff_input = handle.make_reader();
             let mut buf = vec![];
@@ -817,6 +830,8 @@ impl AppServer {
                 .await?;
 
             let mut cmd = Command::new("just");
+            cmd.envs(&env);
+
             #[cfg(target_os = "windows")]
             {
                 #[allow(unused_imports)]
@@ -848,7 +863,7 @@ impl AppServer {
             cmd.stdout(Stdio::piped());
             cmd.stderr(Stdio::piped());
 
-            let mut cmd = cmd.spawn()?;
+            let mut cmd = cmd.spawn().context("spawn: `just`")?;
 
             let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
@@ -1019,6 +1034,7 @@ impl AppServer {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
+        cmd.envs(&self.env);
         cmd.kill_on_drop(true);
         cmd.current_dir(&work_path);
         cmd.stdout(std::process::Stdio::piped());
@@ -1042,7 +1058,7 @@ impl AppServer {
             drop(diff_input);
 
             // Run the command
-            let mut cmd = cmd.spawn().context("cargo command failed")?;
+            let mut cmd = cmd.spawn().context("spawn: `cargo`")?;
             let mut stdout = cmd.stdout.take().unwrap();
             let mut stderr = cmd.stderr.take().unwrap();
 
@@ -1113,7 +1129,7 @@ impl AppServer {
 
         task.spawn(async move {
             // Run the command
-            let mut cmd = cmd.spawn()?;
+            let mut cmd = cmd.spawn().context("spawn: `git`")?;
 
             {
                 let mut cin = handle.make_reader();
@@ -1340,7 +1356,7 @@ impl Handler for AppServer {
     /// these carefully, as it is dangerous to allow any variable
     /// environment to be set.
     #[allow(unused)]
-    #[tracing::instrument(skip(self, session))]
+    #[tracing::instrument(skip_all)]
     async fn env_request(
         &mut self,
         channel: ChannelId,
@@ -1348,7 +1364,7 @@ impl Handler for AppServer {
         value: &str,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        tracing::info!("{}", key);
+        tracing::info!(key, value);
         self.env
             .insert(key.to_uppercase().to_string(), value.to_string());
         Ok(())
@@ -1367,21 +1383,24 @@ impl Handler for AppServer {
 
     #[cfg(not(windows))]
     /// The client's window size has changed.
+    #[tracing::instrument(skip(self, session, channel))]
     async fn window_change_request(
         &mut self,
-        _: ChannelId,
+        channel: ChannelId,
         col_width: u32,
         row_height: u32,
-        _: u32,
-        _: u32,
-        _: &mut Session,
+        pixel_width: u32,
+        pixel_height: u32,
+        session: &mut Session,
     ) -> Result<(), Self::Error> {
+        tracing::info!("window change: {}x{}", col_width, row_height);
         let clients = self.clients.lock().await;
         if let Some((pty, _)) = clients.get(&self.id) {
             pty.resize(Size::new(col_width as _, row_height as _))
                 .context("resize pty")?;
         }
 
+        session.channel_success(channel)?;
         Ok(())
     }
 

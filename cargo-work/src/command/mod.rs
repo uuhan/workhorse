@@ -214,7 +214,7 @@ impl HorseClient {
         channel
             .request_pty(
                 false,
-                &std::env::var("TERM").unwrap_or("xterm-256color".into()),
+                &std::env::var("TERM").unwrap_or("xterm".into()),
                 w as u32,
                 h as u32,
                 0,
@@ -338,9 +338,9 @@ fn extract_repo_name(url: &str) -> Option<String> {
 }
 
 #[cfg(feature = "use-system-ssh")]
-fn run_system_ssh<K, V, Arg, Args>(
+fn run_system_ssh<K, V, Envs, Arg, Args>(
     key: &Path,
-    env: &[(K, V)],
+    env: Envs,
     action: &str,
     host: SocketAddr,
     args: Args,
@@ -348,6 +348,7 @@ fn run_system_ssh<K, V, Arg, Args>(
 where
     K: AsRef<str>,
     V: AsRef<str>,
+    Envs: IntoIterator<Item = (K, V)>,
     Arg: AsRef<std::ffi::OsStr>,
     Args: std::iter::IntoIterator<Item = Arg>,
 {
@@ -367,7 +368,7 @@ where
     cmd.arg("-o");
     cmd.arg(format!(
         "SetEnv {}",
-        env.iter()
+        env.into_iter()
             .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
             .collect::<Vec<_>>()
             .join(" ")

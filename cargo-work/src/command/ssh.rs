@@ -143,6 +143,10 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
     let channel = ssh.channel_open_session().await?;
     channel.set_env(true, "REPO", repo_name).await?;
     channel.set_env(true, "BRANCH", branch).await?;
+    for kv in options.horse.env.iter() {
+        let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
+        channel.set_env(true, k, v).await?;
+    }
 
     crossterm::terminal::enable_raw_mode()?;
 
@@ -151,7 +155,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
             &options
                 .commands
                 .into_iter()
-                .map(|x| shell_escape::escape(x.into()))
+                .map(|x| x)
                 .collect::<Vec<_>>()
                 .join(" "),
         )
