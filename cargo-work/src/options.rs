@@ -193,7 +193,8 @@ pub struct PingOptions {
 
 #[derive(Clone, Debug, Args)]
 pub struct PushOptions {
-    pub remote: String,
+    #[clap(help = "远程仓库地址, 默认: horsed")]
+    pub remote: Option<String>,
     pub branch: Option<String>,
 }
 
