@@ -43,6 +43,8 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
+    let env = super::ssh::start_proxy(sk, host, &horse).await?;
+
     #[cfg(not(feature = "use-system-ssh"))]
     let mut channel = {
         use color_eyre::eyre::WrapErr;
@@ -55,7 +57,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
-        for kv in horse.env.iter() {
+        for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             channel.set_env(true, k, v).await?;
         }
@@ -80,7 +82,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             envs.insert("SHELL".to_string(), shell);
         }
 
-        for kv in horse.env.iter() {
+        for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             envs.insert(k.to_string(), v.to_string());
         }

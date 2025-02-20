@@ -190,3 +190,61 @@ pub async fn connect_shell(
 
     Ok(())
 }
+
+pub async fn start_proxy(
+    sk: &Path,
+    host: SocketAddr,
+    options: &HorseOptions,
+) -> Result<Vec<String>> {
+    let mut env = options.env.clone();
+
+    // --all-proxy=socks://IP:PORT
+    let (enable_proxy, proxy) = if let Some(proxy) = options.all_proxy.clone() {
+        (true, proxy)
+    } else if options.enable_proxy {
+        if let Ok(proxy) = std::env::var("ALL_PROXY").or(std::env::var("all_proxy")) {
+            (true, proxy)
+        } else {
+            println!("未设置代理, 请设置环境变量 ALL_PROXY 或 all_proxy");
+            return Ok(env);
+        }
+    } else {
+        (false, "".to_owned())
+    };
+
+    // proxy enabled
+    if enable_proxy {
+        use rand::Rng;
+        use url::Url;
+        let proxy = Url::parse(&proxy)?;
+        let mut rng = rand::thread_rng();
+        let random_port = rng.gen_range(3000..10000);
+        let forward = format!(
+            "{}:{}:{}",
+            random_port,
+            proxy.host().expect("proxy host missing"),
+            proxy.port().expect("proxy port missing")
+        );
+        let sk_ = std::path::PathBuf::from(sk);
+        let ssh_options = crate::options::SshOptions {
+            horse: options.clone(),
+            forward_local_port: None,
+            forward_remote_port: Some(forward.clone()),
+            commands: vec![],
+        };
+
+        let proxy_scheme = proxy.scheme();
+        env.push(format!(
+            "ALL_PROXY={proxy_scheme}://127.0.0.1:{random_port}"
+        ));
+        env.push(format!("HTTP_PROXY=http://127.0.0.1:{random_port}"));
+        env.push(format!("HTTPS_PROXY=http://127.0.0.1:{random_port}"));
+
+        tokio::spawn(async move {
+            super::ssh::connect_forward_r(&sk_, host, forward, &ssh_options).await?;
+            Ok::<_, color_eyre::Report>(())
+        });
+    }
+
+    Ok(env)
+}

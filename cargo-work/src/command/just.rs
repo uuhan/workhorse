@@ -46,6 +46,8 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         .unwrap_or_else(|| "master".to_owned());
     let command = options.command.unwrap_or("default".to_string());
 
+    let env = super::ssh::start_proxy(sk, host, &options.horse).await?;
+
     // git diff HEAD
     let mut cmd = tokio::process::Command::new("git");
     #[cfg(target_os = "windows")]
@@ -74,7 +76,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         envs.insert("REPO".to_string(), repo_name);
         envs.insert("BRANCH".to_string(), branch);
 
-        for kv in options.horse.env.iter() {
+        for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             envs.insert(k.to_string(), v.to_string());
         }
@@ -117,7 +119,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut channel = ssh.channel_open_session().await?;
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
-        for kv in options.horse.env.iter() {
+        for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             channel.set_env(true, k, v).await?;
         }
