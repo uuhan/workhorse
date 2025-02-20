@@ -1,0 +1,12 @@
+### health check
+
+- [ ] cargo-work
+- [ ] horsed
+  - [ ] ulimit check
+
+### horsed auto start 
+
+- [ ] Linux
+- [ ] macOS
+- [ ] Windows
+

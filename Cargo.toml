@@ -42,6 +42,7 @@ indoc = "2.0"
 itertools = "0.14"
 strum = { version = "0.26", features = ["derive"] }
 rstest = "0.24"
+rand = "~0.8"
 # rstest test only
 async-std = { version = "1.13", features = ["attributes"] }
 notify = { version = "8", features = ["serde"] }

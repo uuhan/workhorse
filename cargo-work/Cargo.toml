@@ -1,6 +1,6 @@
 [package]
 name = "cargo-work"
-version = "0.2.6-alpha.1"
+version = "0.2.6-alpha.2"
 edition = "2021"
 
 [features]
@@ -12,7 +12,6 @@ indicatif = "0.17.9"
 url = "2.5.4"
 color-eyre = "0.6.3"
 palette = "0.7.6"
-rand = "0.8.5"
 rand_chacha = "0.3.1"
 time = "0.3.37"
 unicode-width = "0.2.0"
@@ -42,3 +41,4 @@ ratatui.workspace = true
 crossterm.workspace = true
 strum.workspace = true
 notify.workspace = true
+rand.workspace = true

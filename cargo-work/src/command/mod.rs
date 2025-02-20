@@ -377,3 +377,15 @@ where
 
     cmd
 }
+
+#[cfg(test)]
+mod tests {
+    use url::Url;
+
+    #[test]
+    fn test_url_parse() {
+        Url::parse("ssh://git@127.0.0.1:2222").ok().unwrap();
+        Url::parse("http://127.0.0.1:1234").ok().unwrap();
+        Url::parse("socks://127.0.0.1:1234").ok().unwrap();
+    }
+}
