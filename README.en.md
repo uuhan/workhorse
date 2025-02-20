@@ -195,6 +195,16 @@ cargo work ssh -R 3000:127.0.0.1:3000
 ssh -R 3000:127.0.0.1:3000
 ```
 
+At the same time, the cargo work command also supports reverse HTTP proxies, which can be useful in certain cases:
+
+```bash
+# -x, --enable-proxy enables a reverse proxy with a random port on the `horsed` side,
+# which connects to the proxy specified by your current ALL_PROXY. This proxy will be used during command execution.
+cargo work build -x
+# You can also manually specify the proxy address.
+cargo work build --all-proxy=socks5://127.0.0.1:1234
+```
+
 More help info can be found by running:
 
 ```bash

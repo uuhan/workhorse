@@ -192,6 +192,16 @@ cargo work ssh -R 3000:127.0.0.1:3000
 ssh -R 3000:127.0.0.1:3000
 ```
 
+同时 `cargo work` 指令也支持反向 HTTP 代理, 这在有时候会比较有用:
+
+```bash
+# -x, --enable-proxy 会在 `horsed` 端启用一个随机端口的反向代理,
+# 连接到你当前的 ALL_PROXY 的代理, 在执行命令的时候会使用这个代理
+cargo work build -x
+# 你也可以手动指定代理地址
+cargo work build --all-proxy=socks5://127.0.0.1:1234
+```
+
 更多的帮助信息可以通过查看帮助获取:
 
 ```bash
