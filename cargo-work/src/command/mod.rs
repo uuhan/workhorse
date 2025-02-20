@@ -191,10 +191,7 @@ impl HorseClient {
         let auth_res = handle
             .authenticate_publickey(
                 user,
-                PrivateKeyWithHashAlg::new(
-                    Arc::new(key_pair),
-                    key_hash_alg.or(Some(HashAlg::Sha256)),
-                )?,
+                PrivateKeyWithHashAlg::new(Arc::new(key_pair), key_hash_alg)?,
             )
             .await?;
 

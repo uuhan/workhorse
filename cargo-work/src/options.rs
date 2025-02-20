@@ -52,6 +52,10 @@ pub struct HorseOptions {
     pub shell: Option<String>,
     #[clap(short, long, help = "指定环境变量, e.g. --env KEY=VALUE")]
     pub env: Vec<String>,
+    #[clap(short = 'x', long, help = "根据本地 ALL_PROXY 进行反向代理")]
+    pub enable_proxy: bool,
+    #[clap(long, help = "指定代理服务器")]
+    pub all_proxy: Option<String>,
     #[clap(short, long, help = "检测代码变动")]
     pub watch: bool,
 }
