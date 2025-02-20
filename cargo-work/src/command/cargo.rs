@@ -46,6 +46,23 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         // 默认分支为 master
         .unwrap_or_else(|| "master".to_owned());
 
+    // TODO: http proxy
+    //
+    // let sk_ = std::path::PathBuf::from(sk);
+    // let host_ = host.clone();
+    // let forward = "7890:127.0.0.1:7890".to_string();
+    // let ssh_options = crate::options::SshOptions {
+    //     horse: options.horse_options().clone(),
+    //     forward_local_port: None,
+    //     forward_remote_port: Some(forward.clone()),
+    //     commands: vec![],
+    // };
+    //
+    // tokio::spawn(async move {
+    //     super::ssh::connect_forward_r(&sk_, host_, forward, &ssh_options).await?;
+    //     Ok::<_, color_eyre::Report>(())
+    // });
+
     // git diff HEAD
     let mut cmd = tokio::process::Command::new("git");
     #[cfg(target_os = "windows")]

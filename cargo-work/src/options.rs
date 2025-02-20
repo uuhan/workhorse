@@ -163,12 +163,12 @@ pub struct SshOptions {
         help = "转发远程端口到本地端口"
     )]
     pub forward_remote_port: Option<String>,
-    #[clap(
-        short = 'D',
-        name = "[LOCAL_IP:]LOCAL_PORT",
-        help = "动态转发经由远程服务器"
-    )]
-    pub forward_dynamic_port: Option<String>,
+    // #[clap(
+    //     short = 'D',
+    //     name = "[LOCAL_IP:]LOCAL_PORT",
+    //     help = "动态转发经由远程服务器"
+    // )]
+    // pub forward_dynamic_port: Option<String>,
     pub commands: Vec<String>,
 }
 

@@ -45,98 +45,129 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
 
-    // ssh -L
-    if let Some(forward_local_port) = options.forward_local_port {
-        let mut ssh =
-            HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
-
-        let mut addrs = forward_local_port.split(":").collect::<Vec<&str>>();
-        addrs.reverse();
-        let remote_port = addrs.first().unwrap().parse::<u32>()?;
-        let remote_host = addrs.get(1).unwrap().parse::<String>()?;
-        let local_port = addrs.get(2).unwrap().parse::<u32>()?;
-        let local_host = addrs
-            .get(3)
-            .and_then(|s| s.parse::<String>().ok())
-            .unwrap_or("127.0.0.1".to_string());
-
-        let local_addr = format!("{}:{}", local_host, local_port);
-        println!("Listening on {}", local_addr);
-        let listener = TcpListener::bind(&local_addr).await?;
-
-        while let Ok((mut stream, addr)) = listener.accept().await {
-            println!(
-                "{:?} -> {} -> {}:{}",
-                addr, local_addr, remote_host, remote_port
-            );
-
-            let channel = match ssh
-                .channel_open_direct_tcpip(&remote_host, remote_port, &local_host, local_port)
-                .await
-                .wrap_err("tcp forward failed!")
-            {
-                Ok(channel) => channel,
-                Err(e) => {
-                    eprintln!("tcpip forward failed: {:?}", e);
-                    ssh.close().await?;
-                    return Ok(());
-                }
-            };
-
-            let mut ch_stream = channel.into_stream();
-            tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
-        }
-
-        return Ok(());
+    if let Some(forward_local_port) = options.forward_local_port.clone() {
+        connect_forward_l(sk, host, forward_local_port, &options).await
+    } else if let Some(forward_remote_port) = options.forward_remote_port.clone() {
+        connect_forward_r(sk, host, forward_remote_port, &options).await
+    } else {
+        connect_shell(sk, host, repo_name, branch, &options).await
     }
+}
 
-    // ssh -R
-    if let Some(forward_remote_port) = options.forward_remote_port {
-        let mut addrs = forward_remote_port.split(":").collect::<Vec<&str>>();
-        addrs.reverse();
-        let local_port = addrs
-            .first()
-            .unwrap()
-            .parse::<u32>()
-            .context("port parse")?;
-        let local_host = addrs
-            .get(1)
-            .unwrap()
-            .parse::<String>()
-            .context("host parse")?;
-        let remote_port = addrs.get(2).unwrap().parse::<u32>().context("port parse")?;
-        let remote_host = addrs
-            .get(3)
-            .and_then(|s| s.parse::<String>().ok())
-            .unwrap_or("127.0.0.1".to_string());
+/// ssh -L
+pub async fn connect_forward_l(
+    sk: &Path,
+    host: impl ToSocketAddrs,
+    forward_local_port: impl AsRef<str>,
+    options: &SshOptions,
+) -> Result<()> {
+    let mut ssh =
+        HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
 
-        let mut ssh = HorseClient::connect(
-            sk,
-            options.horse.key_hash_alg,
-            "ssh",
-            host,
-            Some(local_host),
-            Some(local_port),
-        )
-        .await?;
+    let mut addrs = forward_local_port
+        .as_ref()
+        .split(":")
+        .collect::<Vec<&str>>();
+    addrs.reverse();
+    let remote_port = addrs.first().unwrap().parse::<u32>()?;
+    let remote_host = addrs.get(1).unwrap().parse::<String>()?;
+    let local_port = addrs.get(2).unwrap().parse::<u32>()?;
+    let local_host = addrs
+        .get(3)
+        .and_then(|s| s.parse::<String>().ok())
+        .unwrap_or("127.0.0.1".to_string());
 
-        ssh.tcpip_forward(&remote_host, remote_port).await?;
-        println!("(Remote) Listening on {}:{}", remote_host, remote_port);
+    let local_addr = format!("{}:{}", local_host, local_port);
+    println!("Listening on {}", local_addr);
+    let listener = TcpListener::bind(&local_addr).await?;
 
-        let mut channel = ssh
-            .channel_open_session()
+    while let Ok((mut stream, addr)) = listener.accept().await {
+        println!(
+            "{:?} -> {} -> {}:{}",
+            addr, local_addr, remote_host, remote_port
+        );
+
+        let channel = match ssh
+            .channel_open_direct_tcpip(&remote_host, remote_port, &local_host, local_port)
             .await
-            .with_context(|| "channel_open_session error.")?;
+            .wrap_err("tcp forward failed!")
+        {
+            Ok(channel) => channel,
+            Err(e) => {
+                eprintln!("tcpip forward failed: {:?}", e);
+                ssh.close().await?;
+                return Ok(());
+            }
+        };
 
-        while let Some(msg) = channel.wait().await {
-            println!("{:?}", msg);
-        }
-
-        return Ok(());
+        let mut ch_stream = channel.into_stream();
+        tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
     }
 
-    // default shell
+    Ok(())
+}
 
+/// ssh -R
+pub async fn connect_forward_r(
+    sk: &Path,
+    host: impl ToSocketAddrs,
+    forward_remote_port: impl AsRef<str>,
+    options: &SshOptions,
+) -> Result<()> {
+    let mut addrs = forward_remote_port
+        .as_ref()
+        .split(":")
+        .collect::<Vec<&str>>();
+    addrs.reverse();
+    let local_port = addrs
+        .first()
+        .unwrap()
+        .parse::<u32>()
+        .context("port parse")?;
+    let local_host = addrs
+        .get(1)
+        .unwrap()
+        .parse::<String>()
+        .context("host parse")?;
+    let remote_port = addrs.get(2).unwrap().parse::<u32>().context("port parse")?;
+    let remote_host = addrs
+        .get(3)
+        .and_then(|s| s.parse::<String>().ok())
+        .unwrap_or("127.0.0.1".to_string());
+
+    let mut ssh = HorseClient::connect(
+        sk,
+        options.horse.key_hash_alg,
+        "ssh",
+        host,
+        Some(local_host),
+        Some(local_port),
+    )
+    .await?;
+
+    ssh.tcpip_forward(&remote_host, remote_port).await?;
+    println!("(Remote) Listening on {}:{}", remote_host, remote_port);
+
+    let mut channel = ssh
+        .channel_open_session()
+        .await
+        .with_context(|| "channel_open_session error.")?;
+
+    while let Some(msg) = channel.wait().await {
+        println!("{:?}", msg);
+    }
+
+    Ok(())
+}
+
+/// default shell
+pub async fn connect_shell(
+    sk: &Path,
+    host: impl ToSocketAddrs,
+    repo_name: String,
+    branch: String,
+    options: &SshOptions,
+) -> Result<()> {
     let mut ssh =
         HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
 
@@ -150,17 +181,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
 
-    let code = {
-        ssh.shell(
-            &options
-                .commands
-                .into_iter()
-                .map(|x| x)
-                .collect::<Vec<_>>()
-                .join(" "),
-        )
-        .await?
-    };
+    let code = { ssh.shell(&options.commands.join(" ")).await? };
 
     crossterm::terminal::disable_raw_mode()?;
 
