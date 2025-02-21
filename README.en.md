@@ -1,3 +1,13 @@
+<p align="center">
+    <img src="docs/logo.svg" alt="asterinas-logo" width="620"><br>
+    <br/>
+    <a href="https://github.com/uuhan/workhorse/actions/workflows/ci.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/ci.yml/badge.svg?event=push" alt="CI" style="max-width: 100%;"></a>
+    <a href="https://github.com/uuhan/workhorse/actions/workflows/release.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/release.yml/badge.svg?event=release" alt="Release" style="max-width: 100%;"></a>
+    <br/>
+</p>
+
+[中文](README.md)
+
 ### Workhorse
 
 A ci tool designed & used by geeks, with core capabilities in local development and remote builds.
@@ -191,6 +201,7 @@ ssh -L 3000:127.0.0.1:3000
 ```bash
 # Reverse forward server port 3000 to local, all requests to the server will come to the local machine
 cargo work ssh -R 3000:127.0.0.1:3000
+all_proxy=socks5://127.0.0.1:7890 cargo work -x -- curl -v https://google.com
 # Or use the standard ssh tool, ensuring compatibility with the ssh protocol
 ssh -R 3000:127.0.0.1:3000
 ```
@@ -201,6 +212,7 @@ At the same time, the cargo work command also supports reverse HTTP proxies, whi
 # -x, --enable-proxy enables a reverse proxy with a random port on the `horsed` side,
 # which connects to the proxy specified by your current ALL_PROXY. This proxy will be used during command execution.
 cargo work build -x
+all_proxy=socks5://127.0.0.1:1080 cargo work -x -- curl -v https://google.com
 # You can also manually specify the proxy address.
 cargo work build --all-proxy=socks5://127.0.0.1:1234
 ```

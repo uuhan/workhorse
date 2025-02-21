@@ -1,3 +1,13 @@
+<p align="center">
+    <img src="docs/logo.svg" alt="asterinas-logo" width="620"><br>
+    <br/>
+    <a href="https://github.com/uuhan/workhorse/actions/workflows/ci.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/ci.yml/badge.svg?event=push" alt="CI" style="max-width: 100%;"></a>
+    <a href="https://github.com/uuhan/workhorse/actions/workflows/release.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/release.yml/badge.svg?event=release" alt="Release" style="max-width: 100%;"></a>
+    <br/>
+</p>
+
+[English](README.en.md)
+
 ### 牛马 (Workhorse)
 
 workhorse [ˈwɜrkhɔrs]
@@ -198,8 +208,9 @@ ssh -R 3000:127.0.0.1:3000
 # -x, --enable-proxy 会在 `horsed` 端启用一个随机端口的反向代理,
 # 连接到你当前的 ALL_PROXY 的代理, 在执行命令的时候会使用这个代理
 cargo work build -x
+all_proxy=socks5://127.0.0.1:1080 cargo work -x -- curl -v https://google.com
 # 你也可以手动指定代理地址
-cargo work build --all-proxy=socks5://127.0.0.1:1234
+cargo work build --all-proxy=socks5://127.0.0.1:1080
 ```
 
 更多的帮助信息可以通过查看帮助获取:
