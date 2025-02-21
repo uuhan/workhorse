@@ -1,4 +1,4 @@
-name: Publish binary on release
+name: Release
 
 on:
   release:
