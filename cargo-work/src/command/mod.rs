@@ -138,10 +138,7 @@ impl Handler for Client {
 
         tokio::spawn(async move {
             let mut ch_stream = channel.into_stream();
-            tokio::io::copy_bidirectional(&mut ch_stream, &mut stream)
-                .await
-                .unwrap();
-
+            tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
             Ok::<_, Self::Error>(())
         });
 
