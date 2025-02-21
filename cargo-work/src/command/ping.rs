@@ -9,9 +9,14 @@ use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 use zerocopy::IntoBytes;
 
-pub async fn run(sk: &Path, options: PingOptions) -> Result<()> {
+pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
+
+    if let Some(remote) = options.remote {
+        // arg comes first
+        options.horse.remote.replace(remote);
+    }
 
     let repo_name = if let Some(repo_name) = find_repo_name(&options.horse) {
         repo_name

@@ -177,6 +177,7 @@ async fn main() -> Result<()> {
                 let options = PingOptions {
                     horse: horse.clone(),
                     count: Some(3),
+                    remote: None,
                 };
                 if let Err(err) = ping::run(&key, options).await {
                     eprintln!("执行失败: {}", err);

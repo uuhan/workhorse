@@ -193,6 +193,7 @@ pub struct PingOptions {
     pub horse: HorseOptions,
     #[clap(short, long, help = "指定次数")]
     pub count: Option<u32>,
+    pub remote: Option<String>,
 }
 
 #[derive(Clone, Debug, Args)]
