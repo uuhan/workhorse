@@ -228,6 +228,10 @@ fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
     }
 
     options.watch = options.watch || horse.watch;
+    options.enable_proxy = options.enable_proxy || horse.enable_proxy;
+    if options.all_proxy.is_none() {
+        options.all_proxy = horse.all_proxy.clone();
+    }
 
     options.env.append(&mut horse.env.clone());
 }
