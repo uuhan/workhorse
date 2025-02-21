@@ -1,21 +1,29 @@
 ### v0.2.6
 
-- workhorse: cargo work ssh to get a shell (no windows support)
+- cargo-work: ping <REMOTE> support
+- cargo-work: just, cmd support proxy
+- cargo-work: cargo command support proxy
+- cargo-work: fix ed25519 ssh private key with not hash alg
+- cargo-work: push to default remote: horsed
+- cargo-work: add support for http proxy (dev in progress)
+- cargo-work: push <REMOTE> <BRANCH> just as git push do
+- cargo-work: fix HorseOptions merge issue
+- horsed: fix ssh -R dispatched socket handler
+- workhorse: HorseOptions --env support pass K=V env pairs
+- workhorse: pre-release v0.2.6-alpha.1
+- workhorse: cargo work ssh to get a shell
 - cargo-work: HorseOptions --key-hash-alg: sha256(default), sha512
 - workhorse: ssh -L & -R compatible with openssh
+- cargo-work: ssh -L & -R
 - horsed: channel_open_direct_tcpip tracing
-- cargo-work: watch command dev in progress
 - cargo-work: set a fallback command for `cargo work`
-- cargo-work: rename src/ssh to src/command
 - horsed: remove `ssh-keys` crate
 - horsed: fix test with different ports
 - horsed: ssh server tests
 - cargo-work: ssh command to do some ssh stuff, e.g. port forwarding
-- stable: more rstest
 - cargo-work: get file with `--outfile` option
 - stable: add a thread pool
 - horsed: just support os specified file `justfile.<os>`
-- horsed: fix ping cleanup
 
 ### v0.2.5
 
