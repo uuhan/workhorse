@@ -78,13 +78,16 @@ pub async fn connect_forward_l(
         .unwrap_or("127.0.0.1".to_string());
 
     let local_addr = format!("{}:{}", local_host, local_port);
-    println!("Listening on {}", local_addr);
+    tracing::debug!("Listening on {}", local_addr);
     let listener = TcpListener::bind(&local_addr).await?;
 
     while let Ok((mut stream, addr)) = listener.accept().await {
-        println!(
+        tracing::info!(
             "{:?} -> {} -> {}:{}",
-            addr, local_addr, remote_host, remote_port
+            addr,
+            local_addr,
+            remote_host,
+            remote_port
         );
 
         let channel = match ssh
@@ -94,7 +97,7 @@ pub async fn connect_forward_l(
         {
             Ok(channel) => channel,
             Err(e) => {
-                eprintln!("tcpip forward failed: {:?}", e);
+                tracing::info!("tcpip forward failed: {:?}", e);
                 ssh.close().await?;
                 return Ok(());
             }
@@ -144,20 +147,10 @@ pub async fn connect_forward_r(
         Some(local_port),
     )
     .await?;
-
     ssh.tcpip_forward(&remote_host, remote_port).await?;
-    println!("(Remote) Listening on {}:{}", remote_host, remote_port);
+    tracing::info!("服务端代理启用: {}:{}", remote_host, remote_port);
 
-    let mut channel = ssh
-        .channel_open_session()
-        .await
-        .with_context(|| "channel_open_session error.")?;
-
-    while let Some(msg) = channel.wait().await {
-        println!("{:?}", msg);
-    }
-
-    Ok(())
+    futures::future::pending().await
 }
 
 /// default shell
@@ -185,7 +178,7 @@ pub async fn connect_shell(
 
     crossterm::terminal::disable_raw_mode()?;
 
-    println!("exit code: {}", code);
+    tracing::info!("exit code: {}", code);
     ssh.close().await?;
 
     Ok(())
@@ -205,7 +198,7 @@ pub async fn start_proxy(
         if let Ok(proxy) = std::env::var("ALL_PROXY").or(std::env::var("all_proxy")) {
             (true, proxy)
         } else {
-            println!("未设置代理, 请设置环境变量 ALL_PROXY 或 all_proxy");
+            tracing::info!("未设置代理, 请设置环境变量 ALL_PROXY 或 all_proxy");
             return Ok(env);
         }
     } else {
@@ -241,7 +234,7 @@ pub async fn start_proxy(
         env.push(format!("HTTPS_PROXY=http://127.0.0.1:{random_port}"));
 
         tokio::spawn(async move {
-            super::ssh::connect_forward_r(&sk_, host, forward, &ssh_options).await?;
+            connect_forward_r(&sk_, host, forward, &ssh_options).await?;
             Ok::<_, color_eyre::Report>(())
         });
     }

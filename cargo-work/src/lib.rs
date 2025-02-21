@@ -5,6 +5,7 @@
 )]
 pub mod command;
 mod exec;
+pub mod logger;
 mod mac;
 pub mod options;
 pub mod ui;

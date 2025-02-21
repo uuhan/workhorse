@@ -1483,11 +1483,10 @@ impl Handler for AppServer {
                 return Ok(false);
             }
         };
-
         tracing::info!("bind success");
-
-        let handle = session.handle();
         let socket_task = task.clone();
+        let handle = session.handle();
+
         task.spawn(
             async move {
                 // listen on server

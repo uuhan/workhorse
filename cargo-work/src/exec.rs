@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    println!("Exitcode: {:?}", code);
+    tracing::info!("Exitcode: {:?}", code);
     ssh.close().await?;
     Ok(())
 }

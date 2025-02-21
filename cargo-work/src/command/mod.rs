@@ -54,7 +54,7 @@ impl Handler for Client {
         _session: &mut russh::client::Session,
     ) -> Result<(), Self::Error> {
         for banner in banner.lines() {
-            println!(
+            tracing::info!(
                 "{}{}{} {}",
                 "[".bold(),
                 "HORSED".green(),
@@ -122,9 +122,14 @@ impl Handler for Client {
             .map_or(connected_address, |v| v.as_str());
         let port = self.forward_port.unwrap_or(connected_port);
 
-        println!(
+        tracing::info!(
             "{}:{} <- {}:{} <- {}:{}",
-            host, port, connected_address, connected_port, originator_address, originator_port
+            host,
+            port,
+            connected_address,
+            connected_port,
+            originator_address,
+            originator_port
         );
 
         let socket = TcpSocket::new_v4()?;
@@ -153,7 +158,7 @@ impl Handler for Client {
         window_size: u32,
         session: &mut client::Session,
     ) -> Result<(), Self::Error> {
-        // println!(
+        // tracing::info!(
         //     "channel open: {:?} {} {}",
         //     channel, max_packet_size, window_size
         // );

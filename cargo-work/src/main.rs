@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use cargo_work::{
     command::{cargo, cmd, get, just, ping, pull, push, scp, ssh, watch},
+    logger,
     options::*,
 };
 use clap::Parser;
@@ -11,6 +12,8 @@ use std::path::PathBuf;
 async fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
+
+    logger::init()?;
 
     let key = if let Some(key) = cli.horse.key.clone().take() {
         key
@@ -28,7 +31,7 @@ async fn main() -> Result<()> {
         } else if path.join("id_ed25519").exists() {
             path.join("id_ed25519")
         } else {
-            eprintln!("没有可以使用的私钥文件: {}", path.display());
+            tracing::error!("没有可以使用的私钥文件: {}", path.display());
             return Ok(());
         }
     };
@@ -50,7 +53,7 @@ async fn main() -> Result<()> {
             // e.g. cargo work -- ls -al
             if !scripts.is_empty() {
                 if let Err(err) = cmd::run(&key, horse, scripts).await {
-                    eprintln!("执行失败: {}", err);
+                    tracing::error!("执行失败: {}", err);
                 }
             } else if let Some(commands) = w_opt.commands {
                 match commands {
@@ -60,115 +63,115 @@ async fn main() -> Result<()> {
                     Commands::Build(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Zigbuild(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Check(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Clean(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Clippy(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Doc(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Install(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Metadata(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Run(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Rustc(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Test(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = cargo::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Just(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = just::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Get(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = get::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Scp(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = scp::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Push(options) => {
                         if let Err(err) = push::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
                     Commands::Pull(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = pull::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
 
                     Commands::Ping(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = ping::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     }
 
                     Commands::Ssh(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = ssh::run(&key, options).await {
-                            eprintln!("执行失败: {}", err);
+                            tracing::error!("执行失败: {}", err);
                         }
                     } // Commands::Watch(mut options) => {
                       //     merge_options(&mut options.horse, &horse);
                       //     if let Err(err) = watch::run(&key, options).await {
-                      //         eprintln!("执行失败: {}", err);
+                      //         tracing::error!("执行失败: {}", err);
                       //     }
                       // }
                 }
@@ -180,22 +183,22 @@ async fn main() -> Result<()> {
                     remote: None,
                 };
                 if let Err(err) = ping::run(&key, options).await {
-                    eprintln!("执行失败: {}", err);
+                    tracing::error!("执行失败: {}", err);
                 }
             }
         }
 
         // 直接调用 cargo 命令
         SubCommands::Cargo(opt) => match opt {
-            Commands::Build(build) => println!("{:?}", build.command()),
-            Commands::Just(just) => println!("{:?}", just),
+            Commands::Build(build) => tracing::info!("{:?}", build.command()),
+            Commands::Just(just) => tracing::info!("{:?}", just),
             Commands::Push(options) => {
-                println!("{:?}", options);
+                tracing::info!("{:?}", options);
             }
             Commands::Pull(_) => {
                 let _ = cargo_work::ui::init();
             }
-            opt => println!("{:?}", opt),
+            opt => tracing::info!("{:?}", opt),
         },
     }
 

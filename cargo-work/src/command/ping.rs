@@ -99,7 +99,7 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
         let body = Body::read(&mut sshout).await?;
         match body {
             Body::Pong(instant) => {
-                println!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());
+                tracing::info!("ping: {:?}, total: {:?}", instant.elapsed(), now.elapsed());
             }
             _ => {
                 return Err(anyhow!("ping 失败!"));

@@ -703,6 +703,7 @@ dependencies = [
  "time",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "unicode-width 0.2.0",
  "url",
  "zerocopy 0.8.18",

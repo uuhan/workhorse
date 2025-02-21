@@ -73,17 +73,17 @@ pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
                     notify::EventKind::Create(CreateKind::File) => {
                         command = command
                             .replace("{file}", event.paths.first().unwrap().to_str().unwrap());
-                        println!("[{:?}] command: {command}", event.kind);
+                        tracing::info!("[{:?}] command: {command}", event.kind);
                     }
                     notify::EventKind::Create(CreateKind::Folder) => {
                         command = command
                             .replace("{dir}", event.paths.first().unwrap().to_str().unwrap());
-                        println!("[{:?}] command: {command}", event.kind);
+                        tracing::info!("[{:?}] command: {command}", event.kind);
                     }
                     notify::EventKind::Modify(ModifyKind::Data(_)) => {
                         command = command
                             .replace("{file}", event.paths.first().unwrap().to_str().unwrap());
-                        println!("[{:?}] command: {command}", event.kind);
+                        tracing::info!("[{:?}] command: {command}", event.kind);
                     }
                     notify::EventKind::Remove(_) => {}
                     notify::EventKind::Access(_) => {}
@@ -91,9 +91,9 @@ pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
                     _ => {}
                 }
 
-                // println!("changed: {:?}", event);
+                // tracing::info!("changed: {:?}", event);
             }
-            Err(e) => println!("watch error: {:?}", e),
+            Err(e) => tracing::info!("watch error: {:?}", e),
         }
     }
 
