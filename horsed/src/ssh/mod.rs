@@ -1171,11 +1171,6 @@ impl Server for AppServer {
         this
     }
 
-    /// 处理会话错误
-    fn handle_session_error(&mut self, error: <Self::Handler as Handler>::Error) {
-        tracing::error!("会话错误: {:?}", error);
-    }
-
     #[tracing::instrument(skip_all, level = "debug")]
     async fn run_on_socket(
         &mut self,
@@ -1189,48 +1184,38 @@ impl Server for AppServer {
             );
         }
 
-        let (error_tx, mut error_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut tm = TaskManager::default();
         let handle = tm.spawn_handle();
 
         loop {
-            tokio::select! {
-                accept_result = socket.accept() => {
-                    match accept_result {
-                        Ok((socket, _)) => {
-                            let config = config.clone();
-                            let handler = self.new_client(socket.peer_addr().ok());
-                            let error_tx = error_tx.clone();
+            match socket.accept().await {
+                Ok((socket, _)) => {
+                    let config = config.clone();
+                    let handler = self.new_client(socket.peer_addr().ok());
 
-                            let span = tracing::info_span!("socket.accept", socket=?socket.peer_addr());
-                            handle.spawn(async move {
-                                tracing::debug!("handle-socket");
-                                let session = match run_stream(config, socket, handler).await {
-                                    Ok(s) => s,
-                                    Err(e) => {
-                                        let _ = error_tx.send(e);
-                                        panic!("session-setup-failed");
-                                    }
-                                };
-
-                                match session.await {
-                                    Ok(_) => tracing::debug!("session-closed"),
-                                    Err(e) => {
-                                        let _ = error_tx.send(e);
-                                    }
+                    let span = tracing::info_span!("socket.accept", socket=?socket.peer_addr());
+                    handle.spawn(
+                        async move {
+                            tracing::debug!("handle-socket");
+                            let session = match run_stream(config, socket, handler).await {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    panic!("session-setup-failed");
                                 }
+                            };
 
-                                Ok(())
-                            }.instrument(span));
+                            session.await?;
+                            Ok(())
                         }
-                        err => {
-                            tracing::error!("accept-error: {:?}", err);
-                            break;
-                        },
-                    }
-                },
-                Some(error) = error_rx.recv() => {
-                    self.handle_session_error(error);
+                        .instrument(span),
+                    );
+                }
+
+                // 1. Too many open files
+                //    enlarge your `ulimit -n` number
+                err => {
+                    tracing::error!("accept-error: {:?}", err);
+                    break;
                 }
             }
         }
