@@ -79,6 +79,17 @@ impl ChannelHandle {
         Ok(())
     }
 
+    /// `exec_request`, 发送请求状态，并结束通道
+    #[tracing::instrument(skip(self), level = "debug")]
+    pub async fn exit_code(&self, status_code: u32) -> HorseResult<()> {
+        let _ = self.handle.exit_status_request(self.id, status_code).await;
+
+        self.eof().await?;
+        self.close().await?;
+
+        Ok(())
+    }
+
     /// 调用远程命令, 并将输入输出流通过通道传输
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {

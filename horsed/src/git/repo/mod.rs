@@ -35,7 +35,7 @@ impl Repo {
     /// 创建一个裸仓库, 用于存放代码
     #[tracing::instrument(skip(path), fields(path = ?path.as_ref()))]
     pub async fn create_bare(path: impl AsRef<Path>) -> HorseResult<Repo> {
-        tracing::debug!("CREATE BARE REPO: {}", path.as_ref().display());
+        tracing::info!("create bare repo: {}", path.as_ref().display());
 
         #[allow(unused_mut)]
         let mut cmd = Command::new("git");

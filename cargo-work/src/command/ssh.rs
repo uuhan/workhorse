@@ -198,7 +198,7 @@ pub async fn start_proxy(
         if let Ok(proxy) = std::env::var("ALL_PROXY").or(std::env::var("all_proxy")) {
             (true, proxy)
         } else {
-            tracing::info!("未设置代理, 请设置环境变量 ALL_PROXY 或 all_proxy");
+            tracing::warn!("未设置代理, 请设置环境变量 ALL_PROXY 或 all_proxy");
             return Ok(env);
         }
     } else {

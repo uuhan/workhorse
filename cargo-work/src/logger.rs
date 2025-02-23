@@ -39,15 +39,27 @@ where
                 WorkField {}
             }
             Level::DEBUG => {
-                print!("[{}] ", PFX.bold().blue());
+                print!(
+                    "[{}] {}{}: ",
+                    PFX.bold().blue(),
+                    meta.target().blue(),
+                    meta.line().map(|l| format!("#{}", l)).unwrap_or_default()
+                );
                 WorkField {}
             }
             Level::TRACE => {
-                print!("[{}] ", PFX.bold().white());
+                print!(
+                    "[{}] {}{}: ",
+                    PFX.bold().blue(),
+                    meta.target().blue(),
+                    meta.line().map(|l| format!("#{}", l)).unwrap_or_default()
+                );
                 WorkField {}
             }
         };
+
         event.record(&mut fields);
+
         println!();
     }
 }

@@ -651,11 +651,7 @@ impl AppServer {
                 }
 
                 drop(ch_reader);
-
                 handle.exit(cmd.wait().await?).await?;
-                handle.eof().await?;
-                handle.close().await?;
-
                 Ok(())
             }
             .instrument(ssh_span),
