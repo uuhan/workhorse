@@ -49,6 +49,9 @@ pub struct AppServer {
     #[cfg(not(windows))]
     /// 一些共享数据
     clients: Arc<Mutex<HashMap<usize, (Pty, Pts)>>>,
+    #[cfg(windows)]
+    /// 一些共享数据
+    clients: Arc<Mutex<HashMap<usize, winptyrs::PTY>>>,
     /// 任务管理器
     tm: TaskManager,
     /// 数据库连接
@@ -65,7 +68,6 @@ impl Clone for AppServer {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            #[cfg(not(windows))]
             clients: self.clients.clone(),
             tm: TaskManager::default(),
             db: self.db.clone(),
@@ -80,7 +82,6 @@ impl AppServer {
     pub fn new(db: DbConn) -> Self {
         Self {
             id: 0,
-            #[cfg(not(windows))]
             clients: Arc::new(Mutex::new(HashMap::new())),
             tm: TaskManager::default(),
             handle: None,
@@ -588,14 +589,6 @@ impl AppServer {
             .context("FIXME: NO HANDLE".color(Color::Red))?;
 
         #[cfg(windows)]
-        {
-            handle.error("SSH 命令暂不支持 Windows").await?;
-            handle.eof().await?;
-            handle.close().await?;
-            return Ok(());
-        }
-
-        #[cfg(windows)]
         let shell = commands.pop().unwrap_or("powershell.exe".to_string());
         #[cfg(not(windows))]
         let shell = commands.pop().unwrap_or("bash".to_string());
@@ -604,25 +597,14 @@ impl AppServer {
         let env = self.env.clone();
         let id = self.id;
 
-        #[cfg(not(windows))]
         let task = self.tm.spawn_handle();
-        #[cfg(not(windows))]
         let clients = self.clients.clone();
+
         #[cfg(not(windows))]
         task.spawn(
             async move {
                 let mut cmd = pty_process::Command::new(&shell);
                 cmd = cmd.envs(&env);
-
-                #[cfg(target_os = "windows")]
-                {
-                    #[allow(unused_imports)]
-                    use std::os::windows::process::CommandExt;
-                    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-                    cmd = cmd.creation_flags(CREATE_NO_WINDOW);
-                }
-
                 cmd = cmd
                     .kill_on_drop(true)
                     .current_dir(&work_path)
@@ -636,6 +618,7 @@ impl AppServer {
                     handle.close().await?;
                     return Ok(());
                 };
+                drop(clients);
 
                 let mut cmd = cmd.spawn(pts).context(format!("spawn: `{}`", shell))?;
                 let (mut stdout, mut stdin) = pty.into_split();
@@ -652,6 +635,91 @@ impl AppServer {
 
                 drop(ch_reader);
                 handle.exit(cmd.wait().await?).await?;
+                Ok(())
+            }
+            .instrument(ssh_span),
+        );
+
+        #[cfg(windows)]
+        task.spawn(
+            async move {
+                use std::ffi::OsString;
+                let appname = OsString::from(&shell);
+                let work_path = OsString::from(&work_path);
+                let args = OsString::from(commands.join(" "));
+                tracing::info!("windows pty");
+
+                let mut clients = clients.lock().await;
+                // TODO: resize at runtime?
+                let Some(mut pty) = clients.remove(&id) else {
+                    tracing::error!("empty pty?: {}", id);
+                    handle.eof().await?;
+                    handle.close().await?;
+                    return Ok(());
+                };
+                drop(clients);
+
+                match pty.spawn(appname, Some(args), Some(work_path), None) {
+                    Ok(_) => {
+                        tracing::info!("conpty spawned");
+                        let mut read_buf = [0u8; 1024];
+                        let mut ch_writer = handle.make_writer();
+                        let mut ch_reader = handle.make_reader();
+
+                        tracing::info!("pty: {:?}", pty.is_alive());
+                        loop {
+                            match pty.is_alive() {
+                                Ok(true) => {
+                                    tracing::info!("pty is_alive");
+                                }
+                                Ok(false) => {
+                                    break;
+                                }
+                                Err(err) => {
+                                    tracing::error!("pty is_alive error: {:?}", err);
+                                    break;
+                                }
+                            }
+
+                            match pty.read(1024, false) {
+                                Ok(buf) => {
+                                    let buf = buf.as_encoded_bytes();
+                                    ch_writer.write_all(&buf).await?;
+                                }
+                                Err(err) => {
+                                    tracing::error!("pty read error: {:?}", err);
+                                }
+                            }
+
+                            match ch_reader.read(&mut read_buf).await {
+                                Ok(len) => {
+                                    if len == 0 {
+                                        break;
+                                    }
+                                    let tmp = String::from_utf8_lossy(&read_buf[..len]).to_string();
+                                    tracing::info!("ch read: {}", tmp);
+                                    match pty.write(OsString::from(tmp)) {
+                                        Ok(len) => {
+                                            tracing::info!("write len: {}", len);
+                                        }
+                                        Err(err) => {
+                                            tracing::error!("pty write error: {:?}", err);
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    tracing::error!("ch_reader read error: {:?}", err);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("{:?}", err);
+                        handle.exit_code(128).await?;
+                    }
+                }
+
                 Ok(())
             }
             .instrument(ssh_span),
@@ -1387,7 +1455,7 @@ impl Handler for AppServer {
 
     #[cfg(not(windows))]
     #[allow(unused)]
-    #[tracing::instrument(skip(self, session, modes))]
+    #[tracing::instrument(skip(self, session, modes), fields(os = std::env::consts::OS))]
     async fn pty_request(
         &mut self,
         channel: ChannelId,
@@ -1409,6 +1477,48 @@ impl Handler for AppServer {
         clients.insert(self.id, (pty, pts));
 
         session.channel_success(channel)?;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    #[allow(unused)]
+    #[tracing::instrument(skip(self, session, modes), fields(os = std::env::consts::OS))]
+    async fn pty_request(
+        &mut self,
+        channel: ChannelId,
+        term: &str,
+        cols: u32,
+        rows: u32,
+        pix_width: u32,
+        pix_height: u32,
+        modes: &[(russh::Pty, u32)],
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        use std::ffi::OsString;
+        use winptyrs::{AgentConfig, MouseMode, PTYArgs, PTYBackend, PTY};
+        tracing::info!("pty request: {}x{}", cols, rows);
+
+        let pty_args = PTYArgs {
+            cols: cols as _,
+            rows: rows as _,
+            mouse_mode: MouseMode::WINPTY_MOUSE_MODE_NONE,
+            timeout: 10000,
+            agent_config: AgentConfig::WINPTY_FLAG_COLOR_ESCAPES,
+        };
+
+        match PTY::new_with_backend(&pty_args, PTYBackend::ConPTY) {
+            Ok(pty) => {
+                let mut clients = self.clients.lock().await;
+                clients.insert(self.id, pty);
+
+                session.channel_success(channel)?;
+            }
+            Err(err) => {
+                tracing::error!("winpty failed: {:?}", err);
+                session.channel_failure(channel)?;
+            }
+        };
+
         Ok(())
     }
 
