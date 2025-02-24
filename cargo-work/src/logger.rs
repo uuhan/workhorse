@@ -7,11 +7,16 @@ use tracing::{
 use tracing_subscriber::{filter::EnvFilter, layer::Context, prelude::*, Layer};
 
 pub fn init() -> Result<()> {
-    let filter = EnvFilter::from_default_env();
+    let mut filter = EnvFilter::from_default_env();
+    if std::env::var("RUST_LOG").is_err() {
+        filter = filter.add_directive("cargo_work=info".parse()?);
+    }
+
     tracing_subscriber::registry()
         .with(filter)
         .with(WorkLayer)
         .init();
+
     Ok(())
 }
 
