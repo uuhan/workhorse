@@ -662,16 +662,13 @@ impl AppServer {
                 match pty.spawn(appname, Some(args), Some(work_path), None) {
                     Ok(_) => {
                         tracing::info!("conpty spawned");
-                        let mut read_buf = [0u8; 1024];
                         let mut ch_writer = handle.make_writer();
                         let mut ch_reader = handle.make_reader();
 
                         tracing::info!("pty: {:?}", pty.is_alive());
                         loop {
                             match pty.is_alive() {
-                                Ok(true) => {
-                                    tracing::info!("pty is_alive");
-                                }
+                                Ok(true) => {}
                                 Ok(false) => {
                                     break;
                                 }
@@ -681,27 +678,22 @@ impl AppServer {
                                 }
                             }
 
-                            match pty.read(1024, false) {
-                                Ok(buf) => {
-                                    let buf = buf.as_encoded_bytes();
-                                    ch_writer.write_all(&buf).await?;
+                            while let Ok(buf) = pty.read(1024 * 4, false) {
+                                if buf.len() == 0 {
+                                    break;
                                 }
-                                Err(err) => {
-                                    tracing::error!("pty read error: {:?}", err);
-                                }
+
+                                let buf = buf.as_encoded_bytes();
+                                ch_writer.write_all(&buf).await?;
                             }
 
-                            match ch_reader.read(&mut read_buf).await {
-                                Ok(len) => {
-                                    if len == 0 {
-                                        break;
-                                    }
-                                    let tmp = String::from_utf8_lossy(&read_buf[..len]).to_string();
-                                    tracing::info!("ch read: {}", tmp);
-                                    match pty.write(OsString::from(tmp)) {
-                                        Ok(len) => {
-                                            tracing::info!("write len: {}", len);
-                                        }
+                            match ch_reader.read_u8().await {
+                                Ok(ch) => {
+                                    let buf = [ch];
+                                    let os_str =
+                                        unsafe { OsStr::from_encoded_bytes_unchecked(&buf) };
+                                    match pty.write(os_str.to_owned()) {
+                                        Ok(_) => {}
                                         Err(err) => {
                                             tracing::error!("pty write error: {:?}", err);
                                         }
