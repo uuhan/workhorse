@@ -57,7 +57,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
 /// ssh -L
 pub async fn connect_forward_l(
     sk: &Path,
-    host: impl ToSocketAddrs,
+    host: SocketAddr,
     forward_local_port: impl AsRef<str>,
     options: &SshOptions,
 ) -> Result<()> {
@@ -113,7 +113,7 @@ pub async fn connect_forward_l(
 /// ssh -R
 pub async fn connect_forward_r(
     sk: &Path,
-    host: impl ToSocketAddrs,
+    host: SocketAddr,
     forward_remote_port: impl AsRef<str>,
     options: &SshOptions,
 ) -> Result<()> {
@@ -156,18 +156,20 @@ pub async fn connect_forward_r(
 /// default shell
 pub async fn connect_shell(
     sk: &Path,
-    host: impl ToSocketAddrs,
+    host: SocketAddr,
     repo_name: String,
     branch: String,
     options: &SshOptions,
 ) -> Result<()> {
+    let env = start_proxy(sk, host, &options.horse).await?;
+
     let mut ssh =
         HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
 
     let channel = ssh.channel_open_session().await?;
     channel.set_env(true, "REPO", repo_name).await?;
     channel.set_env(true, "BRANCH", branch).await?;
-    for kv in options.horse.env.iter() {
+    for kv in env.iter() {
         let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
         channel.set_env(true, k, v).await?;
     }

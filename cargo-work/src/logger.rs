@@ -7,7 +7,7 @@ use tracing::{
 use tracing_subscriber::{filter::EnvFilter, layer::Context, prelude::*, Layer};
 
 pub fn init() -> Result<()> {
-    let filter = EnvFilter::from_default_env().add_directive("cargo_work=info".parse()?);
+    let filter = EnvFilter::from_default_env();
     tracing_subscriber::registry()
         .with(filter)
         .with(WorkLayer)
