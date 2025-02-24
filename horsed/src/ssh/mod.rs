@@ -1402,7 +1402,7 @@ impl Handler for AppServer {
         tracing::info!("pty request: {}x{}", col_width, row_height);
 
         let (pty, pts) = pty_process::open().context("open pty")?;
-        pty.resize(Size::new(col_width as _, row_height as _))
+        pty.resize(Size::new(row_height as _, col_width as _))
             .context("resize pty")?;
 
         let mut clients = self.clients.lock().await;

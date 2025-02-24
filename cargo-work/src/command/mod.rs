@@ -208,14 +208,14 @@ impl HorseClient {
     // The `command` will be attached a pseudo-terminal and executed on the server.
     async fn shell(&mut self, command: &str) -> Result<u32> {
         let mut channel = self.handle.channel_open_session().await?;
-        let (w, h) = crossterm::terminal::size().unwrap_or((80, 24));
+        let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
         // Request an interactive PTY from the server
         channel
             .request_pty(
                 false,
                 &std::env::var("TERM").unwrap_or("xterm".into()),
-                h as u32,
-                w as u32,
+                cols as u32,
+                rows as u32,
                 0,
                 0,
                 &[], // ideally you want to pass the actual terminal modes here
