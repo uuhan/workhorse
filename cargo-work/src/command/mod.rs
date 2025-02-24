@@ -214,8 +214,8 @@ impl HorseClient {
             .request_pty(
                 false,
                 &std::env::var("TERM").unwrap_or("xterm".into()),
-                w as u32,
                 h as u32,
+                w as u32,
                 0,
                 0,
                 &[], // ideally you want to pass the actual terminal modes here
