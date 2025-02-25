@@ -693,9 +693,12 @@ impl AppServer {
                             Ok(())
                         });
 
-                        while let Ok(ch) = ch_reader.read_u8().await {
-                            let buf = [ch];
-                            let os_str = unsafe { OsStr::from_encoded_bytes_unchecked(&buf) };
+                        use std::os::windows::ffi::OsStringExt;
+                        let mut buf = [0u8; 4];
+                        while let Ok(len) = ch_reader.read(&mut buf).await {
+                            let buf = &buf[..len];
+                            let s = String::from_utf8_lossy(buf);
+                            let os_str = OsStr::new(s.as_ref());
                             tracing::debug!("pty write: {:?}", pty.is_alive());
                             if let Ok(true) = pty.is_alive() {
                                 match pty.write(os_str.to_owned()) {
