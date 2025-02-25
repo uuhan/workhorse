@@ -653,12 +653,13 @@ impl AppServer {
 
                 let mut clients = clients.lock().await;
                 // TODO: resize at runtime?
-                let Some(mut pty) = clients.remove(&id) else {
+                let Some(mut pty) = clients.get(&id) else {
                     tracing::error!("empty pty?: {}", id);
                     handle.eof().await?;
                     handle.close().await?;
                     return Ok(());
                 };
+                let pty = pty.clone();
                 drop(clients);
 
                 let pty1 = pty.clone();
@@ -1449,6 +1450,30 @@ impl Handler for AppServer {
         if let Some((pty, _)) = clients.get(&self.id) {
             pty.resize(Size::new(col_width as _, row_height as _))
                 .context("resize pty")?;
+        }
+
+        session.channel_success(channel)?;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    /// The client's window size has changed.
+    #[tracing::instrument(skip(self, session, channel))]
+    async fn window_change_request(
+        &mut self,
+        channel: ChannelId,
+        cols: u32,
+        rows: u32,
+        pixel_width: u32,
+        pixel_height: u32,
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        tracing::info!("window change: {}x{}", cols, rows);
+        let clients = self.clients.lock().await;
+        if let Some(pty) = clients.get(&self.id) {
+            if let Err(err) = pty.set_size(cols as _, rows as _) {
+                tracing::error!("change size err: {:?}", err);
+            }
         }
 
         session.channel_success(channel)?;

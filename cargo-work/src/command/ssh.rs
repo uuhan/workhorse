@@ -3,7 +3,7 @@ use crate::options::SshOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
 use git2::Repository;
 use std::path::Path;
-use tokio::{net::TcpListener, sync::mpsc::unbounded_channel};
+use tokio::net::TcpListener;
 
 pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -176,7 +176,7 @@ pub async fn connect_shell(
 
     crossterm::terminal::enable_raw_mode()?;
 
-    // let (tx, mut rx) = unbounded_channel();
+    // let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     // std::thread::spawn(move || {
     //     use crossterm::event::{poll, read, Event};
     //     loop {
