@@ -176,30 +176,42 @@ pub async fn connect_shell(
 
     crossterm::terminal::enable_raw_mode()?;
 
-    // let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    // std::thread::spawn(move || {
-    //     use crossterm::event::{poll, read, Event};
-    //     loop {
-    //         if poll(Duration::from_millis(300))? {
-    //             if let Ok(Event::Resize(cols, rows)) = read() {
-    //                 if tx.send((cols, rows)).is_err() {
-    //                     break;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     Ok::<_, color_eyre::Report>(())
-    // });
-
-    let event_fut = async move {
-        // while let Some((cols, rows)) = rx.recv().await {
-        //     channel.window_change(cols as _, rows as _, 0, 0).await?;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    std::thread::spawn(move || {
+        // use crossterm::event::{poll, read, Event};
+        // loop {
+        //     if poll(Duration::from_millis(300))? {
+        //         if let Ok(Event::Resize(cols, rows)) = read() {
+        //             if tx.send((cols, rows)).is_err() {
+        //                 break;
+        //             }
+        //         }
+        //     }
         // }
-        Ok(())
-    };
+        let (mut cols, mut rows) = crossterm::terminal::size().unwrap_or((80, 24));
+        loop {
+            std::thread::sleep(Duration::from_millis(300));
+            let (cols1, rows1) = crossterm::terminal::size().unwrap_or((80, 24));
 
-    let (_, code) =
-        futures::future::try_join(event_fut, ssh.shell(&options.commands.join(" "))).await?;
+            if cols1 != cols || rows1 != rows {
+                cols = cols1;
+                rows = rows1;
+                if tx.send((cols1, rows1)).is_err() {
+                    break;
+                }
+            }
+        }
+        Ok::<_, color_eyre::Report>(())
+    });
+
+    tokio::spawn(async move {
+        while let Some((cols, rows)) = rx.recv().await {
+            channel.window_change(cols as _, rows as _, 0, 0).await?;
+        }
+        Ok::<_, color_eyre::Report>(())
+    });
+
+    let code = ssh.shell(&options.commands.join(" ")).await?;
 
     crossterm::terminal::disable_raw_mode()?;
 
