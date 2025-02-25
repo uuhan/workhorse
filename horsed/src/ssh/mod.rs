@@ -683,7 +683,7 @@ impl AppServer {
                         task_block.spawn_blocking(async move {
                             while let Ok(buf) = pty1.read(1024 * 4, false) {
                                 if buf.len() == 0 {
-                                    tracing::info!("pty read 0 bytes");
+                                    tracing::debug!("pty read 0 bytes");
                                     continue;
                                 }
 
@@ -696,13 +696,22 @@ impl AppServer {
                         while let Ok(ch) = ch_reader.read_u8().await {
                             let buf = [ch];
                             let os_str = unsafe { OsStr::from_encoded_bytes_unchecked(&buf) };
-                            match pty.write(os_str.to_owned()) {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    tracing::error!("pty write error: {:?}", err);
+                            tracing::debug!("pty write: {:?}", pty.is_alive());
+                            if let Ok(true) = pty.is_alive() {
+                                match pty.write(os_str.to_owned()) {
+                                    Ok(_) => {}
+                                    Err(err) => {
+                                        tracing::error!("pty write error: {:?}", err);
+                                    }
                                 }
+                            } else {
+                                // pty is not alive
+                                break;
                             }
                         }
+
+                        drop(ch_reader);
+                        handle.exit_code(0).await?;
                     }
                     Err(err) => {
                         tracing::error!("{:?}", err);
