@@ -3,7 +3,7 @@ use crate::options::SshOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
 use git2::Repository;
 use std::path::Path;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::mpsc::unbounded_channel};
 
 pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -176,7 +176,30 @@ pub async fn connect_shell(
 
     crossterm::terminal::enable_raw_mode()?;
 
-    let code = { ssh.shell(&options.commands.join(" ")).await? };
+    // let (tx, mut rx) = unbounded_channel();
+    // std::thread::spawn(move || {
+    //     use crossterm::event::{poll, read, Event};
+    //     loop {
+    //         if poll(Duration::from_millis(300))? {
+    //             if let Ok(Event::Resize(cols, rows)) = read() {
+    //                 if tx.send((cols, rows)).is_err() {
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     Ok::<_, color_eyre::Report>(())
+    // });
+
+    let event_fut = async move {
+        // while let Some((cols, rows)) = rx.recv().await {
+        //     channel.window_change(cols as _, rows as _, 0, 0).await?;
+        // }
+        Ok(())
+    };
+
+    let (_, code) =
+        futures::future::try_join(event_fut, ssh.shell(&options.commands.join(" "))).await?;
 
     crossterm::terminal::disable_raw_mode()?;
 
