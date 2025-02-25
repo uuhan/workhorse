@@ -24,6 +24,15 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: vcpkg build
+        uses: johnwason/vcpkg-action@v6
+        id: vcpkg
+        with:
+          pkgs: winpty
+          triplet: x64-windows-static
+          token: ${{ github.token }}
+          github-binarycache: true
+
       - name: Check out code
         uses: actions/checkout@v4
 
