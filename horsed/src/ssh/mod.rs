@@ -641,6 +641,8 @@ impl AppServer {
         );
 
         #[cfg(windows)]
+        let task_block = task.clone();
+        #[cfg(windows)]
         task.spawn(
             async move {
                 use std::ffi::OsString;
@@ -659,6 +661,7 @@ impl AppServer {
                 };
                 drop(clients);
 
+                let pty1 = pty.clone();
                 match pty.spawn(appname, Some(args), Some(work_path), None) {
                     Ok(_) => {
                         tracing::info!("conpty spawned");
@@ -666,42 +669,37 @@ impl AppServer {
                         let mut ch_reader = handle.make_reader();
 
                         tracing::info!("pty: {:?}", pty.is_alive());
-                        loop {
-                            match pty.is_alive() {
-                                Ok(true) => {}
-                                Ok(false) => {
-                                    break;
-                                }
-                                Err(err) => {
-                                    tracing::error!("pty is_alive error: {:?}", err);
-                                    break;
-                                }
-                            }
+                        // match pty.is_alive() {
+                        //     Ok(true) => {}
+                        //     Ok(false) => {
+                        //         break;
+                        //     }
+                        //     Err(err) => {
+                        //         tracing::error!("pty is_alive error: {:?}", err);
+                        //         break;
+                        //     }
+                        // }
 
-                            while let Ok(buf) = pty.read(1024 * 4, false) {
+                        task_block.spawn_blocking(async move {
+                            while let Ok(buf) = pty1.read(1024 * 4, false) {
                                 if buf.len() == 0 {
-                                    break;
+                                    tracing::info!("pty read 0 bytes");
+                                    continue;
                                 }
 
                                 let buf = buf.as_encoded_bytes();
                                 ch_writer.write_all(&buf).await?;
                             }
+                            Ok(())
+                        });
 
-                            match ch_reader.read_u8().await {
-                                Ok(ch) => {
-                                    let buf = [ch];
-                                    let os_str =
-                                        unsafe { OsStr::from_encoded_bytes_unchecked(&buf) };
-                                    match pty.write(os_str.to_owned()) {
-                                        Ok(_) => {}
-                                        Err(err) => {
-                                            tracing::error!("pty write error: {:?}", err);
-                                        }
-                                    }
-                                }
+                        while let Ok(ch) = ch_reader.read_u8().await {
+                            let buf = [ch];
+                            let os_str = unsafe { OsStr::from_encoded_bytes_unchecked(&buf) };
+                            match pty.write(os_str.to_owned()) {
+                                Ok(_) => {}
                                 Err(err) => {
-                                    tracing::error!("ch_reader read error: {:?}", err);
-                                    break;
+                                    tracing::error!("pty write error: {:?}", err);
                                 }
                             }
                         }
