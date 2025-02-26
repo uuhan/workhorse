@@ -1,14 +1,18 @@
+#[cfg(feature = "opentelemetry")]
+mod otel;
+mod ring;
+
 use once_cell::sync::Lazy;
 #[cfg(feature = "opentelemetry")]
 use opentelemetry::trace::TracerProvider;
+#[cfg(feature = "opentelemetry")]
+use otel::*;
+use ring::RingWriter;
 use tracing_appender::{
     non_blocking::{NonBlocking, WorkerGuard},
     rolling::Rotation,
 };
-#[cfg(feature = "opentelemetry")]
-mod otel;
-#[cfg(feature = "opentelemetry")]
-use otel::*;
+use tracing_subscriber::fmt::MakeWriter;
 
 pub static STDOUT_GUARD: Lazy<(NonBlocking, WorkerGuard)> =
     Lazy::new(|| tracing_appender::non_blocking(std::io::stdout()));
@@ -26,6 +30,8 @@ pub static FILE_GUARD: Lazy<(NonBlocking, WorkerGuard)> = Lazy::new(|| {
     tracing_appender::non_blocking(file_appender)
 });
 
+pub static RING_LOG: Lazy<RingWriter> = Lazy::new(|| RingWriter::new(30));
+
 #[cfg(feature = "opentelemetry")]
 pub static OTEL_GUARD: Lazy<OtelGuard> = Lazy::new(init_otel);
 
@@ -40,8 +46,10 @@ pub fn init(show_log: bool) {
         FILE_GUARD.0.clone()
     };
 
+    let tee = non_blocking.make_writer().and(RING_LOG.clone());
+
     let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_writer(non_blocking)
+        .with_writer(tee)
         .with_thread_ids(true)
         .with_target(true)
         .with_file(false)

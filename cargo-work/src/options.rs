@@ -123,6 +123,8 @@ pub enum Commands {
     Ping(PingOptions),
     #[command(name = "ssh", about = "连接服务器")]
     Ssh(SshOptions),
+    #[command(name = "logs", about = "查看服务器日志")]
+    Logs(LogsOptions),
     // #[command(name = "watch", about = "监控文件变动并执行命令")]
     // Watch(WatchOptions),
 }
@@ -174,6 +176,14 @@ pub struct SshOptions {
     // )]
     // pub forward_dynamic_port: Option<String>,
     pub commands: Vec<String>,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct LogsOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    #[clap(short, help = "持续获取日志")]
+    pub forward: bool,
 }
 
 #[derive(Clone, Debug, Args)]

@@ -780,6 +780,52 @@ impl AppServer {
         Ok(())
     }
 
+    pub async fn logs(&mut self, commands: Vec<String>) -> HorseResult<()> {
+        use crate::logger::RING_LOG;
+        let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+        let task = self.tm.spawn_handle();
+        let logs = RING_LOG.queue.clone();
+
+        let option_forward = commands.contains(&"-f".to_owned());
+
+        task.spawn(async move {
+            let mut writer = handle.make_writer();
+
+            if option_forward {
+                loop {
+                    while let Some(log) = logs.try_pop() {
+                        if log.is_empty() {
+                            continue;
+                        }
+
+                        writer.write_all(&log).await?;
+                    }
+
+                    tracing::info!("wait log");
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                }
+            } else {
+                while let Some(log) = logs.try_pop() {
+                    if log.is_empty() {
+                        continue;
+                    }
+
+                    writer.write_all(&log).await?;
+                }
+            }
+
+            writer.shutdown().await?;
+            drop(writer);
+
+            handle.eof().await?;
+            handle.close().await?;
+
+            Ok(())
+        });
+
+        Ok(())
+    }
+
     /// ### 服务端 just 指令
     ///
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
@@ -1562,8 +1608,7 @@ impl Handler for AppServer {
 
         match self.action.as_str() {
             "ping" => self.ping(command).await?,
-            "git" => self.git(command).await?,
-            "cmd" => self.cmd(command).await?,
+            "logs" => self.logs(command).await?,
             "cargo" => self.cargo(command).await?,
             "apply" => self.apply(command).await?,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
@@ -1575,6 +1620,8 @@ impl Handler for AppServer {
             //     }
             //     self.just(command, subaction).await?;
             // }
+            "git" => self.git(command).await?,
+            "cmd" => self.cmd(command).await?,
             "get" => self.get(command).await?,
             "scp" => self.scp(command).await?,
             "ssh" => self.ssh(command).await?,

@@ -24,6 +24,7 @@ pub mod cargo;
 pub mod cmd;
 pub mod get;
 pub mod just;
+pub mod logs;
 pub mod ping;
 pub mod pull;
 pub mod push;
