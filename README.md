@@ -222,6 +222,14 @@ all_proxy=socks5://127.0.0.1:1080 cargo work -x -- curl -v https://google.com
 cargo work build --all-proxy=socks5://127.0.0.1:1080
 ```
 
+你可以通过以下方式查看服务端日志:
+
+```bash
+cargo work logs
+# 像下面这样可以持续获取 `horsed` 的日志
+cargo work logs -f
+```
+
 更多的帮助信息可以通过查看帮助获取:
 
 ```bash

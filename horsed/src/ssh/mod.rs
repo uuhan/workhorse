@@ -801,7 +801,7 @@ impl AppServer {
                         writer.write_all(&log).await?;
                     }
 
-                    tracing::info!("wait log");
+                    tracing::debug!("wait log in 500ms");
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
             } else {

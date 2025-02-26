@@ -226,6 +226,14 @@ all_proxy=socks5://127.0.0.1:1080 cargo work -x -- curl -v https://google.com
 cargo work build --all-proxy=socks5://127.0.0.1:1234
 ```
 
+You can view the `horsed` server logs by running:
+
+```bash
+cargo work logs
+# the following command will keep the log output updated in real-time
+cargo work logs -f
+```
+
 More help info can be found by running:
 
 ```bash

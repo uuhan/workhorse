@@ -210,6 +210,7 @@ pub struct PingOptions {
 pub struct PushOptions {
     #[clap(help = "远程仓库地址, 默认: horsed")]
     pub remote: Option<String>,
+    #[clap(help = "推送的分支, 默认为当前分支")]
     pub branch: Option<String>,
 }
 
