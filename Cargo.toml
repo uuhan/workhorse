@@ -1,9 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["cargo-work", "horsed", "stable", "horsed/migration"]
+members = [
+  "cargo-work",
+  "horsed",
+  "stable",
+  "horsed/migration",
+  "stable/trough",
+]
 
 [workspace.dependencies]
 stable = { path = "./stable" }
+trough = { path = "./trough" }
 migration = { path = "./horsed/migration" }
 anyhow = { version = "1.0", features = ["backtrace"] }
 async-trait = "0.1.83"
