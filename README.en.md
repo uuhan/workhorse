@@ -189,6 +189,15 @@ cargo work build --remote horsed-linux
 cargo work build --remote horsed-macos
 ```
 
+cargo work provides a simple ssh connection feature:
+
+```bash
+# This will start a tty on the server and launch the interactive shell provided by the user
+cargo work ssh bash
+# If no shell is provided, it will default to bash (on Unix) or powershell (on Windows)
+cargo work ssh
+```
+
 You can perform both forward and reverse port forwarding:
 
 ```bash

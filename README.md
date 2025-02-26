@@ -186,7 +186,16 @@ cargo work build --remote horsed-linux
 cargo work build --remote horsed-macos
 ```
 
-你可以进行正向, 反向端口转发:
+`cargo work` 提供简单的 `ssh` 连接功能:
+
+```bash
+# 这将在服务端开启一个 tty 并且启动用户提供的交互 shell
+cargo work ssh bash
+# 如果不提供 shell, 默认使用 bash (unix) 或者 powershell (windows)
+cargo work ssh
+```
+
+你也可以进行正向, 反向端口转发:
 
 ```bash
 # 正向转发本地 3000 端口到远程机器，所有本地请求会去往服务器
