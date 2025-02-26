@@ -1,3 +1,23 @@
+### v0.2.7
+
+- workhorse: logs to frontend with `logs` command
+- trough: for cross platform pty support
+- horsed: use updated winpty-rs
+- cargo-work: sleep & check the terminal size
+- cargo-work: window resize dev in progress
+- horsed: fix windows pty input
+- horsed: fix windows pty exit
+- horsed: use conpty, remove winpty
+- horsed: use thread safe PTY from winpty-rs
+- horsed: impl windows-pty with winpty-rs
+- cargo-work: fix pass correct tty size
+- cargo-work: pass default log directive
+- cargo-work: enable proxy for ssh command
+- cargo-work: fix pass correct tty size
+- cargo-work: use custom logger
+- cargo-work: fix HorseOptions merge `enable_proxy` & `all_proxy`
+- cargo-work: ping <REMOTE> support
+
 ### v0.2.6
 
 - cargo-work: ping <REMOTE> support
