@@ -175,12 +175,14 @@ async fn main() -> Result<()> {
                         if let Err(err) = logs::run(&key, options).await {
                             tracing::error!("执行失败: {}", err);
                         }
-                    } // Commands::Watch(mut options) => {
-                      //     merge_options(&mut options.horse, &horse);
-                      //     if let Err(err) = watch::run(&key, options).await {
-                      //         tracing::error!("执行失败: {}", err);
-                      //     }
-                      // }
+                    }
+
+                    Commands::Watch(mut options) => {
+                        merge_options(&mut options.horse, &horse);
+                        if let Err(err) = watch::run(&key, options).await {
+                            tracing::error!("执行失败: {}", err);
+                        }
+                    }
                 }
             } else {
                 // default to ping server 3 times

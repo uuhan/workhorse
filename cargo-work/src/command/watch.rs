@@ -7,10 +7,10 @@ use futures::{
 };
 use git2::Repository;
 use notify::{
-    event::{CreateKind, ModifyKind},
-    Config, Event, RecommendedWatcher, RecursiveMode, Watcher,
+    event::{CreateKind, DataChange, ModifyKind, RemoveKind, RenameMode},
+    Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -67,31 +67,38 @@ pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
     while let Some(res) = rx.next().await {
         match res {
             Ok(event) => {
-                // replace {file} {dir}
-                let mut command = options.commands.join(" ");
-                match event.kind {
-                    notify::EventKind::Create(CreateKind::File) => {
-                        command = command
-                            .replace("{file}", event.paths.first().unwrap().to_str().unwrap());
-                        tracing::info!("[{:?}] command: {command}", event.kind);
-                    }
-                    notify::EventKind::Create(CreateKind::Folder) => {
-                        command = command
-                            .replace("{dir}", event.paths.first().unwrap().to_str().unwrap());
-                        tracing::info!("[{:?}] command: {command}", event.kind);
-                    }
-                    notify::EventKind::Modify(ModifyKind::Data(_)) => {
-                        command = command
-                            .replace("{file}", event.paths.first().unwrap().to_str().unwrap());
-                        tracing::info!("[{:?}] command: {command}", event.kind);
-                    }
-                    notify::EventKind::Remove(_) => {}
-                    notify::EventKind::Access(_) => {}
+                // {file} {dir}
+                let command = options.commands.join(" ");
+                let paths = event.paths;
 
-                    _ => {}
+                tracing::debug!(kind=?event.kind, paths = ?paths, "{command}");
+                match event.kind {
+                    EventKind::Create(CreateKind::File) => {}
+                    EventKind::Remove(RemoveKind::File) => {}
+                    EventKind::Modify(ModifyKind::Data(DataChange::Content)) => {}
+                    EventKind::Modify(ModifyKind::Data(_)) => {}
+
+                    EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {}
+                    EventKind::Modify(ModifyKind::Name(_)) => {}
+
+                    EventKind::Remove(RemoveKind::Folder) => {}
+                    EventKind::Create(CreateKind::Folder) => {}
+
+                    EventKind::Remove(RemoveKind::Any) => {}
+                    EventKind::Remove(RemoveKind::Other) => {}
+                    EventKind::Create(CreateKind::Any) => {}
+                    EventKind::Create(CreateKind::Other) => {}
+                    EventKind::Modify(ModifyKind::Any) => {}
+                    EventKind::Modify(ModifyKind::Other) => {}
+
+                    EventKind::Modify(ModifyKind::Metadata(_)) => {}
+                    EventKind::Access(_) => {}
+
+                    EventKind::Any => {}
+                    EventKind::Other => {}
                 }
 
-                // tracing::info!("changed: {:?}", event);
+                drop(command);
             }
             Err(e) => tracing::info!("watch error: {:?}", e),
         }

@@ -125,8 +125,8 @@ pub enum Commands {
     Ssh(SshOptions),
     #[command(name = "logs", about = "查看服务器日志")]
     Logs(LogsOptions),
-    // #[command(name = "watch", about = "监控文件变动并执行命令")]
-    // Watch(WatchOptions),
+    #[command(name = "watch", about = "监控文件变动并执行命令")]
+    Watch(WatchOptions),
 }
 
 #[derive(Clone, Debug, Args)]
