@@ -63,7 +63,7 @@ pub struct HorseOptions {
 #[derive(Clone, Debug, Subcommand)]
 #[command(version, display_order = 1)]
 pub enum SubCommands {
-    #[command(name = "work", about = "cargo work")]
+    #[command(name = "work", alias = "cargo")]
     Work(WorkOptions),
     #[command(flatten)]
     Cargo(Commands),
