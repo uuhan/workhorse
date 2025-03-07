@@ -56,6 +56,8 @@ pub struct HorseOptions {
     pub enable_proxy: bool,
     #[clap(long, help = "指定代理服务器")]
     pub all_proxy: Option<String>,
+    #[clap(short = 't', long, help = "为命令运行分配一个 PTY")]
+    pub pty: bool,
     #[clap(short, long, help = "检测代码变动")]
     pub watch: bool,
 }
