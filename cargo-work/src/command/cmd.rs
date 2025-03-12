@@ -56,7 +56,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         }
 
         if horse.pty {
-            channel.set_env(true, "PTY", "1");
+            channel.set_env(true, "PTY", "1").await?;
         }
 
         channel.set_env(true, "REPO", repo_name).await?;

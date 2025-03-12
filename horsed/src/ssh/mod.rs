@@ -1,5 +1,5 @@
 #![allow(unused_imports, unused_variables, dead_code)]
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -557,8 +557,9 @@ impl AppServer {
     /// 执行 ssh 命令
     #[tracing::instrument(skip(self))]
     #[allow(unused_mut, unreachable_code)]
-    pub async fn ssh(&mut self, mut commands: Vec<String>) -> HorseResult<()> {
+    pub async fn ssh(&mut self, commands: Vec<String>) -> HorseResult<()> {
         tracing::info!("SSH: {}", commands.join(" "));
+        let mut commands = VecDeque::from(commands);
 
         let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
         let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
@@ -589,9 +590,11 @@ impl AppServer {
             .context("FIXME: NO HANDLE".color(Color::Red))?;
 
         #[cfg(windows)]
-        let shell = commands.pop().unwrap_or("powershell.exe".to_string());
+        let shell = commands
+            .pop_front()
+            .unwrap_or(&"powershell.exe".to_string());
         #[cfg(not(windows))]
-        let shell = commands.pop().unwrap_or("bash".to_string());
+        let shell = commands.pop_front().unwrap_or("bash".to_string());
 
         let ssh_span = tracing::info_span!("ssh", shell, commands = ?commands);
         let env = self.env.clone();
@@ -620,7 +623,12 @@ impl AppServer {
                 };
                 drop(clients);
 
-                let mut cmd = cmd.spawn(pts).context(format!("spawn: `{}`", shell))?;
+                let Ok(mut cmd) = cmd.spawn(pts).context(format!("spawn: `{}`", shell)) else {
+                    handle.eof().await?;
+                    handle.close().await?;
+                    return Ok(());
+                };
+
                 let (mut stdout, mut stdin) = pty.into_split();
 
                 let mut ch_writer = handle.make_writer();

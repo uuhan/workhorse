@@ -10,7 +10,7 @@ use notify::{
     event::{CreateKind, DataChange, ModifyKind, RemoveKind, RenameMode},
     Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
