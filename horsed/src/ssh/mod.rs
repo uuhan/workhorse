@@ -590,9 +590,7 @@ impl AppServer {
             .context("FIXME: NO HANDLE".color(Color::Red))?;
 
         #[cfg(windows)]
-        let shell = commands
-            .pop_front()
-            .unwrap_or(&"powershell.exe".to_string());
+        let shell = commands.pop_front().unwrap_or("powershell.exe".to_string());
         #[cfg(not(windows))]
         let shell = commands.pop_front().unwrap_or("bash".to_string());
 
@@ -682,7 +680,7 @@ impl AppServer {
                 use std::ffi::OsString;
                 let appname = OsString::from(&shell);
                 let work_path = OsString::from(&work_path);
-                let args = OsString::from(commands.join(" "));
+                let args = OsString::from(commands.make_contiguous().join(" "));
                 tracing::info!("windows pty");
 
                 let mut clients = clients.lock().await;
