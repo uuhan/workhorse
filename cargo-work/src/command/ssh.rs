@@ -214,11 +214,7 @@ pub async fn connect_shell(
     let code = ssh.shell(&options.commands.join(" ")).await?;
 
     crossterm::terminal::disable_raw_mode()?;
-
-    tracing::info!("exit code: {}", code);
-    ssh.close().await?;
-
-    Ok(())
+    std::process::exit(code as _);
 }
 
 pub async fn start_proxy(

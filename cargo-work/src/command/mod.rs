@@ -227,6 +227,7 @@ impl HorseClient {
         let code;
         let mut stdin = tokio::io::stdin();
         let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
         let mut buf = vec![0; 1024];
         let mut stdin_closed = false;
 
@@ -252,6 +253,10 @@ impl HorseClient {
                         ChannelMsg::Data { ref data } => {
                             stdout.write_all(data).await?;
                             stdout.flush().await?;
+                        }
+                        ChannelMsg::ExtendedData { ref data, .. } => {
+                            stderr.write_all(data).await?;
+                            stderr.flush().await?;
                         }
                         // The command has returned an exit code
                         ChannelMsg::ExitStatus { exit_status } => {

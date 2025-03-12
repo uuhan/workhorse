@@ -2,7 +2,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::str::from_utf8;
 use std::sync::Arc;
 
@@ -606,6 +606,7 @@ impl AppServer {
         #[cfg(not(windows))]
         task.spawn(
             async move {
+                use std::os::unix::process::ExitStatusExt;
                 let mut cmd = pty_process::Command::new(&shell);
                 cmd = cmd.envs(&env);
                 cmd = cmd
@@ -623,10 +624,14 @@ impl AppServer {
                 };
                 drop(clients);
 
-                let Ok(mut cmd) = cmd.spawn(pts).context(format!("spawn: `{}`", shell)) else {
-                    handle.eof().await?;
-                    handle.close().await?;
-                    return Ok(());
+                let mut cmd = match cmd.spawn(pts) {
+                    Ok(cmd) => cmd,
+                    Err(err) => {
+                        tracing::error!("spawn: {:?}", err);
+                        handle.error(err.to_string()).await?;
+                        handle.exit(ExitStatus::from_raw(-1)).await?;
+                        return Ok(());
+                    }
                 };
 
                 let (mut stdout, mut stdin) = pty.into_split();
@@ -637,12 +642,33 @@ impl AppServer {
                 let reader_fut = tokio::io::copy(&mut ch_reader, &mut stdin);
                 let writer_fut = tokio::io::copy(&mut stdout, &mut ch_writer);
 
-                if let Err(err) = futures::future::try_join(reader_fut, writer_fut).await {
-                    tracing::error!("io error: {:?}", err);
+                tokio::select! {
+                    io = futures::future::try_join(reader_fut, writer_fut) => {
+                        drop(ch_reader);
+                        if let Err(err) = io {
+                            tracing::error!("io error: {:?}", err);
+                            handle.error(format!("io error: {:?}", err)).await?;
+                            handle.exit(ExitStatus::from_raw(-1)).await?;
+                        } else {
+                            handle.exit(cmd.wait().await?).await?;
+                        }
+                    }
+                    code = cmd.wait() => {
+                        drop(ch_reader);
+                        match code {
+                            Ok(code) => {
+                                tracing::info!("cmd exit with code: {code}");
+                                handle.exit(code).await?;
+                            }
+                            Err(err) => {
+                                tracing::error!("cmd error: {:?}", err);
+                                handle.error(format!("cmd error: {:?}", err)).await?;
+                                handle.exit(ExitStatus::from_raw(-1)).await?;
+                            }
+                        }
+                    }
                 }
 
-                drop(ch_reader);
-                handle.exit(cmd.wait().await?).await?;
                 Ok(())
             }
             .instrument(ssh_span),
