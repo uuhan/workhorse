@@ -73,7 +73,7 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
 
     loop {
         if let Some(count) = count {
-            if idx >= count as _ {
+            if idx >= count as usize {
                 break;
             }
         }
