@@ -51,6 +51,15 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         let ssh = HorseClient::connect(sk, horse.key_hash_alg, "cmd", host, None, None).await?;
         let channel = ssh.channel_open_session().await?;
 
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
+        channel.set_env(true, "GIT_COMMIT", commit).await?;
+        if let Some(message) = message {
+            channel.set_env(true, "GIT_MESSAGE", message).await?;
+        }
+
         if let Some(shell) = horse.shell {
             channel.set_env(true, "SHELL", shell).await?;
         }
@@ -84,6 +93,15 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         envs.insert("BRANCH".to_string(), branch);
         if let Some(shell) = horse.shell {
             envs.insert("SHELL".to_string(), shell);
+        }
+
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
+        envs.insert("GIT_COMMIT".to_string(), commit);
+        if let Some(message) = message {
+            envs.insert("GIT_MESSAGE".to_string(), message.to_string());
         }
 
         for kv in env.iter() {

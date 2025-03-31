@@ -73,8 +73,18 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         // ssh just@horsed <ACTION>
         use std::collections::HashMap;
         let mut envs = HashMap::new();
+
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
         envs.insert("REPO".to_string(), repo_name);
         envs.insert("BRANCH".to_string(), branch);
+
+        envs.insert("GIT_COMMIT".to_string(), commit);
+        if let Some(message) = message {
+            envs.insert("GIT_MESSAGE".to_string(), message.to_string());
+        }
 
         for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
@@ -117,8 +127,17 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         let mut ssh =
             HorseClient::connect(sk, options.horse.key_hash_alg, "just", host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        channel.set_env(true, "GIT_COMMIT", commit).await?;
+        if let Some(message) = message {
+            channel.set_env(true, "GIT_MESSAGE", message).await?;
+        }
+
         for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             channel.set_env(true, k, v).await?;

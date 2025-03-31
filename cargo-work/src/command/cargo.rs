@@ -81,12 +81,22 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         )
         .await?;
         let mut channel = ssh.channel_open_session().await?;
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
+        channel.set_env(true, "GIT_COMMIT", commit).await?;
+        if let Some(message) = message {
+            channel.set_env(true, "GIT_MESSAGE", message).await?;
+        }
+
         for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
             channel.set_env(true, k, v).await?;
         }
+
         channel
             .set_env(true, "ZIGBUILD", options.use_zigbuild().to_string())
             .await?;
@@ -131,6 +141,15 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             "CARGO_OPTIONS".to_string(),
             format!("\'{}\'", serde_json::to_string(options.cargo_options())?),
         );
+
+        let head_commit = head.peel_to_commit()?;
+        let commit = head_commit.id().to_string();
+        let message = head_commit.message();
+
+        envs.insert("GIT_COMMIT".to_string(), commit);
+        if let Some(message) = message {
+            envs.insert("GIT_MESSAGE".to_string(), message.to_string());
+        }
 
         for kv in env.iter() {
             let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
