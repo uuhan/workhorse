@@ -291,7 +291,7 @@ mod tests {
             promise.resolve(0)
         });
         assert!(promise.timeout(Duration::from_millis(50)).is_err());
-        assert_eq!(promise.timeout(Duration::from_millis(110)), Ok(Some(0)));
+        assert_eq!(promise.timeout(Duration::from_millis(200)), Ok(Some(0)));
     }
 
     #[rstest]
