@@ -4,3 +4,4 @@ horsed.key
 *.tar
 vendor
 .env
+horsed.toml

@@ -227,7 +227,7 @@ pub struct PullOptions {
 pub struct JustOptions {
     #[clap(short, long, help = "指定配置文件")]
     pub file: Option<String>,
-    pub command: Option<String>,
+    pub command: Vec<String>,
     #[clap(flatten)]
     pub horse: HorseOptions,
 }

@@ -1002,7 +1002,7 @@ impl AppServer {
             }
 
             cmd.arg("--color=always");
-            cmd.arg(command.join(" "));
+            cmd.args(command);
 
             cmd.kill_on_drop(true);
             cmd.stdout(Stdio::piped());

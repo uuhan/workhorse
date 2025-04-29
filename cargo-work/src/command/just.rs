@@ -44,7 +44,10 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         .shorthand()
         .map(|s| s.to_string())
         .unwrap_or_else(|| "master".to_owned());
-    let command = options.command.unwrap_or("default".to_string());
+    let mut command = options.command.join(" "); //.unwrap_or("default".to_string());
+    if command.is_empty() {
+        command = "default".to_string();
+    }
 
     let env = super::ssh::start_proxy(sk, host, &options.horse).await?;
 
