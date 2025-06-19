@@ -57,4 +57,3 @@ notify = { version = "8", features = ["serde"] }
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "c759c78" }
 russh = { git = "https://github.com/uuhan/russh", branch = "workhorse" }
-winpty-rs = { git = "https://github.com/uuhan/winpty-rs", branch = "workhorse" }

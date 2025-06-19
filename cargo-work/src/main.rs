@@ -134,6 +134,8 @@ async fn main() -> Result<()> {
                     }
                     Commands::Get(mut options) => {
                         merge_options(&mut options.horse, &horse);
+                        // 处理 Windows 中的路径
+                        options.file = options.file.replace("\\", "/");
                         if let Err(err) = get::run(&key, options).await {
                             tracing::error!("执行失败: {}", err);
                         }

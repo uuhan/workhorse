@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use palette::Okhsv;
+#[allow(unused_imports)]
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Margin, Rect},
