@@ -6,6 +6,7 @@ members = [
   "stable",
   "horsed/migration",
   "stable/trough",
+  "zebra/app",
 ]
 
 [workspace.dependencies]
