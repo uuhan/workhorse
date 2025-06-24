@@ -1,3 +1,17 @@
+### v0.2.8
+
+- cargo-work: 兼容 windows 的路径
+- horsed: fix promise test case
+- horsed: fix just args
+- cargo-work: pass GIT_COMMIT & GIT_MESSAGE to horsed
+- fix: rust version update
+- horsed: fix windows compilation
+- cargo-work: fix ssh ExtendedData output to stderr
+- horsed: fix ssh bad arguments
+- cargo-work: `pty` options in `HorseOptions` to support run command with an allocated pty
+- cargo-work: alias `work` to `cargo`
+- cargo-work: watch command dev in progress
+
 ### v0.2.7
 
 - workhorse: logs to frontend with `logs` command
