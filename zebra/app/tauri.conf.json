@@ -13,17 +13,53 @@
     "windows": [
       {
         "title": "zebra",
-        "width": 800,
-        "height": 600
+        "visible": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main",
+          "windows": ["*"],
+          "permissions": [
+            "process:allow-restart",
+            "log:default",
+            "shell:allow-spawn",
+            "shell:allow-kill",
+            "shell:allow-execute",
+            "shell:allow-open",
+            {
+              "identifier": "shell:allow-spawn",
+              "allow": [
+                {
+                  "name": "./bin/horsed",
+                  "cmd": "horsed",
+                  "args": ["--help"],
+                  "sidecar": true
+                }
+              ]
+            },
+            {
+              "identifier": "shell:allow-execute",
+              "allow": [
+                {
+                  "name": "./bin/horsed",
+                  "cmd": "horsed",
+                  "args": [],
+                  "sidecar": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["./bin/horsed"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
