@@ -129,6 +129,9 @@ pub enum Commands {
     Logs(LogsOptions),
     #[command(name = "watch", about = "监控文件变动并执行命令")]
     Watch(WatchOptions),
+
+    #[command(name = "ra", about = "rust-analyzer 客户端")]
+    RA(RaOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -230,4 +233,38 @@ pub struct JustOptions {
     pub command: Vec<String>,
     #[clap(flatten)]
     pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct RaOptions {
+    #[command(subcommand)]
+    pub command: Option<RaCommand>,
+}
+
+#[derive(Clone, Debug, Subcommand)]
+#[command(version, display_order = 1)]
+pub enum RaCommand {
+    /// 连接到代理(默认)
+    Client(RaClientOptions),
+    /// 代理配置
+    Config(RaConfigOptions),
+    /// 代理状态
+    Status(RaStatusOptions),
+    /// 更新工作区内容
+    Reload(RaReloadOptions),
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct RaClientOptions {}
+
+#[derive(Clone, Debug, Args)]
+pub struct RaConfigOptions {}
+
+#[derive(Clone, Debug, Args)]
+pub struct RaReloadOptions {}
+
+#[derive(Clone, Debug, Args)]
+pub struct RaStatusOptions {
+    #[clap(long = "json", short = 'j', default_value = "false")]
+    pub json: bool,
 }

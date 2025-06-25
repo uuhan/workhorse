@@ -54,6 +54,9 @@ rand = "~0.8"
 # rstest test only
 async-std = { version = "1.13", features = ["attributes"] }
 notify = { version = "8", features = ["serde"] }
+toml = "0.8"
+# ra-multiplex = { git = "https://github.com/uuhan/ra-multiplex" }
+ra-multiplex = { git = "https://github.com/pr2502/ra-multiplex" }
 
 [patch.crates-io]
 cargo-options = { git = "https://github.com/uuhan/cargo-options", rev = "c759c78" }

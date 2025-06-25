@@ -185,6 +185,43 @@ async fn main() -> Result<()> {
                             tracing::error!("执行失败: {}", err);
                         }
                     }
+
+                    Commands::RA(options) => {
+                        use ra_multiplex::{config::Config, ext, proxy};
+                        let current_toml = "./ra.toml";
+                        let config = if std::fs::exists(current_toml)? {
+                            let config_data = std::fs::read_to_string(current_toml)?;
+                            toml::from_str::<Config>(&config_data)?
+                        } else {
+                            Config::try_load().unwrap_or_default()
+                        };
+                        let run_client = async || {
+                            if let Err(err) =
+                                proxy::run(&config, "rust-analyzer".to_string(), vec![]).await
+                            {
+                                println!("执行失败: {}", err);
+                            }
+                        };
+
+                        if let Some(command) = options.command {
+                            match command {
+                                RaCommand::Client(_client) => {
+                                    run_client().await;
+                                }
+                                RaCommand::Config(_) => {
+                                    println!("{:#?}", config);
+                                }
+                                RaCommand::Status(RaStatusOptions { json }) => {
+                                    let _ = ext::status(&config, json).await;
+                                }
+                                RaCommand::Reload(RaReloadOptions {}) => {
+                                    let _ = ext::reload(&config).await;
+                                }
+                            }
+                        } else {
+                            run_client().await;
+                        }
+                    }
                 }
             } else {
                 // default to ping server 3 times
