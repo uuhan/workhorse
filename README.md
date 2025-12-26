@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="docs/logo.png" alt="asterinas-logo" width="620"><br>
+    <img src="docs/logo.png" alt="asterinas-logo" width="320"><br>
     <br/>
     <a href="https://github.com/uuhan/workhorse/actions/workflows/ci.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/ci.yml/badge.svg?event=push" alt="CI" style="max-width: 100%;"></a>
     <a href="https://github.com/uuhan/workhorse/actions/workflows/release.yml"><img src="https://github.com/uuhan/workhorse/actions/workflows/release.yml/badge.svg?event=release" alt="Release" style="max-width: 100%;"></a>
