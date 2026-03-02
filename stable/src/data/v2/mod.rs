@@ -13,6 +13,10 @@ pub enum Body {
     Ping(Instant),
     #[serde(with = "instant_serde")]
     Pong(Instant),
+    HealthCheck,
+    HealthStatus {
+        ulimit: Option<u64>,
+    },
 }
 
 pub fn head(size: u16) -> Head {

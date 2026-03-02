@@ -36,6 +36,7 @@ use tokio::sync::Mutex;
 use tracing::Instrument;
 
 mod handle;
+pub mod health;
 pub mod setup;
 use handle::ChannelHandle;
 use v2::Body;
@@ -1687,6 +1688,7 @@ impl Handler for AppServer {
         let command = split(command).context(format!("无效命令: {command}"))?;
 
         match self.action.as_str() {
+            "health" => self.health(command).await?,
             "ping" => self.ping(command).await?,
             "logs" => self.logs(command).await?,
             "cargo" => self.cargo(command).await?,

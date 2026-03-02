@@ -1,0 +1,22 @@
+[Unit]
+Description=Horsed SSH Server
+After=network.target
+
+[Service]
+Type=simple
+# Replace <USER> with your actual user
+User=<USER>
+# Replace <PATH_TO_HORSED> with the actual path to the horsed binary
+ExecStart=<PATH_TO_HORSED>
+Restart=always
+RestartSec=3
+
+# Important for cargo builds!
+LimitNOFILE=65535
+
+# Set appropriate environment variables
+Environment="RUST_LOG=info"
+# Environment="HORSED_HOME=/home/<USER>/.horsed"
+
+[Install]
+WantedBy=multi-user.target

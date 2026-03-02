@@ -129,6 +129,8 @@ pub enum Commands {
     Logs(LogsOptions),
     #[command(name = "watch", about = "监控文件变动并执行命令")]
     Watch(WatchOptions),
+    #[command(name = "health", about = "服务器健康检查")]
+    Health(HealthOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -230,4 +232,11 @@ pub struct JustOptions {
     pub command: Vec<String>,
     #[clap(flatten)]
     pub horse: HorseOptions,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct HealthOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    pub remote: Option<String>,
 }

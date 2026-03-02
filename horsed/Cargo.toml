@@ -72,6 +72,9 @@ async-std.workspace = true
 [target.'cfg(tokio_unstable)'.dependencies]
 console-subscriber = { version = "0.4", features = ["parking_lot"] }
 
+[target."cfg(unix)".dependencies]
+libc = "0.2.182"
+
 [features]
 default = []
 opentelemetry = [

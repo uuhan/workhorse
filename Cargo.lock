@@ -1983,6 +1983,7 @@ dependencies = [
  "flate2",
  "futures",
  "interprocess",
+ "libc",
  "migration",
  "once_cell",
  "opentelemetry",
@@ -2502,9 +2503,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.170"
+version = "0.2.182"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
+checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
 
 [[package]]
 name = "libgit2-sys"
