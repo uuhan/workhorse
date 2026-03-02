@@ -228,8 +228,8 @@ impl AppServer {
         let cmd_dir = if let (Some(env_repo), Some(_)) = (env_repo, env_branch) {
             let mut repo_path = PathBuf::from(env_repo);
             // 去除开头的 /
-            if repo_path.starts_with("/") {
-                repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+            if let Ok(stripped) = repo_path.strip_prefix("/") {
+                repo_path = stripped.to_path_buf();
             }
 
             // 清理路径
@@ -238,6 +238,10 @@ impl AppServer {
             // 裸仓库名称统一添加 .git 后缀
             if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
                 tracing::error!("无效仓库路径: {:?}", repo_path);
+                let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+                handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
 
@@ -322,8 +326,8 @@ impl AppServer {
 
         let mut repo_path = PathBuf::from(env_repo);
         // 去除开头的 /
-        if repo_path.starts_with("/") {
-            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        if let Ok(stripped) = repo_path.strip_prefix("/") {
+            repo_path = stripped.to_path_buf();
         }
 
         // 清理路径
@@ -332,6 +336,10 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -353,6 +361,8 @@ impl AppServer {
                 handle
                     .error(format!("拒绝文件请求, 路径不合法: {}", file))
                     .await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
         }
@@ -365,6 +375,8 @@ impl AppServer {
                 handle
                     .error(format!("文件不存在: {}", file_path.display()))
                     .await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
 
@@ -492,8 +504,8 @@ impl AppServer {
 
         let mut repo_path = PathBuf::from(env_repo);
         // 去除开头的 /
-        if repo_path.starts_with("/") {
-            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        if let Ok(stripped) = repo_path.strip_prefix("/") {
+            repo_path = stripped.to_path_buf();
         }
 
         // 清理路径
@@ -502,6 +514,10 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -523,6 +539,8 @@ impl AppServer {
                 handle
                     .error(format!("拒绝文件请求, 路径不合法: {}", file))
                     .await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
         }
@@ -531,6 +549,8 @@ impl AppServer {
 
         if !file_path.exists() {
             handle.error(format!("文件不存在: {}", file)).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -566,8 +586,8 @@ impl AppServer {
 
         let mut repo_path = PathBuf::from(env_repo);
         // 去除开头的 /
-        if repo_path.starts_with("/") {
-            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        if let Ok(stripped) = repo_path.strip_prefix("/") {
+            repo_path = stripped.to_path_buf();
         }
 
         // 清理路径
@@ -576,6 +596,10 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -825,12 +849,20 @@ impl AppServer {
 
             if option_forward {
                 loop {
+                    let mut channel_closed = false;
                     while let Some(log) = logs.try_pop() {
                         if log.is_empty() {
                             continue;
                         }
 
-                        writer.write_all(&log).await?;
+                        if writer.write_all(&log).await.is_err() {
+                            channel_closed = true;
+                            break;
+                        }
+                    }
+
+                    if channel_closed {
+                        break;
                     }
 
                     tracing::debug!("wait log in 500ms");
@@ -880,8 +912,8 @@ impl AppServer {
 
         let mut repo_path = PathBuf::from(&env_repo);
         // 去除开头的 /
-        if repo_path.starts_with("/") {
-            repo_path.strip_prefix("/").context("REPO STRIP_PREFIX")?;
+        if let Ok(stripped) = repo_path.strip_prefix("/") {
+            repo_path = stripped.to_path_buf();
         }
 
         // 清理路径
@@ -895,6 +927,9 @@ impl AppServer {
             // 如果提供的地址包含 .. 等路径，则拒绝请求
             if fst == std::path::Component::ParentDir {
                 tracing::warn!("拒绝仓库请求, 路径不合法: {}", repo_path.display());
+                handle.error(format!("拒绝仓库请求, 路径不合法: {}", repo_path.display())).await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
 
@@ -918,6 +953,9 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
+            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -931,6 +969,8 @@ impl AppServer {
         // 如果仓库目录不存在
         if !repo.exists() {
             handle.error("代码仓库不存在, 请先 push 代码").await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -957,6 +997,8 @@ impl AppServer {
         {
             tracing::error!("{:?}", err);
             handle.error(err.to_string()).await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -1097,6 +1139,8 @@ impl AppServer {
         if !repo.exists() {
             tracing::error!("仓库不存在: {}", repo.path().display());
             handle.error("仓库不存在").await?;
+            handle.eof().await?;
+            handle.close().await?;
             return Ok(());
         }
 
@@ -1166,6 +1210,9 @@ impl AppServer {
             }
             _ => {
                 tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
+                handle.error(format!("未实现的 cargo 命令: {}", command.join(" "))).await?;
+                handle.eof().await?;
+                handle.close().await?;
                 return Ok(());
             }
         };
@@ -1345,7 +1392,8 @@ impl Server for AppServer {
                             let session = match run_stream(config, socket, handler).await {
                                 Ok(s) => s,
                                 Err(e) => {
-                                    panic!("session-setup-failed");
+                                    tracing::error!("session-setup-failed: {:?}", e);
+                                    return Ok(());
                                 }
                             };
 

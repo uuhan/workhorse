@@ -103,8 +103,12 @@ pub async fn connect_forward_l(
             }
         };
 
-        let mut ch_stream = channel.into_stream();
-        tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await?;
+        tokio::spawn(async move {
+            let mut ch_stream = channel.into_stream();
+            if let Err(e) = tokio::io::copy_bidirectional(&mut ch_stream, &mut stream).await {
+                tracing::error!("tcpip forward io error: {:?}", e);
+            }
+        });
     }
 
     Ok(())
