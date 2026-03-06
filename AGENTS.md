@@ -20,6 +20,8 @@ Use the workspace root for all commands.
 - `just build`: convenience wrapper for `cargo build`.
 - `just install`: install both binaries locally (`cargo-work`, `horsed`).
 - `just install-horsed-with-trace`: install `horsed` with Tokio unstable tracing enabled.
+- `cargo work just install-horsed`: run remote `just install-horsed` on the configured `horsed` target to update the server-side `horsed` binary.
+- `cargo work -- systemctl --user restart horsed`: restart the remote user-level `horsed` service on Linux hosts after update.
 
 ## Coding Style & Naming Conventions
 - Rust edition is `2021`; follow standard Rust formatting (`cargo fmt`).
