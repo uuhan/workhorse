@@ -13,6 +13,7 @@ use russh::*;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -32,6 +33,10 @@ pub mod push;
 pub mod scp;
 pub mod ssh;
 pub mod watch;
+
+pub const TRACE_ID_ENV: &str = "HORSE_TRACE_ID";
+pub const DEBUG_ENV: &str = "WH_DEBUG";
+static TRACE_SEQ: AtomicU64 = AtomicU64::new(1);
 
 pub struct HorseClient {
     handle: Handle<Client>,
@@ -306,6 +311,40 @@ impl DerefMut for HorseClient {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.handle
     }
+}
+
+pub fn new_trace_id(action: &str) -> String {
+    if !debug_enabled() {
+        return String::new();
+    }
+
+    if let Ok(trace_id) = std::env::var(TRACE_ID_ENV) {
+        if !trace_id.trim().is_empty() {
+            return trace_id;
+        }
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let seq = TRACE_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("{action}-{now_ms:x}-{pid:x}-{seq:x}")
+}
+
+pub fn debug_enabled() -> bool {
+    matches!(
+        std::env::var(DEBUG_ENV).ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE") | Some("True")
+    )
+}
+
+pub fn log_stage(trace_id: &str, action: &str, stage: &str) {
+    if !debug_enabled() || trace_id.is_empty() {
+        return;
+    }
+    tracing::info!(trace_id = %trace_id, action = action, stage = stage, "stage");
 }
 
 /// 获取默认的配置, 目前 `牛马` 设置远程仓库名为 `horsed` 或 `just-horsed`

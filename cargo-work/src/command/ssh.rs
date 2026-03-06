@@ -6,6 +6,9 @@ use std::path::Path;
 use tokio::net::TcpListener;
 
 pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
+    let action = "ssh";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -39,6 +42,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     let branch = head
         .shorthand()
@@ -50,7 +54,7 @@ pub async fn run(sk: &Path, options: SshOptions) -> Result<()> {
     } else if let Some(forward_remote_port) = options.forward_remote_port.clone() {
         connect_forward_r(sk, host, forward_remote_port, &options).await
     } else {
-        connect_shell(sk, host, repo_name, branch, &options).await
+        connect_shell(sk, host, repo_name, branch, &options, &trace_id).await
     }
 }
 
@@ -164,13 +168,20 @@ pub async fn connect_shell(
     repo_name: String,
     branch: String,
     options: &SshOptions,
+    trace_id: &str,
 ) -> Result<()> {
+    let action = "ssh";
     let env = start_proxy(sk, host, &options.horse).await?;
+    super::log_stage(trace_id, action, "proxy.ready");
 
+    super::log_stage(trace_id, action, "connect.start");
     let mut ssh =
         HorseClient::connect(sk, options.horse.key_hash_alg, "ssh", host, None, None).await?;
 
     let channel = ssh.channel_open_session().await?;
+    if !trace_id.is_empty() {
+        channel.set_env(true, super::TRACE_ID_ENV, trace_id).await?;
+    }
     channel.set_env(true, "REPO", repo_name).await?;
     channel.set_env(true, "BRANCH", branch).await?;
     for kv in env.iter() {
@@ -216,6 +227,14 @@ pub async fn connect_shell(
     });
 
     let code = ssh.shell(&options.commands.join(" ")).await?;
+    if super::debug_enabled() && !trace_id.is_empty() {
+        tracing::info!(
+            trace_id = %trace_id,
+            action = action,
+            stage = "remote.exit",
+            exit_status = code
+        );
+    }
 
     crossterm::terminal::disable_raw_mode()?;
     std::process::exit(code as _);

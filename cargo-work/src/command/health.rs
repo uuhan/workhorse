@@ -9,6 +9,9 @@ use tokio::io::AsyncWriteExt;
 use zerocopy::IntoBytes;
 
 pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
+    let action = "health";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
 
     if let Some(remote) = options.remote {
@@ -29,10 +32,17 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
+    super::log_stage(&trace_id, action, "connect.start");
     let mut ssh =
         HorseClient::connect(sk, options.horse.key_hash_alg, "health", host, None, None).await?;
     let mut channel = ssh.channel_open_session().await?;
+    if !trace_id.is_empty() {
+        channel
+            .set_env(true, super::TRACE_ID_ENV, &trace_id)
+            .await?;
+    }
 
     channel.exec(true, &[]).await.wrap_err("ssh exec")?;
 
@@ -61,6 +71,7 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
     }
 
     ssh.close().await?;
+    super::log_stage(&trace_id, action, "done");
 
     Ok(())
 }

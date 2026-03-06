@@ -101,6 +101,17 @@ impl AppServer {
         Ok(())
     }
 
+    fn trace_id(&self) -> &str {
+        self.env
+            .get("HORSE_TRACE_ID")
+            .map(String::as_str)
+            .unwrap_or("")
+    }
+
+    fn debug_enabled(&self) -> bool {
+        !self.trace_id().is_empty()
+    }
+
     /// 服务端 git 命令处理
     #[tracing::instrument(skip(self), err)]
     pub async fn git(&mut self, command: Vec<String>) -> HorseResult<()> {
@@ -241,7 +252,11 @@ impl AppServer {
                 tracing::error!("无效仓库路径: {:?}", repo_path);
                 let handle = self.handle.take().context("FIXME: NO HANDLE")?;
                 handle
-                    .fail_code(2, format!("无效仓库路径: {:?}", repo_path))
+                    .fail_with_error(
+                        2,
+                        "HSSH_REPO_PATH_INVALID",
+                        format!("无效仓库路径: {:?}", repo_path),
+                    )
                     .await?;
                 return Ok(());
             }
@@ -292,7 +307,11 @@ impl AppServer {
                     Err(err) => {
                         tracing::error!("spawn: `{}` failed: {}", shell, err);
                         handle
-                            .fail_code(127, format!("spawn: `{}` failed: {}", shell, err))
+                            .fail_with_error(
+                                127,
+                                "HSSH_SHELL_SPAWN_FAILED",
+                                format!("spawn: `{}` failed: {}", shell, err),
+                            )
                             .await?;
                         return Ok(());
                     }
@@ -666,7 +685,11 @@ impl AppServer {
                     Err(err) => {
                         tracing::error!("spawn: {:?}", err);
                         handle
-                            .fail_code(127, format!("spawn: `{}` failed: {}", shell, err))
+                            .fail_with_error(
+                                127,
+                                "HSSH_PTY_SPAWN_FAILED",
+                                format!("spawn: `{}` failed: {}", shell, err),
+                            )
                             .await?;
                         return Ok(());
                     }
@@ -685,7 +708,9 @@ impl AppServer {
                         drop(ch_reader);
                         if let Err(err) = io {
                             tracing::error!("io error: {:?}", err);
-                            handle.fail_code(1, format!("io error: {:?}", err)).await?;
+                            handle
+                                .fail_with_error(1, "HSSH_PTY_IO_FAILED", format!("io error: {:?}", err))
+                                .await?;
                         } else {
                             handle.exit(cmd.wait().await?).await?;
                         }
@@ -699,7 +724,13 @@ impl AppServer {
                             }
                             Err(err) => {
                                 tracing::error!("cmd error: {:?}", err);
-                                handle.fail_code(1, format!("cmd error: {:?}", err)).await?;
+                                handle
+                                    .fail_with_error(
+                                        1,
+                                        "HSSH_PTY_WAIT_FAILED",
+                                        format!("cmd error: {:?}", err),
+                                    )
+                                    .await?;
                             }
                         }
                     }
@@ -1562,9 +1593,20 @@ impl Handler for AppServer {
         value: &str,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        tracing::info!(key, value);
-        self.env
-            .insert(key.to_uppercase().to_string(), value.to_string());
+        let key = key.to_uppercase();
+        if self.debug_enabled() || key == "HORSE_TRACE_ID" {
+            if key == "HORSE_TRACE_ID" {
+                tracing::info!(
+                    trace_id = value,
+                    key = key.as_str(),
+                    stage = "env.set",
+                    "stage"
+                );
+            } else {
+                tracing::info!(key = key.as_str(), stage = "env.set", "stage");
+            }
+        }
+        self.env.insert(key, value.to_string());
         Ok(())
     }
 
@@ -1705,15 +1747,26 @@ impl Handler for AppServer {
     ) -> Result<(), Self::Error> {
         let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
         let command = split(command).context(format!("无效命令: {command}"))?;
+        let command_line = command.join(" ");
+        let started = std::time::Instant::now();
+        if self.debug_enabled() {
+            tracing::info!(
+                trace_id = %self.trace_id(),
+                action = self.action.as_str(),
+                stage = "dispatch.start",
+                command = command_line.as_str(),
+                "stage"
+            );
+        }
 
-        match self.action.as_str() {
-            "health" => self.health(command).await?,
-            "ping" => self.ping(command).await?,
-            "logs" => self.logs(command).await?,
-            "cargo" => self.cargo(command).await?,
-            "apply" => self.apply(command).await?,
+        let dispatch_res = match self.action.as_str() {
+            "health" => self.health(command).await,
+            "ping" => self.ping(command).await,
+            "logs" => self.logs(command).await,
+            "cargo" => self.cargo(command).await,
+            "apply" => self.apply(command).await,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
-            "just" => self.just(command).await?,
+            "just" => self.just(command).await,
             // action if action.starts_with("just") => {
             //     let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
             //     if subaction.is_empty() {
@@ -1721,19 +1774,56 @@ impl Handler for AppServer {
             //     }
             //     self.just(command, subaction).await?;
             // }
-            "git" => self.git(command).await?,
-            "cmd" => self.cmd(command).await?,
-            "get" => self.get(command).await?,
-            "scp" => self.scp(command).await?,
-            "ssh" => self.ssh(command).await?,
+            "git" => self.git(command).await,
+            "cmd" => self.cmd(command).await,
+            "get" => self.get(command).await,
+            "scp" => self.scp(command).await,
+            "ssh" => self.ssh(command).await,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
-                handle.error(format!("不支持的命令: {action}")).await?;
+                handle
+                    .error_with_code("HSSH_ACTION_UNSUPPORTED", format!("不支持的命令: {action}"))
+                    .await?;
+                if self.debug_enabled() {
+                    tracing::warn!(
+                        trace_id = %self.trace_id(),
+                        action = self.action.as_str(),
+                        stage = "dispatch.unsupported",
+                        command = command_line.as_str(),
+                        elapsed_ms = started.elapsed().as_millis(),
+                        "stage"
+                    );
+                }
                 session.channel_failure(channel_id)?;
                 return Ok(());
             }
+        };
+
+        if let Err(err) = dispatch_res {
+            if self.debug_enabled() {
+                tracing::error!(
+                    trace_id = %self.trace_id(),
+                    action = self.action.as_str(),
+                    stage = "dispatch.error",
+                    command = command_line.as_str(),
+                    elapsed_ms = started.elapsed().as_millis(),
+                    error = %err,
+                    "stage"
+                );
+            }
+            return Err(err);
         }
 
+        if self.debug_enabled() {
+            tracing::info!(
+                trace_id = %self.trace_id(),
+                action = self.action.as_str(),
+                stage = "dispatch.done",
+                command = command_line.as_str(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "stage"
+            );
+        }
         session.channel_success(channel_id)?;
 
         Ok(())

@@ -5,6 +5,9 @@ use git2::Repository;
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
+    let action = "scp";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -38,6 +41,7 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     let branch = head
         .shorthand()
@@ -47,9 +51,15 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
     #[cfg(not(feature = "use-system-ssh"))]
     let mut channel = {
         use color_eyre::eyre::WrapErr;
+        super::log_stage(&trace_id, action, "connect.start");
         let ssh =
             HorseClient::connect(sk, options.horse.key_hash_alg, "scp", host, None, None).await?;
         let channel = ssh.channel_open_session().await?;
+        if !trace_id.is_empty() {
+            channel
+                .set_env(true, super::TRACE_ID_ENV, &trace_id)
+                .await?;
+        }
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
         for kv in options.horse.env.iter() {
@@ -67,6 +77,7 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
             .exec(true, options.source.as_bytes())
             .await
             .wrap_err("exec")?;
+        super::log_stage(&trace_id, action, "dispatch.exec");
 
         channel
     };
@@ -77,6 +88,9 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
     let mut ssh = {
         use std::collections::HashMap;
         let mut envs = HashMap::new();
+        if !trace_id.is_empty() {
+            envs.insert(super::TRACE_ID_ENV.to_string(), trace_id.clone());
+        }
         envs.insert("REPO".to_string(), repo_name);
         envs.insert("BRANCH".to_string(), branch);
 
@@ -110,6 +124,7 @@ pub async fn run(sk: &Path, options: ScpOptions) -> Result<()> {
             break;
         }
     }
+    super::log_stage(&trace_id, action, "done");
 
     Ok(())
 }

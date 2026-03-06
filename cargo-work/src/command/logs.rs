@@ -5,6 +5,9 @@ use git2::Repository;
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: LogsOptions) -> Result<()> {
+    let action = "logs";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -23,10 +26,17 @@ pub async fn run(sk: &Path, options: LogsOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
+    super::log_stage(&trace_id, action, "connect.start");
     let mut ssh =
         HorseClient::connect(sk, options.horse.key_hash_alg, "logs", host, None, None).await?;
     let mut channel = ssh.channel_open_session().await?;
+    if !trace_id.is_empty() {
+        channel
+            .set_env(true, super::TRACE_ID_ENV, &trace_id)
+            .await?;
+    }
     for kv in options.horse.env.iter() {
         let (k, v) = kv.split_once('=').unwrap_or_else(|| (kv, ""));
         channel.set_env(true, k, v).await?;
@@ -42,9 +52,11 @@ pub async fn run(sk: &Path, options: LogsOptions) -> Result<()> {
         .exec(true, commands.join(" "))
         .await
         .wrap_err("exec")?;
+    super::log_stage(&trace_id, action, "dispatch.exec");
 
     tokio::io::copy(&mut channel.make_reader(), &mut tokio::io::stdout()).await?;
     ssh.close().await?;
+    super::log_stage(&trace_id, action, "done");
 
     Ok(())
 }

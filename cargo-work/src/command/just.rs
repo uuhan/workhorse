@@ -6,6 +6,9 @@ use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
+    let action = "just";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -39,6 +42,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     let branch = head
         .shorthand()
@@ -50,6 +54,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     }
 
     let env = super::ssh::start_proxy(sk, host, &options.horse).await?;
+    super::log_stage(&trace_id, action, "proxy.ready");
 
     // git diff HEAD
     let mut cmd = tokio::process::Command::new("git");
@@ -76,6 +81,9 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         // ssh just@horsed <ACTION>
         use std::collections::HashMap;
         let mut envs = HashMap::new();
+        if !trace_id.is_empty() {
+            envs.insert(super::TRACE_ID_ENV.to_string(), trace_id.clone());
+        }
 
         let head_commit = head.peel_to_commit()?;
         let commit = head_commit.id().to_string();
@@ -123,17 +131,25 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         futures::future::try_join(write_out, write_err).await?;
 
         ssh.wait().await?;
+        super::log_stage(&trace_id, action, "done");
     }
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
+        super::log_stage(&trace_id, action, "connect.start");
         let mut ssh =
             HorseClient::connect(sk, options.horse.key_hash_alg, "just", host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
+        super::log_stage(&trace_id, action, "channel.open");
         let head_commit = head.peel_to_commit()?;
         let commit = head_commit.id().to_string();
         let message = head_commit.message();
 
+        if !trace_id.is_empty() {
+            channel
+                .set_env(true, super::TRACE_ID_ENV, &trace_id)
+                .await?;
+        }
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
         channel.set_env(true, "GIT_COMMIT", commit).await?;
@@ -148,6 +164,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         if let Some(justfile) = options.file {
             channel.set_env(true, "JUSTFILE", justfile).await?;
         }
+        super::log_stage(&trace_id, action, "dispatch.exec");
         channel.exec(true, command.as_bytes()).await?;
 
         let mut stdin = channel.make_writer();
@@ -176,6 +193,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
         }
 
         ssh.close().await?;
+        super::log_stage(&trace_id, action, "done");
     }
 
     Ok(())

@@ -10,6 +10,9 @@ use tokio::io::AsyncWriteExt;
 use zerocopy::IntoBytes;
 
 pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
+    let action = "ping";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -48,6 +51,7 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     // #[cfg(feature = "use-system-ssh")]
     // {
@@ -81,9 +85,15 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
         idx = idx.wrapping_add(1);
 
         let now = Instant::now();
+        super::log_stage(&trace_id, action, "connect.start");
         let mut ssh =
             HorseClient::connect(sk, options.horse.key_hash_alg, "ping", host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
+        if !trace_id.is_empty() {
+            channel
+                .set_env(true, super::TRACE_ID_ENV, &trace_id)
+                .await?;
+        }
 
         channel.exec(true, &[]).await.wrap_err("ssh exec")?;
 
@@ -109,6 +119,7 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
         ssh.close().await?;
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
     }
+    super::log_stage(&trace_id, action, "done");
 
     Ok(())
 }

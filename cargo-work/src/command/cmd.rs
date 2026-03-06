@@ -5,6 +5,9 @@ use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result<()> {
+    let action = "cmd";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -38,6 +41,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             .and_then(extract_host)
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     let branch = head
         .shorthand()
@@ -45,11 +49,14 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         .unwrap_or_else(|| "master".to_owned());
 
     let env = super::ssh::start_proxy(sk, host, &horse).await?;
+    super::log_stage(&trace_id, action, "proxy.ready");
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
+        super::log_stage(&trace_id, action, "connect.start");
         let mut ssh = HorseClient::connect(sk, horse.key_hash_alg, "cmd", host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
+        super::log_stage(&trace_id, action, "channel.open");
 
         let head_commit = head.peel_to_commit()?;
         let commit = head_commit.id().to_string();
@@ -68,6 +75,11 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             channel.set_env(true, "PTY", "1").await?;
         }
 
+        if !trace_id.is_empty() {
+            channel
+                .set_env(true, super::TRACE_ID_ENV, &trace_id)
+                .await?;
+        }
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
         for kv in env.iter() {
@@ -75,6 +87,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             channel.set_env(true, k, v).await?;
         }
 
+        super::log_stage(&trace_id, action, "dispatch.exec");
         channel
             .exec(true, scripts.join(" ").as_bytes())
             .await
@@ -98,6 +111,14 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
                 ChannelMsg::ExitStatus { exit_status } => {
                     got_exit_status = true;
                     code = exit_status;
+                    if super::debug_enabled() && !trace_id.is_empty() {
+                        tracing::info!(
+                            trace_id = %trace_id,
+                            action = action,
+                            stage = "remote.exit",
+                            exit_status
+                        );
+                    }
                 }
                 ChannelMsg::Close | ChannelMsg::Eof => {}
                 _ => {}
@@ -111,12 +132,16 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         if got_exit_status && code != 0 {
             bail!("remote command failed with exit status {code}");
         }
+        super::log_stage(&trace_id, action, "done");
     }
 
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
         use std::collections::HashMap;
         let mut envs = HashMap::new();
+        if !trace_id.is_empty() {
+            envs.insert(super::TRACE_ID_ENV.to_string(), trace_id.clone());
+        }
         envs.insert("REPO".to_string(), repo_name);
         envs.insert("BRANCH".to_string(), branch);
         if let Some(shell) = horse.shell {
@@ -145,6 +170,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
     #[cfg(feature = "use-system-ssh")]
     {
+        super::log_stage(&trace_id, action, "connect.start");
         let mut stdout = ssh.stdout.take().unwrap();
         let mut stderr = ssh.stderr.take().unwrap();
         let mut out = tokio::io::stdout();
@@ -161,6 +187,7 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
                 status.code().unwrap_or(128)
             );
         }
+        super::log_stage(&trace_id, action, "done");
     }
 
     Ok(())

@@ -6,6 +6,9 @@ use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
+    let action = "cargo";
+    let trace_id = super::new_trace_id(action);
+    super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
@@ -39,6 +42,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             .and_then(extract_host)
             .wrap_err("获取 horsed 远程仓库 HOST 失败")?
     };
+    super::log_stage(&trace_id, action, "resolve.done");
 
     let branch = head
         .shorthand()
@@ -47,6 +51,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         .unwrap_or_else(|| "master".to_owned());
 
     let env = super::ssh::start_proxy(sk, host, options.horse_options()).await?;
+    super::log_stage(&trace_id, action, "proxy.ready");
 
     // git diff HEAD
     let mut cmd = tokio::process::Command::new("git");
@@ -71,6 +76,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
+        super::log_stage(&trace_id, action, "connect.start");
         let mut ssh = HorseClient::connect(
             sk,
             options.horse_options().key_hash_alg,
@@ -81,10 +87,16 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         )
         .await?;
         let mut channel = ssh.channel_open_session().await?;
+        super::log_stage(&trace_id, action, "channel.open");
         let head_commit = head.peel_to_commit()?;
         let commit = head_commit.id().to_string();
         let message = head_commit.message();
 
+        if !trace_id.is_empty() {
+            channel
+                .set_env(true, super::TRACE_ID_ENV, &trace_id)
+                .await?;
+        }
         channel.set_env(true, "REPO", repo_name).await?;
         channel.set_env(true, "BRANCH", branch).await?;
         channel.set_env(true, "GIT_COMMIT", commit).await?;
@@ -108,6 +120,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
             )
             .await?;
 
+        super::log_stage(&trace_id, action, "dispatch.exec");
         channel.exec(true, options.name()).await.wrap_err("exec")?;
 
         let mut writer = channel.make_writer();
@@ -132,6 +145,14 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
                 ChannelMsg::ExitStatus { exit_status } => {
                     got_exit_status = true;
                     code = exit_status;
+                    if super::debug_enabled() && !trace_id.is_empty() {
+                        tracing::info!(
+                            trace_id = %trace_id,
+                            action = action,
+                            stage = "remote.exit",
+                            exit_status
+                        );
+                    }
                 }
                 ChannelMsg::Close | ChannelMsg::Eof => {}
                 _ => {}
@@ -145,12 +166,16 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         if got_exit_status && code != 0 {
             bail!("remote cargo command failed with exit status {code}");
         }
+        super::log_stage(&trace_id, action, "done");
     }
 
     #[cfg(feature = "use-system-ssh")]
     {
         use std::collections::HashMap;
         let mut envs = HashMap::new();
+        if !trace_id.is_empty() {
+            envs.insert(super::TRACE_ID_ENV.to_string(), trace_id.clone());
+        }
         envs.insert("REPO".to_string(), repo_name);
         envs.insert("BRANCH".to_string(), branch);
         envs.insert("ZIGBUILD".to_string(), options.use_zigbuild().to_string());
@@ -203,6 +228,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
                 status.code().unwrap_or(128)
             );
         }
+        super::log_stage(&trace_id, action, "done");
     }
 
     Ok(())
