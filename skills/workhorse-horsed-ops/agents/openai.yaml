@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Horsed Ops"
+  short_description: "Operate, autostart, and troubleshoot horsed"
+  default_prompt: "Use $workhorse-horsed-ops to run or troubleshoot a horsed server."

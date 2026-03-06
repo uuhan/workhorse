@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Cargo Work"
+  short_description: "Route cargo-work tasks to the right Workhorse skill"
+  default_prompt: "Use $workhorse-cargo-work to decide which Workhorse cargo-work skill should handle this task."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Artifact Sync"
+  short_description: "Fetch artifacts, sync refs, and inspect server state"
+  default_prompt: "Use $workhorse-artifact-sync to fetch build outputs or inspect a horsed server."

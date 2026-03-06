@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Horsed"
+  short_description: "Route horsed server tasks to the right skill"
+  default_prompt: "Use $workhorse-horsed to decide which horsed server skill should handle this task."

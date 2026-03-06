@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Horsed Dev"
+  short_description: "Modify horsed server code, schema, and tests"
+  default_prompt: "Use $workhorse-horsed-dev to change horsed server code or migrations."

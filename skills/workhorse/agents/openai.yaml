@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse"
+  short_description: "Route Workhorse client and server tasks"
+  default_prompt: "Use $workhorse to decide which Workhorse skill should handle this task."

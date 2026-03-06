@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Horsed Setup"
+  short_description: "Set up and bootstrap a horsed server safely"
+  default_prompt: "Use $workhorse-horsed-setup to initialize or bootstrap a horsed server."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workhorse Remote Build"
+  short_description: "Remote cargo-work build/test workflows"
+  default_prompt: "Use $workhorse-remote-build to run this Rust workflow on a horsed server."
