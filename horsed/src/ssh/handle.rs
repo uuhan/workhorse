@@ -90,6 +90,13 @@ impl ChannelHandle {
         Ok(())
     }
 
+    /// 统一错误响应: 输出 stderr 并返回指定退出码
+    #[tracing::instrument(skip(self, text), level = "debug")]
+    pub async fn fail_code(&self, status_code: u32, text: impl AsRef<str>) -> HorseResult<()> {
+        self.error(text).await?;
+        self.exit_code(status_code).await
+    }
+
     /// 调用远程命令, 并将输入输出流通过通道传输
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn exec_io(&mut self, cmd: &mut Command) -> HorseResult<Child> {

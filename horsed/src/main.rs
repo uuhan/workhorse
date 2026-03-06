@@ -24,6 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     colored::control::set_override(true);
     let cli = Cli::parse();
 
+    if let Some(dir) = &cli.dir {
+        std::env::set_current_dir(dir)
+            .with_context(|| format!("切换工作目录失败: {}", dir.display()))?;
+    }
     let work_dir = &std::env::current_dir().unwrap();
 
     if cli.daemon {
@@ -190,8 +194,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     }
-                    UserCommand::Mod(_user) => {}
-                    UserCommand::List(_user) => {}
+                    UserCommand::Mod(_user) => {
+                        eprintln!("`horsed user mod` 尚未实现");
+                        std::process::exit(2);
+                    }
+                    UserCommand::List(_user) => {
+                        eprintln!("`horsed user list` 尚未实现");
+                        std::process::exit(2);
+                    }
                 }
             }
         }

@@ -28,14 +28,18 @@ impl AppServer {
             let mut writer = handle.make_writer();
             let mut reader = handle.make_reader();
 
-            let req = Body::read(&mut reader).await.map_err(|e| anyhow::anyhow!("read health failed: {}", e))?;
+            let req = Body::read(&mut reader)
+                .await
+                .map_err(|e| anyhow::anyhow!("read health failed: {}", e))?;
             match req {
                 Body::HealthCheck => {
                     let ulimit = get_ulimit_n();
                     let resp = Body::HealthStatus { ulimit };
                     let resp_bytes = bincode::serialize(&resp)?;
-                    
-                    writer.write_all(v2::head(resp_bytes.len() as _).as_bytes()).await?;
+
+                    writer
+                        .write_all(v2::head(resp_bytes.len() as _).as_bytes())
+                        .await?;
                     writer.write_all(&resp_bytes).await?;
                 }
                 _ => {

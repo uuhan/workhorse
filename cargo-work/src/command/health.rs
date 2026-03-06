@@ -30,7 +30,8 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
             .context("获取 horsed 远程仓库 HOST 失败")?
     };
 
-    let mut ssh = HorseClient::connect(sk, options.horse.key_hash_alg, "health", host, None, None).await?;
+    let mut ssh =
+        HorseClient::connect(sk, options.horse.key_hash_alg, "health", host, None, None).await?;
     let mut channel = ssh.channel_open_session().await?;
 
     channel.exec(true, &[]).await.wrap_err("ssh exec")?;

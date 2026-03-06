@@ -240,9 +240,9 @@ impl AppServer {
             if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
                 tracing::error!("无效仓库路径: {:?}", repo_path);
                 let handle = self.handle.take().context("FIXME: NO HANDLE")?;
-                handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
-                handle.eof().await?;
-                handle.close().await?;
+                handle
+                    .fail_code(2, format!("无效仓库路径: {:?}", repo_path))
+                    .await?;
                 return Ok(());
             }
 
@@ -291,9 +291,9 @@ impl AppServer {
                     Ok(cmd) => cmd,
                     Err(err) => {
                         tracing::error!("spawn: `{}` failed: {}", shell, err);
-                        handle.error(format!("spawn: `{}`", shell)).await?;
-                        handle.error(err.to_string()).await?;
-                        handle.exit_code(127).await?;
+                        handle
+                            .fail_code(127, format!("spawn: `{}` failed: {}", shell, err))
+                            .await?;
                         return Ok(());
                     }
                 };
@@ -347,7 +347,9 @@ impl AppServer {
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
             let handle = self.handle.take().context("FIXME: NO HANDLE")?;
-            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle
+                .error(format!("无效仓库路径: {:?}", repo_path))
+                .await?;
             handle.eof().await?;
             handle.close().await?;
             return Ok(());
@@ -525,7 +527,9 @@ impl AppServer {
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
             let handle = self.handle.take().context("FIXME: NO HANDLE")?;
-            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle
+                .error(format!("无效仓库路径: {:?}", repo_path))
+                .await?;
             handle.eof().await?;
             handle.close().await?;
             return Ok(());
@@ -607,7 +611,9 @@ impl AppServer {
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
             let handle = self.handle.take().context("FIXME: NO HANDLE")?;
-            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle
+                .error(format!("无效仓库路径: {:?}", repo_path))
+                .await?;
             handle.eof().await?;
             handle.close().await?;
             return Ok(());
@@ -638,7 +644,6 @@ impl AppServer {
         #[cfg(not(windows))]
         task.spawn(
             async move {
-                use std::os::unix::process::ExitStatusExt;
                 let mut cmd = pty_process::Command::new(&shell);
                 cmd = cmd.envs(&env);
                 cmd = cmd
@@ -660,8 +665,9 @@ impl AppServer {
                     Ok(cmd) => cmd,
                     Err(err) => {
                         tracing::error!("spawn: {:?}", err);
-                        handle.error(err.to_string()).await?;
-                        handle.exit(ExitStatus::from_raw(-1)).await?;
+                        handle
+                            .fail_code(127, format!("spawn: `{}` failed: {}", shell, err))
+                            .await?;
                         return Ok(());
                     }
                 };
@@ -679,8 +685,7 @@ impl AppServer {
                         drop(ch_reader);
                         if let Err(err) = io {
                             tracing::error!("io error: {:?}", err);
-                            handle.error(format!("io error: {:?}", err)).await?;
-                            handle.exit(ExitStatus::from_raw(-1)).await?;
+                            handle.fail_code(1, format!("io error: {:?}", err)).await?;
                         } else {
                             handle.exit(cmd.wait().await?).await?;
                         }
@@ -694,8 +699,7 @@ impl AppServer {
                             }
                             Err(err) => {
                                 tracing::error!("cmd error: {:?}", err);
-                                handle.error(format!("cmd error: {:?}", err)).await?;
-                                handle.exit(ExitStatus::from_raw(-1)).await?;
+                                handle.fail_code(1, format!("cmd error: {:?}", err)).await?;
                             }
                         }
                     }
@@ -937,7 +941,9 @@ impl AppServer {
             // 如果提供的地址包含 .. 等路径，则拒绝请求
             if fst == std::path::Component::ParentDir {
                 tracing::warn!("拒绝仓库请求, 路径不合法: {}", repo_path.display());
-                handle.error(format!("拒绝仓库请求, 路径不合法: {}", repo_path.display())).await?;
+                handle
+                    .error(format!("拒绝仓库请求, 路径不合法: {}", repo_path.display()))
+                    .await?;
                 handle.eof().await?;
                 handle.close().await?;
                 return Ok(());
@@ -963,7 +969,9 @@ impl AppServer {
         // 裸仓库名称统一添加 .git 后缀
         if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
             tracing::error!("无效仓库路径: {:?}", repo_path);
-            handle.error(format!("无效仓库路径: {:?}", repo_path)).await?;
+            handle
+                .error(format!("无效仓库路径: {:?}", repo_path))
+                .await?;
             handle.eof().await?;
             handle.close().await?;
             return Ok(());
@@ -1220,7 +1228,9 @@ impl AppServer {
             }
             _ => {
                 tracing::warn!("未实现的 cargo 命令: {}", command.join(" "));
-                handle.error(format!("未实现的 cargo 命令: {}", command.join(" "))).await?;
+                handle
+                    .error(format!("未实现的 cargo 命令: {}", command.join(" ")))
+                    .await?;
                 handle.eof().await?;
                 handle.close().await?;
                 return Ok(());
