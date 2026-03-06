@@ -23,6 +23,20 @@ Use the workspace root for all commands.
 - `cargo work just install-horsed`: run remote `just install-horsed` on the configured `horsed` target to update the server-side `horsed` binary.
 - `cargo work -- systemctl --user restart horsed`: restart the remote user-level `horsed` service on Linux hosts after update.
 
+## Frontend/Backend Update Workflow
+Use this flow when updating both client (`cargo-work`) and server (`horsed`):
+
+1. Update local client binary:
+   - `just install-work`
+2. Update remote server binary (force a shell available on the server):
+   - `HORSED_SHELL=/bin/bash cargo work just install-horsed`
+3. Restart remote `horsed` service:
+   - `HORSED_SHELL=/bin/bash cargo work -- systemctl --user restart horsed`
+
+Notes:
+- If the server does not provide `nu`, do not use `HORSED_SHELL=nu`; prefer `/bin/bash` or `/bin/sh`.
+- Remote install builds from the remote repository state (usually `main`). To deploy local changes, commit and push first.
+
 ## Coding Style & Naming Conventions
 - Rust edition is `2021`; follow standard Rust formatting (`cargo fmt`).
 - Use `snake_case` for functions/modules, `CamelCase` for types/traits, `SCREAMING_SNAKE_CASE` for constants.
