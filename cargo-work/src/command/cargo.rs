@@ -1,6 +1,6 @@
 use super::*;
 use crate::options::CargoKind;
-use color_eyre::eyre::{anyhow, ContextCompat, Result, WrapErr};
+use color_eyre::eyre::{anyhow, bail, ContextCompat, Result, WrapErr};
 use git2::Repository;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
@@ -114,19 +114,36 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         writer.write_all(&diff).await.unwrap();
         writer.shutdown().await?;
 
-        let mut chout = channel.make_reader();
-        let mut out = tokio::io::stdout();
+        let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
+        let mut code = 0_u32;
+        let mut got_exit_status = false;
 
-        while let Ok(len) = tokio::io::copy(&mut chout, &mut out).await {
-            if len == 0 {
-                break;
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { ref data } => {
+                    stdout.write_all(data).await?;
+                    stdout.flush().await?;
+                }
+                ChannelMsg::ExtendedData { ref data, .. } => {
+                    stderr.write_all(data).await?;
+                    stderr.flush().await?;
+                }
+                ChannelMsg::ExitStatus { exit_status } => {
+                    got_exit_status = true;
+                    code = exit_status;
+                }
+                ChannelMsg::Close | ChannelMsg::Eof => {}
+                _ => {}
             }
         }
 
-        out.shutdown().await?;
-
         if !ssh.is_closed() {
             ssh.close().await?;
+        }
+
+        if got_exit_status && code != 0 {
+            bail!("remote cargo command failed with exit status {code}");
         }
     }
 
@@ -163,21 +180,29 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
         let mut cmd = super::run_system_ssh(sk, envs, "cargo", host, args);
 
         cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
         cmd.stdin(std::process::Stdio::piped());
         let mut ssh = cmd.spawn().wrap_err("ssh")?;
         let mut stdout = ssh.stdout.take().unwrap();
+        let mut stderr = ssh.stderr.take().unwrap();
         let mut stdin = ssh.stdin.take().unwrap();
         let mut out = tokio::io::stdout();
+        let mut err = tokio::io::stderr();
 
         stdin.write_all(&diff).await?;
         drop(stdin);
 
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
-            if len == 0 {
-                break;
-            }
+        let write_out = tokio::io::copy(&mut stdout, &mut out);
+        let write_err = tokio::io::copy(&mut stderr, &mut err);
+        futures::future::try_join(write_out, write_err).await?;
+
+        let status = ssh.wait().await?;
+        if !status.success() {
+            bail!(
+                "remote cargo command failed with exit status {}",
+                status.code().unwrap_or(128)
+            );
         }
-        ssh.wait().await?;
     }
 
     Ok(())

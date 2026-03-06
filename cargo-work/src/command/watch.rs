@@ -1,6 +1,6 @@
 use super::*;
 use crate::options::WatchOptions;
-use color_eyre::eyre::{anyhow, ContextCompat, Result};
+use color_eyre::eyre::{anyhow, bail, ContextCompat, Result};
 use futures::{
     channel::mpsc::{channel, Receiver},
     SinkExt, StreamExt,
@@ -13,6 +13,10 @@ use notify::{
 use std::path::Path;
 
 pub async fn run(sk: &Path, options: WatchOptions) -> Result<()> {
+    if std::env::var_os("WORKHORSE_ENABLE_EXPERIMENTAL_WATCH").is_none() {
+        bail!("`cargo work watch` is not implemented yet; use `cargo work -- <command>` for now");
+    }
+
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 

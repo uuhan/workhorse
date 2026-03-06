@@ -139,17 +139,27 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
         let mut cmd = super::run_system_ssh(sk, envs, "cmd", host, scripts);
         cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
         cmd.spawn()?
     };
 
     #[cfg(feature = "use-system-ssh")]
     {
         let mut stdout = ssh.stdout.take().unwrap();
+        let mut stderr = ssh.stderr.take().unwrap();
         let mut out = tokio::io::stdout();
-        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
-            if len == 0 {
-                break;
-            }
+        let mut err = tokio::io::stderr();
+
+        let write_out = tokio::io::copy(&mut stdout, &mut out);
+        let write_err = tokio::io::copy(&mut stderr, &mut err);
+        futures::future::try_join(write_out, write_err).await?;
+
+        let status = ssh.wait().await?;
+        if !status.success() {
+            bail!(
+                "remote command failed with exit status {}",
+                status.code().unwrap_or(128)
+            );
         }
     }
 
