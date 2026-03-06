@@ -33,6 +33,19 @@ Use the workspace root for all commands.
 - `rstest` is available for parameterized tests; use it when matrix-style input coverage is needed.
 - Add regression tests for protocol, IPC, and path-handling fixes (common failure areas).
 
+## Project Skills
+- `./skills/workhorse/SKILL.md`: top-level dispatcher for this repo; use first when the task broadly mentions Workhorse.
+- `./skills/workhorse-cargo-work/SKILL.md`: entry skill for client-side `cargo work` usage.
+- `./skills/workhorse-remote-build/SKILL.md`: remote Cargo and `just` build/test/lint/run workflows.
+- `./skills/workhorse-remote-access/SKILL.md`: remote shell, one-off commands, PTY, proxy, and port forwarding.
+- `./skills/workhorse-artifact-sync/SKILL.md`: artifact download, Git sync, ping, health, and log inspection.
+- `./skills/workhorse-horsed/SKILL.md`: entry skill for server-side `horsed` tasks.
+- `./skills/workhorse-horsed-setup/SKILL.md`: first-time `horsed` bootstrap, first user enrollment, and safe setup mode.
+- `./skills/workhorse-horsed-ops/SKILL.md`: runtime operations, autostart templates, logs, and troubleshooting.
+- `./skills/workhorse-horsed-dev/SKILL.md`: `horsed` server code, migrations, protocol changes, and tests.
+- When a request involves `cargo work`, `horsed`, remote builds, artifact retrieval, server setup, or Workhorse internals, load the matching project skill before improvising from README text.
+- Keep this section in sync with `./skills/`; when a skill is added, renamed, or removed, update `AGENTS.md` in the same change.
+
 ## Commit & Pull Request Guidelines
 - Follow the existing commit style: concise, imperative subject with optional scope/prefix, e.g. `feat: ...`, `fix: ...`, `cargo-work: ...`, `horsed: ...`.
 - Keep commits focused by crate or behavior.
