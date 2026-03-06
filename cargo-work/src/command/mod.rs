@@ -30,6 +30,7 @@ pub mod logs;
 pub mod ping;
 pub mod pull;
 pub mod push;
+pub mod put;
 pub mod scp;
 pub mod ssh;
 pub mod watch;

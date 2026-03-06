@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use cargo_work::{
-    command::{cargo, cmd, get, health, just, logs, ping, pull, push, scp, ssh, watch},
+    command::{cargo, cmd, get, health, just, logs, ping, pull, push, put, scp, ssh, watch},
     logger,
     options::*,
 };
@@ -143,6 +143,13 @@ async fn main() -> Result<()> {
                     Commands::Scp(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = scp::run(&key, options).await {
+                            tracing::error!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Put(mut options) => {
+                        merge_options(&mut options.horse, &horse);
+                        options.dest = options.dest.replace("\\", "/");
+                        if let Err(err) = put::run(&key, options).await {
                             tracing::error!("执行失败: {}", err);
                         }
                     }

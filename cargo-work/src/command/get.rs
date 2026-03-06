@@ -13,6 +13,62 @@ use std::path::Path;
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
 
+struct Osc94Progress {
+    enabled: bool,
+    total: Option<u64>,
+    last_percent: Option<u8>,
+}
+
+impl Osc94Progress {
+    fn new(total: Option<u64>) -> Self {
+        Self {
+            enabled: std::io::stderr().is_terminal(),
+            total,
+            last_percent: None,
+        }
+    }
+
+    fn percent(&self, current: u64) -> u8 {
+        match self.total {
+            Some(total) if total > 0 => ((current.saturating_mul(100) / total).min(100)) as u8,
+            _ => 0,
+        }
+    }
+
+    fn emit(&self, state: u8, progress: u8) {
+        if !self.enabled {
+            return;
+        }
+
+        eprint!("\x1b]9;4;{};{}\x07", state, progress);
+        let _ = std::io::stderr().flush();
+    }
+
+    fn start(&mut self) {
+        self.last_percent = Some(0);
+        self.emit(1, 0);
+    }
+
+    fn update(&mut self, current: u64) {
+        let percent = self.percent(current);
+        if self.last_percent == Some(percent) {
+            return;
+        }
+
+        self.last_percent = Some(percent);
+        self.emit(1, percent);
+    }
+
+    fn finish_success(&mut self) {
+        self.emit(1, 100);
+        self.emit(0, 0);
+    }
+
+    fn finish_error(&mut self, current: u64) {
+        self.emit(2, self.percent(current));
+    }
+}
+
 pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     let action = "get";
     let trace_id = super::new_trace_id(action);
@@ -154,13 +210,13 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
         file_path.set_extension("tar");
     }
 
-    let mut downloaded: u64 = 0;
-
     let pb = if let Some(size) = get_file.size {
         ProgressBar::new(size)
     } else {
         ProgressBar::no_length()
     };
+    let mut osc = Osc94Progress::new(get_file.size);
+    let mut downloaded: u64 = 0;
 
     pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
             .unwrap()
@@ -170,49 +226,64 @@ pub async fn run(sk: &Path, options: GetOptions) -> Result<()> {
     const BUF_SIZE: usize = 1024 * 32;
     let mut buf = [0u8; BUF_SIZE];
 
-    if options.stdout || is_piped {
-        let mut decoder = ZlibDecoder::new(std::io::stdout());
+    osc.start();
+    let download_res: Result<()> = async {
+        if options.stdout || is_piped {
+            let mut decoder = ZlibDecoder::new(std::io::stdout());
 
-        while let Ok(len) = stdout.read(&mut buf).await {
-            pb.set_position(downloaded);
+            while let Ok(len) = stdout.read(&mut buf).await {
+                if len == 0 {
+                    break;
+                }
 
-            if len == 0 {
-                break;
+                decoder.write_all(&buf[..len])?;
+                downloaded = decoder.total_out();
+                pb.set_position(downloaded);
+                osc.update(downloaded);
             }
 
-            downloaded += len as u64;
-            decoder.write_all(&buf[..len])?;
-        }
+            decoder.finish()?;
+        } else {
+            // use user specified output file
+            let file_path = options.outfile.unwrap_or(file_path);
 
-        decoder.finish()?;
+            if let Some(dir) = file_path.parent() {
+                if !dir.exists() {
+                    std::fs::create_dir_all(dir)
+                        .context(format!("创建目录失败: {}", dir.display()))?;
+                }
+            }
+
+            let file = std::fs::File::create(&file_path)?;
+            file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
+            let mut decoder = ZlibDecoder::new(file);
+
+            while let Ok(len) = stdout.read(&mut buf).await {
+                if len == 0 {
+                    break;
+                }
+
+                decoder.write_all(&buf[..len])?;
+                downloaded = decoder.total_out();
+                pb.set_position(downloaded);
+                osc.update(downloaded);
+            }
+
+            decoder.finish()?;
+        };
+
+        Ok(())
+    }
+    .await;
+
+    if download_res.is_ok() {
+        osc.finish_success();
     } else {
-        // use user specified output file
-        let file_path = options.outfile.unwrap_or(file_path);
-
-        if let Some(dir) = file_path.parent() {
-            if !dir.exists() {
-                std::fs::create_dir_all(dir).context(format!("创建目录失败: {}", dir.display()))?;
-            }
-        }
-
-        let file = std::fs::File::create(&file_path)?;
-        file.try_lock_exclusive().wrap_err("文件锁定失败!")?;
-        let mut decoder = ZlibDecoder::new(file);
-
-        while let Ok(len) = stdout.read(&mut buf).await {
-            pb.set_position(decoder.total_out());
-
-            if len == 0 {
-                break;
-            }
-
-            decoder.write_all(&buf[..len])?;
-        }
-
-        decoder.finish()?;
-    };
+        osc.finish_error(downloaded);
+    }
 
     pb.finish();
+    download_res?;
     super::log_stage(&trace_id, action, "done");
 
     Ok(())

@@ -832,6 +832,117 @@ impl AppServer {
         Ok(())
     }
 
+    /// 上传文件到服务端工作目录
+    #[tracing::instrument(skip(self), err)]
+    pub async fn put(&mut self, files: Vec<String>) -> HorseResult<()> {
+        tracing::info!("PUT: {}", files.join(" "));
+
+        let env_repo = self.env.get("REPO").context("REPO 环境变量未设置")?;
+        let _env_branch = self.env.get("BRANCH").context("BRANCH 环境变量未设置")?;
+
+        let mut repo_path = PathBuf::from(env_repo);
+        // 去除开头的 /
+        if let Ok(stripped) = repo_path.strip_prefix("/") {
+            repo_path = stripped.to_path_buf();
+        }
+
+        // 清理路径
+        repo_path = repo_path.clean();
+
+        // 裸仓库名称统一添加 .git 后缀
+        if repo_path.extension() != Some(OsStr::new("git")) && !repo_path.set_extension("git") {
+            tracing::error!("无效仓库路径: {:?}", repo_path);
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle
+                .fail_with_error(
+                    2,
+                    "HSSH_REPO_PATH_INVALID",
+                    format!("无效仓库路径: {:?}", repo_path),
+                )
+                .await?;
+            return Ok(());
+        }
+
+        let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
+        // 构建目录不包含 .git 后缀
+        work_path.set_extension("");
+        work_path = work_path.clean();
+
+        let remote = files.first().context("FIXME: NO TARGET FILE")?;
+        let remote_path = PathBuf::from(remote);
+        if remote_path.is_absolute()
+            || remote_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+        {
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle
+                .fail_with_error(
+                    2,
+                    "HSSH_PUT_PATH_INVALID",
+                    format!("非法目标路径: {}", remote),
+                )
+                .await?;
+            return Ok(());
+        }
+
+        let target_path = work_path.join(&remote_path).clean();
+        if !target_path.starts_with(&work_path) {
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle
+                .fail_with_error(
+                    2,
+                    "HSSH_PUT_PATH_OUTSIDE_WORKDIR",
+                    format!("目标路径超出工作目录: {}", target_path.display()),
+                )
+                .await?;
+            return Ok(());
+        }
+
+        let handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+        let task = self.tm.spawn_handle();
+        task.spawn(async move {
+            let mut handle = handle;
+            let put_res = async {
+                if let Some(parent) = target_path.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+
+                if let Ok(md) = tokio::fs::metadata(&target_path).await {
+                    if md.is_dir() {
+                        return Err(anyhow!("目标路径是目录: {}", target_path.display()));
+                    }
+                }
+
+                let mut file = tokio::fs::File::create(&target_path).await?;
+                {
+                    let mut cin = handle.make_reader();
+                    tokio::io::copy(&mut cin, &mut file).await?;
+                }
+                file.flush().await?;
+
+                tracing::info!("put done: {}", target_path.display());
+                handle.exit_code(0).await?;
+                Ok::<_, anyhow::Error>(())
+            }
+            .await;
+
+            if let Err(err) = put_res {
+                tracing::error!("put failed: {:?}", err);
+                handle
+                    .fail_with_error(1, "HSSH_PUT_FAILED", format!("上传失败: {}", err))
+                    .await?;
+            }
+
+            Ok(())
+        });
+
+        Ok(())
+    }
+
     pub async fn ping(&mut self, _args: Vec<String>) -> HorseResult<()> {
         let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
         let task = self.tm.spawn_handle();
@@ -1778,6 +1889,7 @@ impl Handler for AppServer {
             "cmd" => self.cmd(command).await,
             "get" => self.get(command).await,
             "scp" => self.scp(command).await,
+            "put" => self.put(command).await,
             "ssh" => self.ssh(command).await,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
