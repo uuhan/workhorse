@@ -1,7 +1,8 @@
 use super::*;
-use color_eyre::eyre::{anyhow, ContextCompat, Result};
+use color_eyre::eyre::{anyhow, bail, ContextCompat, Result, WrapErr};
 use git2::Repository;
 use std::path::Path;
+use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result<()> {
     let repo = Repository::discover(".")?;
@@ -46,10 +47,9 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
     let env = super::ssh::start_proxy(sk, host, &horse).await?;
 
     #[cfg(not(feature = "use-system-ssh"))]
-    let mut channel = {
-        use color_eyre::eyre::WrapErr;
-        let ssh = HorseClient::connect(sk, horse.key_hash_alg, "cmd", host, None, None).await?;
-        let channel = ssh.channel_open_session().await?;
+    {
+        let mut ssh = HorseClient::connect(sk, horse.key_hash_alg, "cmd", host, None, None).await?;
+        let mut channel = ssh.channel_open_session().await?;
 
         let head_commit = head.peel_to_commit()?;
         let commit = head_commit.id().to_string();
@@ -80,10 +80,38 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             .await
             .wrap_err("exec")?;
 
-        channel
-    };
-    #[cfg(not(feature = "use-system-ssh"))]
-    let mut stdout = channel.make_reader();
+        let mut stdout = tokio::io::stdout();
+        let mut stderr = tokio::io::stderr();
+        let mut code = 0_u32;
+        let mut got_exit_status = false;
+
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { ref data } => {
+                    stdout.write_all(data).await?;
+                    stdout.flush().await?;
+                }
+                ChannelMsg::ExtendedData { ref data, .. } => {
+                    stderr.write_all(data).await?;
+                    stderr.flush().await?;
+                }
+                ChannelMsg::ExitStatus { exit_status } => {
+                    got_exit_status = true;
+                    code = exit_status;
+                }
+                ChannelMsg::Close | ChannelMsg::Eof => {}
+                _ => {}
+            }
+        }
+
+        if !ssh.is_closed() {
+            ssh.close().await?;
+        }
+
+        if got_exit_status && code != 0 {
+            bail!("remote command failed with exit status {code}");
+        }
+    }
 
     #[cfg(feature = "use-system-ssh")]
     let mut ssh = {
@@ -113,14 +141,15 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
         cmd.stdout(std::process::Stdio::piped());
         cmd.spawn()?
     };
+
     #[cfg(feature = "use-system-ssh")]
-    let mut stdout = ssh.stdout.take().unwrap();
-
-    let mut cout = tokio::io::stdout();
-
-    while let Ok(len) = tokio::io::copy(&mut stdout, &mut cout).await {
-        if len == 0 {
-            break;
+    {
+        let mut stdout = ssh.stdout.take().unwrap();
+        let mut out = tokio::io::stdout();
+        while let Ok(len) = tokio::io::copy(&mut stdout, &mut out).await {
+            if len == 0 {
+                break;
+            }
         }
     }
 

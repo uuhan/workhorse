@@ -287,7 +287,16 @@ impl AppServer {
                     .arg("-c")
                     .arg(command.join(" "));
 
-                let mut cmd = cmd.spawn().context(format!("spawn: `{}`", shell))?;
+                let mut cmd = match cmd.spawn() {
+                    Ok(cmd) => cmd,
+                    Err(err) => {
+                        tracing::error!("spawn: `{}` failed: {}", shell, err);
+                        handle.error(format!("spawn: `{}`", shell)).await?;
+                        handle.error(err.to_string()).await?;
+                        handle.exit_code(127).await?;
+                        return Ok(());
+                    }
+                };
 
                 let mut stdout = cmd.stdout.take().unwrap();
                 let mut stderr = cmd.stderr.take().unwrap();
