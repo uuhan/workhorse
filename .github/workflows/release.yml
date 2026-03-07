@@ -8,6 +8,29 @@ permissions:
   contents: write
 
 jobs:
+  package-skills:
+    name: Package skills archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📄 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "📦 Package skills"
+        run: |
+          cd "${{github.workspace}}"
+
+          rm -rf ./release-tree
+          mkdir -p ./release-tree/workhorse
+          cp -a ./skills ./release-tree/workhorse/skills
+
+          cd ./release-tree
+          zip -r workhorse-skills.zip workhorse/skills
+
+          gh release upload ${{github.event.release.tag_name}} workhorse-skills.zip
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
+
   build-linux:
     name: Build Linux binaries
     runs-on: ubuntu-latest
