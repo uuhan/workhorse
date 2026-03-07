@@ -1,3 +1,15 @@
+### v0.2.9
+
+- workhorse: 升级账户模型，支持 admin/user 角色与管理员 CLI（用户与公钥的增删改查、启用/禁用）
+- cargo-work: 新增 `put` 上传命令，并为 `put/get` 增加 OSC 94 传输进度显示
+- health: 扩展健康检查输出，新增服务端 `version`、`commit`、`os/arch/family`、默认 shell 与 `ulimit -n`
+- observability: 新增 `WH_DEBUG=1` 受控 trace 流程日志（trace_id + stage），便于定位卡顿与链路问题
+- cargo-work: 远端构建补丁同步增强，除工作区改动外还会同步 `upstream..HEAD` 未推送提交
+- horsed: 统一 SSH 错误回复路径，修复多处 early return 未关闭 channel 导致的客户端阻塞
+- horsed/cargo-work: 改进远端命令错误处理与 shell spawn 报错透出，降低“无输出卡住”问题
+- horsed: `--dir` 行为修复并补充服务端运维能力（health/logs/autostart 相关流程完善）
+- docs: 更新 AGENTS 与 skills 索引、前后端更新流程与远端部署指引
+
 ### v0.2.8
 
 - cargo-work: 兼容 windows 的路径
