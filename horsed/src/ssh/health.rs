@@ -1,5 +1,6 @@
 use super::*;
 use stable::data::v2::{self, Body};
+use std::env;
 use std::io;
 
 #[cfg(unix)]
@@ -17,6 +18,24 @@ fn get_ulimit_n() -> Option<u64> {
 #[cfg(windows)]
 fn get_ulimit_n() -> Option<u64> {
     None
+}
+
+fn default_shell() -> Option<String> {
+    #[cfg(unix)]
+    {
+        env::var("SHELL").ok().filter(|s| !s.trim().is_empty())
+    }
+    #[cfg(windows)]
+    {
+        env::var("ComSpec")
+            .ok()
+            .or_else(|| env::var("COMSPEC").ok())
+            .filter(|s| !s.trim().is_empty())
+    }
+}
+
+fn horsed_commit() -> &'static str {
+    option_env!("HORSED_GIT_SHA").unwrap_or("unknown")
 }
 
 impl AppServer {
@@ -42,8 +61,26 @@ impl AppServer {
                         .await?;
                     writer.write_all(&resp_bytes).await?;
                 }
+                Body::HealthCheckV2 => {
+                    let ulimit = get_ulimit_n();
+                    let resp = Body::HealthStatusV2 {
+                        ulimit,
+                        version: env!("CARGO_PKG_VERSION").to_string(),
+                        commit: horsed_commit().to_string(),
+                        os: env::consts::OS.to_string(),
+                        arch: env::consts::ARCH.to_string(),
+                        family: env::consts::FAMILY.to_string(),
+                        default_shell: default_shell(),
+                    };
+                    let resp_bytes = bincode::serialize(&resp)?;
+
+                    writer
+                        .write_all(v2::head(resp_bytes.len() as _).as_bytes())
+                        .await?;
+                    writer.write_all(&resp_bytes).await?;
+                }
                 _ => {
-                    return Err(anyhow::anyhow!("协议错误, 期望 HealthCheck"));
+                    return Err(anyhow::anyhow!("协议错误, 期望 HealthCheck/HealthCheckV2"));
                 }
             }
 

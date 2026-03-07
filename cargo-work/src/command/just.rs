@@ -3,7 +3,7 @@ use crate::options::JustOptions;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
 use std::path::Path;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let action = "just";
@@ -56,25 +56,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let env = super::ssh::start_proxy(sk, host, &options.horse).await?;
     super::log_stage(&trace_id, action, "proxy.ready");
 
-    // git diff HEAD
-    let mut cmd = tokio::process::Command::new("git");
-    #[cfg(target_os = "windows")]
-    {
-        #[allow(unused_imports)]
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.arg("diff").arg("HEAD");
-
-    let mut cmd = cmd.spawn()?;
-
-    let mut diff = vec![];
-    cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
-    cmd.wait().await?;
-    // git diff HEAD
+    let diff = super::collect_remote_patch(&repo).await?;
 
     #[cfg(feature = "use-system-ssh")]
     {

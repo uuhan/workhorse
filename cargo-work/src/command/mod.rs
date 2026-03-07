@@ -1,7 +1,8 @@
 #![allow(unused_variables)]
 use crate::options::HorseOptions;
-use color_eyre::eyre::{bail, Result};
+use color_eyre::eyre::{bail, ContextCompat, Result, WrapErr};
 use colored::Colorize;
+use git2::BranchType;
 use git2::Remote;
 use git2::Repository;
 use russh::client::Msg;
@@ -392,6 +393,98 @@ fn extract_host(url: &str) -> Option<SocketAddr> {
 fn extract_repo_name(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     url.path().strip_prefix("/").map(|s| s.to_string())
+}
+
+fn upstream_status(repo: &Repository) -> Result<Option<(String, usize)>> {
+    let head = repo.head().wrap_err("读取 HEAD 失败")?;
+    if !head.is_branch() {
+        return Ok(None);
+    }
+
+    let Some(branch_name) = head.shorthand() else {
+        return Ok(None);
+    };
+
+    let local = repo
+        .find_branch(branch_name, BranchType::Local)
+        .wrap_err_with(|| format!("读取本地分支 `{branch_name}` 失败"))?;
+
+    let upstream = match local.upstream() {
+        Ok(branch) => branch,
+        Err(err) if err.code() == git2::ErrorCode::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
+    };
+
+    let local_commit = local.get().target().context("读取本地分支提交失败")?;
+    let upstream_commit = upstream.get().target().context("读取上游分支提交失败")?;
+    let upstream_name = upstream
+        .get()
+        .name()
+        .context("读取上游分支名称失败")?
+        .to_string();
+    let (ahead, _) = repo
+        .graph_ahead_behind(local_commit, upstream_commit)
+        .wrap_err("计算 ahead/behind 失败")?;
+
+    Ok(Some((upstream_name, ahead)))
+}
+
+async fn git_diff(repo: &Repository, args: &[&str]) -> Result<Vec<u8>> {
+    let mut cmd = tokio::process::Command::new("git");
+    #[cfg(target_os = "windows")]
+    {
+        #[allow(unused_imports)]
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.current_dir(repo.workdir().unwrap_or_else(|| std::path::Path::new(".")));
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.arg("diff");
+    cmd.args(args);
+
+    let mut child = cmd.spawn().wrap_err("启动 git diff 失败")?;
+    let mut out = vec![];
+    child
+        .stdout
+        .take()
+        .context("读取 git diff stdout 失败")?
+        .read_to_end(&mut out)
+        .await?;
+    let status = child.wait().await?;
+    if !status.success() {
+        bail!(
+            "git diff {} 失败 (exit={})",
+            args.join(" "),
+            status.code().unwrap_or(128)
+        );
+    }
+    Ok(out)
+}
+
+pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
+    let mut patch = vec![];
+
+    if let Some((upstream, ahead)) = upstream_status(repo)? {
+        if ahead > 0 {
+            tracing::warn!(
+                "检测到本地分支领先上游 {ahead} 个提交，将同步未推送提交到远端工作区: {upstream}"
+            );
+            let range = format!("{upstream}..HEAD");
+            let commit_patch = git_diff(repo, &["--binary", range.as_str()]).await?;
+            if commit_patch.is_empty() {
+                bail!("本地分支领先上游 {ahead} 个提交，但未能生成补丁，请先 push 后重试");
+            }
+            patch.extend_from_slice(&commit_patch);
+        }
+    }
+
+    // Includes both staged and unstaged local changes.
+    let worktree_patch = git_diff(repo, &["--binary", "HEAD"]).await?;
+    patch.extend_from_slice(&worktree_patch);
+
+    Ok(patch)
 }
 
 #[cfg(feature = "use-system-ssh")]

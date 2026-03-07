@@ -53,26 +53,7 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
     let env = super::ssh::start_proxy(sk, host, options.horse_options()).await?;
     super::log_stage(&trace_id, action, "proxy.ready");
 
-    // git diff HEAD
-    let mut cmd = tokio::process::Command::new("git");
-    #[cfg(target_os = "windows")]
-    {
-        #[allow(unused_imports)]
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.arg("diff").arg("HEAD");
-
-    let mut cmd = cmd.spawn()?;
-
-    let mut diff = vec![];
-    use tokio::io::AsyncReadExt;
-    cmd.stdout.take().unwrap().read_to_end(&mut diff).await?;
-    cmd.wait().await?;
-    // git diff HEAD
+    let diff = super::collect_remote_patch(&repo).await?;
 
     #[cfg(not(feature = "use-system-ssh"))]
     {

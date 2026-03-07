@@ -17,6 +17,16 @@ pub enum Body {
     HealthStatus {
         ulimit: Option<u64>,
     },
+    HealthCheckV2,
+    HealthStatusV2 {
+        ulimit: Option<u64>,
+        version: String,
+        commit: String,
+        os: String,
+        arch: String,
+        family: String,
+        default_shell: Option<String>,
+    },
 }
 
 pub fn head(size: u16) -> Head {

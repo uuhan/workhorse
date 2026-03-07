@@ -269,7 +269,10 @@ async fn exec_admin(
         match msg {
             ChannelMsg::Data { ref data } => out.extend_from_slice(data),
             ChannelMsg::ExtendedData { ref data, .. } => err.extend_from_slice(data),
-            ChannelMsg::ExitStatus { exit_status } => code = Some(exit_status),
+            ChannelMsg::ExitStatus { exit_status } => {
+                code = Some(exit_status);
+                break;
+            }
             _ => {}
         }
     }

@@ -34,31 +34,39 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
     };
     super::log_stage(&trace_id, action, "resolve.done");
 
-    super::log_stage(&trace_id, action, "connect.start");
-    let mut ssh =
-        HorseClient::connect(sk, options.horse.key_hash_alg, "health", host, None, None).await?;
-    let mut channel = ssh.channel_open_session().await?;
-    if !trace_id.is_empty() {
-        channel
-            .set_env(true, super::TRACE_ID_ENV, &trace_id)
-            .await?;
-    }
-
-    channel.exec(true, &[]).await.wrap_err("ssh exec")?;
-
-    let mut sshin = channel.make_writer();
-    let mut sshout = channel.make_reader();
-
-    let req = bincode::serialize(&Body::HealthCheck)?;
-    let head = v2::head(req.len() as _);
-
-    sshin.write_all(head.as_bytes()).await?;
-    sshin.write_all(&req).await?;
-
-    let body = Body::read(&mut sshout).await?;
+    let body =
+        match call_health_once(sk, &options.horse, host, &trace_id, Body::HealthCheckV2).await {
+            Ok(body) => body,
+            Err(err) => {
+                tracing::warn!("health v2 失败, 回退到 v1: {}", err);
+                call_health_once(sk, &options.horse, host, &trace_id, Body::HealthCheck).await?
+            }
+        };
     match body {
-        Body::HealthStatus { ulimit } => {
+        Body::HealthStatusV2 {
+            ulimit,
+            version,
+            commit,
+            os,
+            arch,
+            family,
+            default_shell,
+        } => {
             tracing::info!("Health OK.");
+            tracing::info!("Server version: {} ({})", version, commit);
+            tracing::info!("Server OS: {} / {} ({})", os, arch, family);
+            tracing::info!(
+                "Server default shell: {}",
+                default_shell.unwrap_or_else(|| "unknown".to_string())
+            );
+            if let Some(lim) = ulimit {
+                tracing::info!("Server ulimit -n: {}", lim);
+            } else {
+                tracing::info!("Server ulimit -n: unknown");
+            }
+        }
+        Body::HealthStatus { ulimit } => {
+            tracing::info!("Health OK (legacy).");
             if let Some(lim) = ulimit {
                 tracing::info!("Server ulimit -n: {}", lim);
             } else {
@@ -69,9 +77,36 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
             return Err(anyhow!("health 失败, 收到非预期的响应"));
         }
     }
-
-    ssh.close().await?;
     super::log_stage(&trace_id, action, "done");
 
     Ok(())
+}
+
+async fn call_health_once(
+    sk: &Path,
+    horse: &crate::options::HorseOptions,
+    host: std::net::SocketAddr,
+    trace_id: &str,
+    req_body: Body,
+) -> Result<Body> {
+    super::log_stage(trace_id, "health", "connect.start");
+    let mut ssh = HorseClient::connect(sk, horse.key_hash_alg, "health", host, None, None).await?;
+    let mut channel = ssh.channel_open_session().await?;
+    if !trace_id.is_empty() {
+        channel.set_env(true, super::TRACE_ID_ENV, trace_id).await?;
+    }
+
+    channel.exec(true, &[]).await.wrap_err("ssh exec")?;
+
+    let mut sshin = channel.make_writer();
+    let mut sshout = channel.make_reader();
+
+    let req = bincode::serialize(&req_body)?;
+    let head = v2::head(req.len() as _);
+    sshin.write_all(head.as_bytes()).await?;
+    sshin.write_all(&req).await?;
+
+    let body = Body::read(&mut sshout).await?;
+    ssh.close().await?;
+    Ok(body)
 }
