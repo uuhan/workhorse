@@ -29,6 +29,8 @@ cargo work run -- --help
 cargo work just build
 ```
 
+Most build-like actions print a server-side `job_id=...` line. Use that id with `cargo work job attach <job_id> -f` from another terminal when you need to follow the same task output concurrently.
+
 For an explicit host instead of a Git remote:
 
 ```bash
@@ -49,6 +51,7 @@ Useful shared flags:
 2. Pick the narrowest remote command that matches the task. Use `build`, `test`, `check`, `clippy`, `run`, or `just` instead of falling back to raw shell commands.
 3. Pass through Cargo arguments after `--` when the underlying subcommand needs them.
 4. If the task also needs output retrieval, switch to `$workhorse-artifact-sync` after the remote job finishes.
+5. If the user needs live output in multiple terminals, route to `$workhorse-artifact-sync` and use `cargo work job attach`.
 
 ## Examples
 
@@ -64,6 +67,10 @@ cargo work clippy --all-targets -- -D warnings
 
 # Run a just recipe on an explicit repo
 cargo work just --repo ssh://git@10.0.0.8:2222/team/app.git deploy
+
+# Start a build, then attach by job id in another terminal
+cargo work check
+cargo work job attach <job_id> -f
 ```
 
 ## Caveats

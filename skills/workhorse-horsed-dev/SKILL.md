@@ -13,6 +13,7 @@ This skill is for changing `horsed` code, not just operating a deployed server. 
 
 - `../../horsed/src/main.rs`: process model, CLI, daemon and foreground startup.
 - `../../horsed/src/ssh/mod.rs`: main SSH server on `2222` and action dispatch.
+- `../../horsed/src/ssh/jobs.rs`: in-memory job registry, bounded output buffers, and attach event stream.
 - `../../horsed/src/ssh/setup.rs`: first-user bootstrap server on `2223`.
 - `../../horsed/src/ssh/health.rs`: `health` action and `ulimit -n` reporting.
 - `../../horsed/src/logger/mod.rs`: stdout/file/ring-buffer logging and optional OpenTelemetry.
@@ -47,6 +48,7 @@ cargo run -p migration -- fresh
 ## Testing Guidance
 
 - Existing server auth/setup coverage lives in `../../horsed/src/ssh/tests.rs`.
+- Job registry behavior coverage lives in `../../horsed/src/ssh/jobs.rs` (`#[cfg(test)]`).
 - When changing bootstrap auth or server action routing, extend those tests or add adjacent ones.
 - When changing logging or startup behavior, manual verification in a throwaway work directory is still useful because runtime side effects include DB, key, and log files.
 
@@ -60,6 +62,7 @@ cargo run -p migration -- fresh
 
 - Startup or lifecycle changes: start at `../../horsed/src/main.rs`.
 - New remote action or protocol path: start at `../../horsed/src/ssh/mod.rs` and the corresponding client command.
+- Job attach/list behavior: start at `../../horsed/src/ssh/jobs.rs` and the `job` action in `../../horsed/src/ssh/mod.rs`.
 - Setup enrollment logic: start at `../../horsed/src/ssh/setup.rs`.
 - Health and observability changes: start at `../../horsed/src/ssh/health.rs` and `../../horsed/src/logger/mod.rs`.
 - Schema or user-key relation changes: start at `../../horsed/src/db/entity/` plus `../../horsed/migration/`.

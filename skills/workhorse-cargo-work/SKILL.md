@@ -15,7 +15,7 @@ Route to exactly one primary sub-skill whenever possible:
 
 - Use `$workhorse-remote-build` for remote `build`, `test`, `check`, `clippy`, `run`, `install`, `doc`, `metadata`, `rustc`, `zigbuild`, or `just`.
 - Use `$workhorse-remote-access` for `cargo work -- ...`, `cargo work ssh`, interactive shells, PTY-backed commands, port forwarding, remote env injection, or proxy bridging.
-- Use `$workhorse-artifact-sync` for `get`, `scp`, `push`, `pull`, `ping`, `health`, or `logs`.
+- Use `$workhorse-artifact-sync` for `get`, `scp`, `push`, `pull`, `ping`, `health`, `logs`, or `job`.
 
 ## Triage Checklist
 
@@ -32,6 +32,7 @@ Route to exactly one primary sub-skill whenever possible:
 - "开一个 SSH shell 并转发 3000 端口" -> `$workhorse-remote-access`
 - "把远端构建好的二进制拉回来" -> `$workhorse-artifact-sync`
 - "看看 horsed 现在健不健康" -> `$workhorse-artifact-sync`
+- "附加到远端正在运行的任务输出" -> `$workhorse-artifact-sync`
 
 ## Shared Assumptions
 
