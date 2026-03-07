@@ -1864,10 +1864,14 @@ impl AppServer {
         let task = self.tm.spawn_handle();
         let repo = Repo::from(repo_path);
         let command_line = command.join(" ");
+        let cargo_action = format!(
+            "cargo.{}",
+            command.first().map(String::as_str).unwrap_or("unknown")
+        );
         let owner = self.user_name().to_string();
         let job = self
             .jobs
-            .create_job(owner, "cargo", command_line.clone())
+            .create_job(owner, cargo_action, command_line.clone())
             .await;
         handle.info(format!("job_id={}", job.id())).await?;
 
