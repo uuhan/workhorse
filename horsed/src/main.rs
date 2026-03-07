@@ -154,6 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let db = horsed::db::db();
                             let user = entity::user::ActiveModel {
                                 name: Set(user.name),
+                                nick: Set(user.nick),
+                                email: Set(user.email),
+                                role: Set("user".to_string()),
+                                enabled: Set(true),
                                 ..Default::default()
                             };
                             match user.insert(&db).await {

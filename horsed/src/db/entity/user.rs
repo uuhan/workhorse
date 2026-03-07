@@ -11,6 +11,8 @@ pub struct Model {
     pub name: String,
     pub nick: Option<String>,
     pub email: Option<String>,
+    pub role: String,
+    pub enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -26,3 +28,9 @@ impl Related<super::ssh_pk::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Model {
+    pub fn is_admin(&self) -> bool {
+        self.role == "admin"
+    }
+}

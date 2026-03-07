@@ -133,6 +133,8 @@ pub enum Commands {
     Watch(WatchOptions),
     #[command(name = "health", about = "服务器健康检查")]
     Health(HealthOptions),
+    #[command(name = "admin", about = "管理员交互与用户/公钥管理")]
+    Admin(AdminOptions),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -250,4 +252,12 @@ pub struct HealthOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
     pub remote: Option<String>,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct AdminOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    #[clap(help = "管理员命令, 例如: users list / keys add <user> <alg> <key> [comment]")]
+    pub command: Vec<String>,
 }

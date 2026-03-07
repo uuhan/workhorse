@@ -21,6 +21,9 @@ use stable::task::SpawnEssentialTaskHandle;
 use std::sync::Arc;
 use tokio::net::ToSocketAddrs;
 
+const ROLE_ADMIN: &str = "admin";
+const ROLE_USER: &str = "user";
+
 #[derive(Clone)]
 pub struct SetupServer {
     pub handle: SpawnEssentialTaskHandle,
@@ -91,8 +94,21 @@ impl Handler for SetupServer {
             .one(&conn)
             .await?
         {
+            if !pk.enabled {
+                tracing::warn!("Disabled key rejected in setup mode: {}", pk.user_id);
+                return Ok(Auth::Reject {
+                    proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                });
+            }
+
             // Check if there is some user already associated with the key
             if let Some(user) = pk.find_related(User).one(&conn).await? {
+                if !user.enabled {
+                    tracing::warn!("Disabled user rejected in setup mode: {}", user.name);
+                    return Ok(Auth::Reject {
+                        proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                    });
+                }
                 tracing::info!("User already exists: {}", user.name);
                 return Ok(Auth::Accept);
             } else {
@@ -116,8 +132,21 @@ impl Handler for SetupServer {
                     {
                         user.into()
                     } else {
+                        let role = if User::find()
+                            .filter(user::Column::Role.eq(ROLE_ADMIN))
+                            .one(txn)
+                            .await?
+                            .is_some()
+                        {
+                            ROLE_USER.to_string()
+                        } else {
+                            ROLE_ADMIN.to_string()
+                        };
+
                         user::ActiveModel {
                             name: Set(name),
+                            role: Set(role),
+                            enabled: Set(true),
                             ..Default::default()
                         }
                         .save(txn)
@@ -129,6 +158,8 @@ impl Handler for SetupServer {
                         alg: Set(alg.to_string()),
                         key: Set(key),
                         user_id: user.id,
+                        enabled: Set(true),
+                        comment: Set(None),
                     };
 
                     if let Err(err) = auth.insert(txn).await {

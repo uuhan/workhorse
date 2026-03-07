@@ -7,6 +7,7 @@ use std::str::from_utf8;
 use std::sync::Arc;
 
 use crate::db::entity::prelude::{SshPk, User};
+use crate::db::entity::{ssh_pk, user};
 use crate::git::repo::Repo;
 use crate::prelude::*;
 use anyhow::{anyhow, Context};
@@ -19,7 +20,10 @@ use pty_process::{Pts, Pty, Size};
 use russh::keys::{Certificate, PublicKey};
 use russh::{server::*, MethodSet};
 use russh::{Channel, ChannelId, Sig};
-use sea_orm::{DatabaseConnection, DbConn, EntityTrait, ModelTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, DbConn, EntityTrait,
+    ModelTrait, PaginatorTrait, QueryFilter, QueryOrder,
+};
 use shellwords::split;
 use stable::buffer;
 use stable::{
@@ -44,6 +48,40 @@ use v2::Body;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone, Debug)]
+struct SessionUser {
+    id: i32,
+    name: String,
+    role: String,
+}
+
+impl SessionUser {
+    fn is_admin(&self) -> bool {
+        self.role == "admin"
+    }
+}
+
+#[derive(serde::Serialize)]
+struct AdminUserRow {
+    id: i32,
+    name: String,
+    nick: Option<String>,
+    email: Option<String>,
+    role: String,
+    enabled: bool,
+    key_count: u64,
+}
+
+#[derive(serde::Serialize)]
+struct AdminKeyRow {
+    alg: String,
+    key: String,
+    user_id: i32,
+    user_name: Option<String>,
+    enabled: bool,
+    comment: Option<String>,
+}
+
 pub struct AppServer {
     /// 客户端连接
     id: usize,
@@ -59,8 +97,10 @@ pub struct AppServer {
     db: DatabaseConnection,
     /// 当前 Client 的 ChannelHandle
     handle: Option<ChannelHandle>,
-    /// 当前 Client 的用户名
+    /// 当前 Client 请求的 action 名称（如 cargo/get/put/cmd）
     action: String,
+    /// 当前认证通过的账户信息
+    user: Option<SessionUser>,
     /// 当前的环境变量
     env: HashMap<String, String>,
 }
@@ -74,6 +114,7 @@ impl Clone for AppServer {
             db: self.db.clone(),
             handle: None,
             action: String::new(),
+            user: None,
             env: HashMap::new(),
         }
     }
@@ -88,6 +129,7 @@ impl AppServer {
             handle: None,
             db,
             action: String::new(),
+            user: None,
             env: HashMap::new(),
         }
     }
@@ -110,6 +152,21 @@ impl AppServer {
 
     fn debug_enabled(&self) -> bool {
         !self.trace_id().is_empty()
+    }
+
+    fn user_name(&self) -> &str {
+        self.user
+            .as_ref()
+            .map(|user| user.name.as_str())
+            .unwrap_or("")
+    }
+
+    fn require_admin(&self) -> HorseResult<()> {
+        if self.user.as_ref().is_some_and(SessionUser::is_admin) {
+            return Ok(());
+        }
+
+        Err(anyhow!("需要管理员权限").into())
     }
 
     /// 服务端 git 命令处理
@@ -943,6 +1000,330 @@ impl AppServer {
         Ok(())
     }
 
+    /// 管理员操作（用户、公钥）
+    #[tracing::instrument(skip(self), err)]
+    pub async fn admin(&mut self, args: Vec<String>) -> HorseResult<()> {
+        tracing::info!("ADMIN: {}", args.join(" "));
+        let handle = self
+            .handle
+            .take()
+            .context("FIXME: NO HANDLE".color(Color::Red))?;
+
+        if let Err(err) = self.require_admin() {
+            handle
+                .fail_with_error(3, "HSSH_ADMIN_FORBIDDEN", err.to_string())
+                .await?;
+            return Ok(());
+        }
+
+        let actor = self.user.clone().context("未获取登录用户")?;
+        let db = self.db.clone();
+
+        let admin_res: anyhow::Result<String> = async move {
+            let section = args.first().map(String::as_str).unwrap_or("");
+            let command = args.get(1).map(String::as_str).unwrap_or("");
+
+            let output = match (section, command) {
+                ("users", "list") => {
+                    let users = User::find().order_by_asc(user::Column::Id).all(&db).await?;
+                    let mut rows = Vec::with_capacity(users.len());
+                    for user in users {
+                        let key_count = user.find_related(SshPk).count(&db).await?;
+                        rows.push(AdminUserRow {
+                            id: user.id,
+                            name: user.name,
+                            nick: user.nick,
+                            email: user.email,
+                            role: user.role,
+                            enabled: user.enabled,
+                            key_count,
+                        });
+                    }
+                    serde_json::to_string_pretty(&rows)?
+                }
+                ("users", "add") => {
+                    let name = args.get(2).context("用法: users add <name> [admin|user]")?;
+                    let role = args
+                        .get(3)
+                        .map(String::as_str)
+                        .unwrap_or("user")
+                        .to_ascii_lowercase();
+                    if role != "admin" && role != "user" {
+                        return Err(anyhow!("角色必须是 admin 或 user"));
+                    }
+
+                    let user = user::ActiveModel {
+                        name: Set(name.to_string()),
+                        role: Set(role),
+                        enabled: Set(true),
+                        ..Default::default()
+                    }
+                    .insert(&db)
+                    .await?;
+
+                    format!("用户已创建: {} (id={})", user.name, user.id)
+                }
+                ("users", "enable") => {
+                    let name = args.get(2).context("用法: users enable <name>")?;
+                    let Some(mut target) = User::find()
+                        .filter(user::Column::Name.eq(name.as_str()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("用户不存在: {}", name));
+                    };
+
+                    if !target.enabled {
+                        let mut active: user::ActiveModel = target.clone().into();
+                        active.enabled = Set(true);
+                        target = active.update(&db).await?;
+                    }
+
+                    format!("用户已启用: {}", target.name)
+                }
+                ("users", "disable") => {
+                    let name = args.get(2).context("用法: users disable <name>")?;
+                    let Some(mut target) = User::find()
+                        .filter(user::Column::Name.eq(name.as_str()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("用户不存在: {}", name));
+                    };
+
+                    if target.id == actor.id {
+                        return Err(anyhow!("不能禁用当前登录管理员"));
+                    }
+
+                    if target.enabled && target.is_admin() {
+                        let admins = User::find()
+                            .filter(user::Column::Role.eq("admin"))
+                            .filter(user::Column::Enabled.eq(true))
+                            .count(&db)
+                            .await?;
+                        if admins <= 1 {
+                            return Err(anyhow!("不能禁用最后一个启用中的管理员"));
+                        }
+                    }
+
+                    if target.enabled {
+                        let mut active: user::ActiveModel = target.clone().into();
+                        active.enabled = Set(false);
+                        target = active.update(&db).await?;
+                    }
+
+                    format!("用户已禁用: {}", target.name)
+                }
+                ("users", "role") => {
+                    let name = args.get(2).context("用法: users role <name> <admin|user>")?;
+                    let role = args.get(3).context("用法: users role <name> <admin|user>")?;
+                    let role = role.to_ascii_lowercase();
+                    if role != "admin" && role != "user" {
+                        return Err(anyhow!("角色必须是 admin 或 user"));
+                    }
+
+                    let Some(mut target) = User::find()
+                        .filter(user::Column::Name.eq(name.as_str()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("用户不存在: {}", name));
+                    };
+
+                    if target.role == "admin" && role == "user" && target.enabled {
+                        let admins = User::find()
+                            .filter(user::Column::Role.eq("admin"))
+                            .filter(user::Column::Enabled.eq(true))
+                            .count(&db)
+                            .await?;
+                        if admins <= 1 {
+                            return Err(anyhow!("不能降级最后一个启用中的管理员"));
+                        }
+                    }
+
+                    let mut active: user::ActiveModel = target.clone().into();
+                    active.role = Set(role.clone());
+                    target = active.update(&db).await?;
+
+                    format!("用户角色已更新: {} => {}", target.name, role)
+                }
+                ("users", "delete") => {
+                    let name = args.get(2).context("用法: users delete <name>")?;
+                    let Some(target) = User::find()
+                        .filter(user::Column::Name.eq(name.as_str()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("用户不存在: {}", name));
+                    };
+
+                    if target.id == actor.id {
+                        return Err(anyhow!("不能删除当前登录管理员"));
+                    }
+
+                    if target.enabled && target.is_admin() {
+                        let admins = User::find()
+                            .filter(user::Column::Role.eq("admin"))
+                            .filter(user::Column::Enabled.eq(true))
+                            .count(&db)
+                            .await?;
+                        if admins <= 1 {
+                            return Err(anyhow!("不能删除最后一个启用中的管理员"));
+                        }
+                    }
+
+                    let id = target.id;
+                    let name = target.name.clone();
+                    target.delete(&db).await?;
+                    format!("用户已删除: {} (id={})", name, id)
+                }
+                ("keys", "list") => {
+                    let keys = if let Some(name) = args.get(2) {
+                        let Some(owner) = User::find()
+                            .filter(user::Column::Name.eq(name.as_str()))
+                            .one(&db)
+                            .await?
+                        else {
+                            return Err(anyhow!("用户不存在: {}", name));
+                        };
+                        owner.find_related(SshPk).all(&db).await?
+                    } else {
+                        SshPk::find()
+                            .order_by_asc(ssh_pk::Column::UserId)
+                            .order_by_asc(ssh_pk::Column::Alg)
+                            .all(&db)
+                            .await?
+                    };
+
+                    let mut rows = Vec::with_capacity(keys.len());
+                    for key in keys {
+                        let owner = key.find_related(User).one(&db).await?;
+                        rows.push(AdminKeyRow {
+                            alg: key.alg,
+                            key: key.key,
+                            user_id: key.user_id,
+                            user_name: owner.map(|u| u.name),
+                            enabled: key.enabled,
+                            comment: key.comment,
+                        });
+                    }
+                    serde_json::to_string_pretty(&rows)?
+                }
+                ("keys", "add") => {
+                    let user_name = args
+                        .get(2)
+                        .context("用法: keys add <user> <alg> <key> [comment]")?;
+                    let alg = args
+                        .get(3)
+                        .context("用法: keys add <user> <alg> <key> [comment]")?;
+                    let key = args
+                        .get(4)
+                        .context("用法: keys add <user> <alg> <key> [comment]")?;
+                    let comment = if args.len() > 5 {
+                        Some(args[5..].join(" "))
+                    } else {
+                        None
+                    };
+
+                    let Some(owner) = User::find()
+                        .filter(user::Column::Name.eq(user_name.as_str()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("用户不存在: {}", user_name));
+                    };
+
+                    ssh_pk::ActiveModel {
+                        alg: Set(alg.to_string()),
+                        key: Set(key.to_string()),
+                        user_id: Set(owner.id),
+                        enabled: Set(true),
+                        comment: Set(comment),
+                    }
+                    .insert(&db)
+                    .await?;
+
+                    format!("公钥已添加到用户: {}", owner.name)
+                }
+                ("keys", "enable") => {
+                    let alg = args.get(2).context("用法: keys enable <alg> <key>")?;
+                    let key = args.get(3).context("用法: keys enable <alg> <key>")?;
+                    let Some(mut target) = SshPk::find_by_id((alg.to_string(), key.to_string()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("公钥不存在"));
+                    };
+
+                    if !target.enabled {
+                        let mut active: ssh_pk::ActiveModel = target.clone().into();
+                        active.enabled = Set(true);
+                        target = active.update(&db).await?;
+                    }
+
+                    format!("公钥已启用: {} {}", target.alg, target.user_id)
+                }
+                ("keys", "disable") => {
+                    let alg = args.get(2).context("用法: keys disable <alg> <key>")?;
+                    let key = args.get(3).context("用法: keys disable <alg> <key>")?;
+                    let Some(mut target) = SshPk::find_by_id((alg.to_string(), key.to_string()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("公钥不存在"));
+                    };
+
+                    if target.enabled {
+                        let mut active: ssh_pk::ActiveModel = target.clone().into();
+                        active.enabled = Set(false);
+                        target = active.update(&db).await?;
+                    }
+
+                    format!("公钥已禁用: {} {}", target.alg, target.user_id)
+                }
+                ("keys", "delete") => {
+                    let alg = args.get(2).context("用法: keys delete <alg> <key>")?;
+                    let key = args.get(3).context("用法: keys delete <alg> <key>")?;
+                    let Some(target) = SshPk::find_by_id((alg.to_string(), key.to_string()))
+                        .one(&db)
+                        .await?
+                    else {
+                        return Err(anyhow!("公钥不存在"));
+                    };
+
+                    target.delete(&db).await?;
+                    "公钥已删除".to_string()
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "不支持的 admin 命令, 用法: users|keys <list|add|enable|disable|role|delete> ..."
+                    ));
+                }
+            };
+            Ok(output)
+        }
+        .await;
+
+        match admin_res {
+            Ok(output) => {
+                let mut cout = handle.make_writer();
+                cout.write_all(output.as_bytes()).await?;
+                if !output.ends_with('\n') {
+                    cout.write_all(b"\n").await?;
+                }
+                handle.exit_code(0).await?;
+            }
+            Err(err) => {
+                tracing::error!("admin failed: {:?}", err);
+                handle
+                    .fail_with_error(1, "HSSH_ADMIN_FAILED", err.to_string())
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn ping(&mut self, _args: Vec<String>) -> HorseResult<()> {
         let mut handle = self.handle.take().context("FIXME: NO HANDLE")?;
         let task = self.tm.spawn_handle();
@@ -1646,6 +2027,13 @@ impl Handler for AppServer {
             });
         };
 
+        if !sa.enabled {
+            tracing::warn!("公钥已禁用: ({} {})", pk.algorithm().to_string(), data);
+            return Ok(Auth::Reject {
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+            });
+        }
+
         let Some(user) = sa.find_related(User).one(&self.db).await? else {
             tracing::error!("公钥未授权: ({} {})", pk.algorithm().to_string(), data);
             return Ok(Auth::Reject {
@@ -1653,9 +2041,21 @@ impl Handler for AppServer {
             });
         };
 
-        self.action = action.to_string();
+        if !user.enabled {
+            tracing::warn!("用户已禁用: {}", user.name);
+            return Ok(Auth::Reject {
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+            });
+        }
 
-        tracing::info!("Login As: {}", user.name);
+        self.action = action.to_string();
+        self.user.replace(SessionUser {
+            id: user.id,
+            name: user.name.clone(),
+            role: user.role.clone(),
+        });
+
+        tracing::info!("Login As: {} ({})", user.name, user.role);
         Ok(Auth::Accept)
     }
 
@@ -1864,6 +2264,7 @@ impl Handler for AppServer {
             tracing::info!(
                 trace_id = %self.trace_id(),
                 action = self.action.as_str(),
+                user = self.user_name(),
                 stage = "dispatch.start",
                 command = command_line.as_str(),
                 "stage"
@@ -1890,6 +2291,7 @@ impl Handler for AppServer {
             "get" => self.get(command).await,
             "scp" => self.scp(command).await,
             "put" => self.put(command).await,
+            "admin" => self.admin(command).await,
             "ssh" => self.ssh(command).await,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
@@ -1900,6 +2302,7 @@ impl Handler for AppServer {
                     tracing::warn!(
                         trace_id = %self.trace_id(),
                         action = self.action.as_str(),
+                        user = self.user_name(),
                         stage = "dispatch.unsupported",
                         command = command_line.as_str(),
                         elapsed_ms = started.elapsed().as_millis(),
@@ -1916,6 +2319,7 @@ impl Handler for AppServer {
                 tracing::error!(
                     trace_id = %self.trace_id(),
                     action = self.action.as_str(),
+                    user = self.user_name(),
                     stage = "dispatch.error",
                     command = command_line.as_str(),
                     elapsed_ms = started.elapsed().as_millis(),
@@ -1930,6 +2334,7 @@ impl Handler for AppServer {
             tracing::info!(
                 trace_id = %self.trace_id(),
                 action = self.action.as_str(),
+                user = self.user_name(),
                 stage = "dispatch.done",
                 command = command_line.as_str(),
                 elapsed_ms = started.elapsed().as_millis(),

@@ -10,6 +10,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub key: String,
     pub user_id: i32,
+    pub enabled: bool,
+    pub comment: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

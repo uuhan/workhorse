@@ -21,6 +21,7 @@ use tokio::net::TcpSocket;
 use tokio::net::ToSocketAddrs;
 use url::Url;
 
+pub mod admin;
 pub mod cargo;
 pub mod cmd;
 pub mod get;

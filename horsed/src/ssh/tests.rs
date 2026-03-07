@@ -50,7 +50,7 @@ impl TestClient {
         let config = client::Config {
             inactivity_timeout: None,
             keepalive_interval: None,
-            ..<_>::default()
+            ..Default::default()
         };
 
         let mut handle = client::connect(Arc::new(config), addrs, Client {}).await?;
