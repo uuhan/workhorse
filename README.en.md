@@ -85,7 +85,12 @@ Currently the supported actions are:
 - apply: accept git patch and apply it to the working tree
 - just: run just command defined in _justfile_
 - get: get the build artifact from remote server
+- put: upload local files to the remote worktree
 - scp: like scp, to copy files from remote server to local
+- ping: check server connectivity
+- health: inspect server health info (version/commit/os/shell/ulimit)
+- logs: inspect server logs
+- admin: admin user/key management
 - ssh: local(-L) and reverse(-R) port forward
 
 Workhorse is designed to work with two kinds of clients:
@@ -149,6 +154,13 @@ You can also get the whole directory:
 cargo work get target
 # The directory will show in the current directory with the path:
 # target.tar
+```
+
+You can also upload local files into the remote worktree:
+
+```bash
+# Upload a local file to the remote repository work directory
+cargo work put ./target/release/horsed target/release/horsed
 ```
 
 You can also run any command remotely:
@@ -233,6 +245,43 @@ cargo work logs
 # the following command will keep the log output updated in real-time
 cargo work logs -f
 ```
+
+You can inspect remote server health:
+
+```bash
+cargo work health
+# If nothing is printed due to log level, use:
+RUST_LOG=info cargo work health
+# For trace-stage diagnostics:
+RUST_LOG=info WH_DEBUG=1 cargo work health
+```
+
+Admins can manage users and public keys with the `admin` subcommand:
+
+```bash
+cargo work admin users list
+cargo work admin keys list
+```
+
+### Frontend/Backend Update Workflow (Recommended)
+
+```bash
+# 1) Update local client binary
+just install-work
+
+# 2) Update remote server binary (choose one)
+HORSED_SHELL=/bin/bash cargo work just install-horsed
+# Or sync horsed remote baseline first, then install
+git push horsed main && HORSED_SHELL=/bin/bash cargo work just install-horsed
+
+# 3) Restart remote horsed service
+HORSED_SHELL=/bin/bash cargo work -- systemctl --user restart horsed
+```
+
+Notes:
+
+- If the server does not have `nu`, do not use `HORSED_SHELL=nu`; use `/bin/bash` or `/bin/sh`.
+- `install-horsed` builds from the server-side repo baseline. Before release, make sure the `horsed` remote branch is in sync.
 
 More help info can be found by running:
 
