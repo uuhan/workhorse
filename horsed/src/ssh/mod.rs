@@ -41,8 +41,10 @@ use tracing::Instrument;
 
 mod handle;
 pub mod health;
+mod jobs;
 pub mod setup;
 use handle::ChannelHandle;
+use jobs::{JobEvent, JobRecord, JobRegistry};
 use v2::Body;
 
 #[cfg(test)]
@@ -59,6 +61,29 @@ impl SessionUser {
     fn is_admin(&self) -> bool {
         self.role == "admin"
     }
+}
+
+async fn copy_with_job<R, W>(
+    reader: &mut R,
+    writer: &mut W,
+    job: Arc<JobRecord>,
+) -> HorseResult<u64>
+where
+    R: tokio::io::AsyncRead + Unpin,
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    let mut total = 0_u64;
+    let mut buf = [0_u8; 8192];
+    loop {
+        let len = reader.read(&mut buf).await?;
+        if len == 0 {
+            break;
+        }
+        writer.write_all(&buf[..len]).await?;
+        job.append_output(&buf[..len]).await;
+        total = total.saturating_add(len as u64);
+    }
+    Ok(total)
 }
 
 #[derive(serde::Serialize)]
@@ -103,6 +128,8 @@ pub struct AppServer {
     user: Option<SessionUser>,
     /// 当前的环境变量
     env: HashMap<String, String>,
+    /// 任务输出缓存与 attach 管理
+    jobs: JobRegistry,
 }
 
 impl Clone for AppServer {
@@ -116,6 +143,7 @@ impl Clone for AppServer {
             action: String::new(),
             user: None,
             env: HashMap::new(),
+            jobs: self.jobs.clone(),
         }
     }
 }
@@ -131,6 +159,7 @@ impl AppServer {
             action: String::new(),
             user: None,
             env: HashMap::new(),
+            jobs: JobRegistry::default(),
         }
     }
 
@@ -335,6 +364,13 @@ impl AppServer {
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
+        let command_line = command.join(" ");
+        let owner = self.user_name().to_string();
+        let job = self
+            .jobs
+            .create_job(owner, "cmd", command_line.clone())
+            .await;
+        handle.info(format!("job_id={}", job.id())).await?;
         let task = self.tm.spawn_handle();
         let span = tracing::info_span!("spawn", command = ?command, cmd_dir = ?cmd_dir);
         let mut cmd = Command::new(&shell);
@@ -342,59 +378,70 @@ impl AppServer {
 
         task.spawn(
             async move {
-                #[cfg(target_os = "windows")]
-                {
-                    #[allow(unused_imports)]
-                    use std::os::windows::process::CommandExt;
-                    const CREATE_NO_WINDOW: u32 = 0x08000000;
+                let mut final_code = 1_i32;
+                let result: anyhow::Result<()> = async {
+                    #[cfg(target_os = "windows")]
+                    {
+                        #[allow(unused_imports)]
+                        use std::os::windows::process::CommandExt;
+                        const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-                    cmd.creation_flags(CREATE_NO_WINDOW);
-                }
-
-                cmd.stdout(Stdio::piped());
-                cmd.stderr(Stdio::piped());
-
-                cmd.current_dir(&cmd_dir)
-                    .kill_on_drop(true)
-                    .arg("-c")
-                    .arg(command.join(" "));
-
-                let mut cmd = match cmd.spawn() {
-                    Ok(cmd) => cmd,
-                    Err(err) => {
-                        tracing::error!("spawn: `{}` failed: {}", shell, err);
-                        handle
-                            .fail_with_error(
-                                127,
-                                "HSSH_SHELL_SPAWN_FAILED",
-                                format!("spawn: `{}` failed: {}", shell, err),
-                            )
-                            .await?;
-                        return Ok(());
+                        cmd.creation_flags(CREATE_NO_WINDOW);
                     }
-                };
 
-                let mut stdout = cmd.stdout.take().unwrap();
-                let mut stderr = cmd.stderr.take().unwrap();
+                    cmd.stdout(Stdio::piped());
+                    cmd.stderr(Stdio::piped());
 
-                let mut cout = handle.make_writer();
-                let mut eout = handle.make_writer();
+                    cmd.current_dir(&cmd_dir)
+                        .kill_on_drop(true)
+                        .arg("-c")
+                        .arg(command.join(" "));
 
-                let cout_fut = tokio::io::copy(&mut stdout, &mut cout);
-                let eout_fut = tokio::io::copy(&mut stderr, &mut eout);
+                    let mut cmd = match cmd.spawn() {
+                        Ok(cmd) => cmd,
+                        Err(err) => {
+                            final_code = 127;
+                            tracing::error!("spawn: `{}` failed: {}", shell, err);
+                            handle
+                                .fail_with_error(
+                                    127,
+                                    "HSSH_SHELL_SPAWN_FAILED",
+                                    format!("spawn: `{}` failed: {}", shell, err),
+                                )
+                                .await?;
+                            return Ok(());
+                        }
+                    };
 
-                let (c1, c2) = futures::future::try_join(cout_fut, eout_fut).await?;
-                tracing::debug!("write: stdout={}, stderr={}", c1, c2);
+                    let mut stdout = cmd.stdout.take().unwrap();
+                    let mut stderr = cmd.stderr.take().unwrap();
 
-                let status = cmd.wait().await?;
-                if status.success() {
-                    tracing::info!("成功");
-                } else {
-                    tracing::warn!("失败: {}", status);
+                    let mut cout = handle.make_writer();
+                    let mut eout = handle.make_writer();
+                    let out_job = job.clone();
+                    let err_job = job.clone();
+
+                    let cout_fut = copy_with_job(&mut stdout, &mut cout, out_job);
+                    let eout_fut = copy_with_job(&mut stderr, &mut eout, err_job);
+
+                    let (c1, c2) = futures::future::try_join(cout_fut, eout_fut).await?;
+                    tracing::debug!("write: stdout={}, stderr={}", c1, c2);
+
+                    let status = cmd.wait().await?;
+                    final_code = status.code().unwrap_or(128);
+                    if status.success() {
+                        tracing::info!("成功");
+                    } else {
+                        tracing::warn!("失败: {}", status);
+                    }
+
+                    handle.exit(status).await?;
+                    Ok(())
                 }
+                .await;
 
-                handle.exit(status).await?;
-                Ok(())
+                job.finish(final_code).await;
+                result
             }
             .instrument(span),
         );
@@ -1427,6 +1474,114 @@ impl AppServer {
         Ok(())
     }
 
+    pub async fn job(&mut self, command: Vec<String>) -> HorseResult<()> {
+        let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+        let task = self.tm.spawn_handle();
+        let jobs = self.jobs.clone();
+        let actor = self.user.clone().context("未获取登录用户")?;
+
+        task.spawn(async move {
+            let action = command.first().map(String::as_str).unwrap_or("list");
+            match action {
+                "list" => {
+                    let mut writer = handle.make_writer();
+                    let rows = jobs.list_visible(&actor.name, actor.is_admin()).await;
+                    let body = serde_json::to_vec_pretty(&rows)?;
+                    writer.write_all(&body).await?;
+                    writer.write_all(b"\n").await?;
+                    writer.shutdown().await?;
+                    drop(writer);
+                    handle.eof().await?;
+                    handle.close().await?;
+                    Ok(())
+                }
+                "attach" => {
+                    let id = command.get(1).cloned().unwrap_or_default();
+                    if id.trim().is_empty() {
+                        handle
+                            .fail_with_error(
+                                2,
+                                "HSSH_JOB_BAD_REQUEST",
+                                "用法: attach <job_id> [-f]",
+                            )
+                            .await?;
+                        return Ok(());
+                    }
+                    let follow = command.iter().any(|arg| arg == "-f" || arg == "--follow")
+                        || !command.iter().any(|arg| arg == "--no-follow");
+
+                    let Some(job) = jobs.get_visible(&id, &actor.name, actor.is_admin()).await
+                    else {
+                        handle
+                            .fail_with_error(2, "HSSH_JOB_NOT_FOUND", format!("未找到任务: {id}"))
+                            .await?;
+                        return Ok(());
+                    };
+
+                    let mut writer = handle.make_writer();
+                    let (snapshot, exit_code, _, dropped_bytes) = job.snapshot().await;
+                    if dropped_bytes > 0 {
+                        writer
+                            .write_all(format!("[JOB] dropped_bytes={dropped_bytes}\n").as_bytes())
+                            .await?;
+                    }
+                    if !snapshot.is_empty() {
+                        writer.write_all(&snapshot).await?;
+                    }
+
+                    if follow && exit_code.is_none() {
+                        let mut rx = job.subscribe();
+                        loop {
+                            match rx.recv().await {
+                                Ok(JobEvent::Output(data)) => {
+                                    writer.write_all(&data).await?;
+                                }
+                                Ok(JobEvent::Done(code)) => {
+                                    writer
+                                        .write_all(format!("\n[JOB] exit_code={code}\n").as_bytes())
+                                        .await?;
+                                    break;
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                    break;
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                                    writer
+                                        .write_all(
+                                            format!("\n[JOB] lagged_frames={n}\n").as_bytes(),
+                                        )
+                                        .await?;
+                                }
+                            }
+                        }
+                    } else if let Some(code) = exit_code {
+                        writer
+                            .write_all(format!("\n[JOB] exit_code={code}\n").as_bytes())
+                            .await?;
+                    }
+
+                    writer.shutdown().await?;
+                    drop(writer);
+                    handle.eof().await?;
+                    handle.close().await?;
+                    Ok(())
+                }
+                other => {
+                    handle
+                        .fail_with_error(
+                            2,
+                            "HSSH_JOB_BAD_REQUEST",
+                            format!("不支持的 job 命令: {other}"),
+                        )
+                        .await?;
+                    Ok(())
+                }
+            }
+        });
+
+        Ok(())
+    }
+
     /// ### 服务端 just 指令
     ///
     /// 用于持续集成的自动化任务, 往 just@xxx.xxx.xxx.xxx push 代码即可触发构建
@@ -1503,6 +1658,12 @@ impl AppServer {
         let repo = Repo::from(&repo_path);
         tracing::info!("GIT REPO: {}", repo.path().display());
         let task = self.tm.spawn_handle();
+        let command_line = command.join(" ");
+        let owner = self.user_name().to_string();
+        let job = self
+            .jobs
+            .create_job(owner, "just", command_line.clone())
+            .await;
 
         // 1. 检出代码用于构建
         // 2. 执行项目的 just 命令, 项目必须包含 justfile 文件
@@ -1530,6 +1691,7 @@ impl AppServer {
         handle.info("检出代码到工作目录...").await?;
         handle.info(format!("当前仓库: {}", env_repo)).await?;
         handle.info(format!("检出分支: {}", env_branch)).await?;
+        handle.info(format!("job_id={}", job.id())).await?;
 
         if let Err(err) = repo
             .checkout(&work_path, Some(&env_branch))
@@ -1546,95 +1708,120 @@ impl AppServer {
         let just_span = tracing::info_span!("just");
         let env = self.env.clone();
         task.spawn(async move {
-            let mut diff_input = handle.make_reader();
-            let mut buf = vec![];
-            diff_input.read_to_end(&mut buf).await?;
+            let mut final_code = 1_i32;
+            let result: anyhow::Result<()> = async {
+                let mut diff_input = handle.make_reader();
+                let mut buf = vec![];
+                diff_input.read_to_end(&mut buf).await?;
 
-            repo.apply(&work_path, &buf).await.context("git apply")?;
-            drop(diff_input);
+                repo.apply(&work_path, &buf).await.context("git apply")?;
+                drop(diff_input);
 
-            handle
-                .info(format!("just {}...", command.join(" ")).bold().to_string())
-                .await?;
+                handle
+                    .info(format!("just {}...", command.join(" ")).bold().to_string())
+                    .await?;
 
-            let mut cmd = Command::new("just");
-            cmd.envs(&env);
+                let mut cmd = Command::new("just");
+                cmd.envs(&env);
 
-            #[cfg(target_os = "windows")]
-            {
-                #[allow(unused_imports)]
-                use std::os::windows::process::CommandExt;
-                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                #[cfg(target_os = "windows")]
+                {
+                    #[allow(unused_imports)]
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-                cmd.creation_flags(CREATE_NO_WINDOW);
-            }
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+                }
 
-            cmd.current_dir(&work_path);
+                cmd.current_dir(&work_path);
 
-            // user defined justfile
-            if let Some(justfile) = justfile {
-                cmd.arg("-f");
-                cmd.arg(justfile);
-            } else {
-                // justfile.<os>
-                let justfile = format!("justfile.{}", std::env::consts::OS);
-                if let Ok(true) = std::fs::exists(&justfile) {
+                // user defined justfile
+                if let Some(justfile) = justfile {
                     cmd.arg("-f");
                     cmd.arg(justfile);
-                }
-            }
-
-            cmd.arg("--color=always");
-            cmd.args(command);
-
-            cmd.kill_on_drop(true);
-            cmd.stdout(Stdio::piped());
-            cmd.stderr(Stdio::piped());
-
-            let mut cmd = cmd.spawn().context("spawn: `just`")?;
-
-            let mut stdout = cmd.stdout.take().unwrap();
-            let mut stderr = cmd.stderr.take().unwrap();
-
-            let mut o_output = handle.make_writer();
-            let err_fut = async move {
-                let mut buf = [0u8; 1024];
-                while let Ok(len) = stderr.read(&mut buf).await {
-                    if len == 0 {
-                        break;
+                } else {
+                    // justfile.<os>
+                    let justfile = format!("justfile.{}", std::env::consts::OS);
+                    if let Ok(true) = std::fs::exists(&justfile) {
+                        cmd.arg("-f");
+                        cmd.arg(justfile);
                     }
-
-                    o_output.write_all(&buf[..len]).await?;
-                    o_output.flush().await?;
                 }
-                Ok::<_, HorseError>(())
-            };
 
-            let mut o_output = handle.make_writer();
-            let out_fut = async move {
-                let mut buf = [0u8; 1024];
-                while let Ok(len) = stdout.read(&mut buf).await {
-                    if len == 0 {
-                        break;
+                cmd.arg("--color=always");
+                cmd.args(command);
+
+                cmd.kill_on_drop(true);
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
+
+                let mut cmd = match cmd.spawn() {
+                    Ok(cmd) => cmd,
+                    Err(err) => {
+                        final_code = 127;
+                        handle
+                            .fail_with_error(
+                                127,
+                                "HSSH_JUST_SPAWN_FAILED",
+                                format!("spawn: `just` failed: {err}"),
+                            )
+                            .await?;
+                        return Ok(());
                     }
+                };
 
-                    o_output.write_all(&buf[..len]).await?;
-                    o_output.flush().await?;
+                let mut stdout = cmd.stdout.take().unwrap();
+                let mut stderr = cmd.stderr.take().unwrap();
+
+                let err_job = job.clone();
+                let mut o_output = handle.make_writer();
+                let err_fut = async move {
+                    let mut buf = [0u8; 1024];
+                    while let Ok(len) = stderr.read(&mut buf).await {
+                        if len == 0 {
+                            break;
+                        }
+
+                        o_output.write_all(&buf[..len]).await?;
+                        o_output.flush().await?;
+                        err_job.append_output(&buf[..len]).await;
+                    }
+                    Ok::<_, HorseError>(())
+                };
+
+                let out_job = job.clone();
+                let mut o_output = handle.make_writer();
+                let out_fut = async move {
+                    let mut buf = [0u8; 1024];
+                    while let Ok(len) = stdout.read(&mut buf).await {
+                        if len == 0 {
+                            break;
+                        }
+
+                        o_output.write_all(&buf[..len]).await?;
+                        o_output.flush().await?;
+                        out_job.append_output(&buf[..len]).await;
+                    }
+                    Ok::<_, HorseError>(())
+                };
+
+                futures::future::try_join(out_fut, err_fut).await?;
+
+                let exit_status = cmd.wait().await?;
+                final_code = exit_status.code().unwrap_or(128);
+                if exit_status.success() {
+                    handle.info("构建完成").await?;
+                } else {
+                    handle.error("构建失败").await?;
                 }
-                Ok::<_, HorseError>(())
-            };
 
-            futures::future::try_join(out_fut, err_fut).await?;
-
-            let exit_status = cmd.wait().await?;
-            if exit_status.success() {
-                handle.info("构建完成").await?;
-            } else {
-                handle.error("构建失败").await?;
+                handle.exit(exit_status).instrument(just_span).await?;
+                Ok(())
             }
+            .await;
 
-            handle.exit(exit_status).instrument(just_span).await?;
-            Ok(())
+            job.finish(final_code).await;
+            result
         });
 
         Ok(())
@@ -1676,6 +1863,13 @@ impl AppServer {
         let mut handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
         let task = self.tm.spawn_handle();
         let repo = Repo::from(repo_path);
+        let command_line = command.join(" ");
+        let owner = self.user_name().to_string();
+        let job = self
+            .jobs
+            .create_job(owner, "cargo", command_line.clone())
+            .await;
+        handle.info(format!("job_id={}", job.id())).await?;
 
         if !repo.exists() {
             tracing::error!("仓库不存在: {}", repo.path().display());
@@ -1777,39 +1971,60 @@ impl AppServer {
 
         let cargo_span = tracing::info_span!("cargo", command = ?cmd);
         task.spawn(async move {
-            let mut o_output = handle.make_writer();
-            let mut e_output = handle.make_writer();
+            let mut final_code = 1_i32;
+            let result: anyhow::Result<()> = async {
+                let mut o_output = handle.make_writer();
+                let mut e_output = handle.make_writer();
 
-            // git checkout
-            repo.checkout(&work_path, Some(env_branch.as_str()))
-                .await
-                .context("git checkout")?;
-            // git apply
-            let mut diff_input = handle.make_reader();
-            let mut buf = vec![];
-            diff_input.read_to_end(&mut buf).await?;
+                // git checkout
+                repo.checkout(&work_path, Some(env_branch.as_str()))
+                    .await
+                    .context("git checkout")?;
+                // git apply
+                let mut diff_input = handle.make_reader();
+                let mut buf = vec![];
+                diff_input.read_to_end(&mut buf).await?;
 
-            repo.apply(&work_path, &buf).await.context("git apply")?;
-            drop(diff_input);
+                repo.apply(&work_path, &buf).await.context("git apply")?;
+                drop(diff_input);
 
-            // Run the command
-            let mut cmd = cmd.spawn().context("spawn: `cargo`")?;
-            let mut stdout = cmd.stdout.take().unwrap();
-            let mut stderr = cmd.stderr.take().unwrap();
+                // Run the command
+                let mut cmd = match cmd.spawn() {
+                    Ok(cmd) => cmd,
+                    Err(err) => {
+                        final_code = 127;
+                        handle
+                            .fail_with_error(
+                                127,
+                                "HSSH_CARGO_SPAWN_FAILED",
+                                format!("spawn: `cargo` failed: {err}"),
+                            )
+                            .await?;
+                        return Ok(());
+                    }
+                };
+                let mut stdout = cmd.stdout.take().unwrap();
+                let mut stderr = cmd.stderr.take().unwrap();
+                let out_job = job.clone();
+                let err_job = job.clone();
 
-            let o_fut = tokio::io::copy(&mut stdout, &mut o_output);
-            let e_fut = tokio::io::copy(&mut stderr, &mut e_output);
+                let o_fut = copy_with_job(&mut stdout, &mut o_output, out_job);
+                let e_fut = copy_with_job(&mut stderr, &mut e_output, err_job);
 
-            futures::future::try_join(o_fut, e_fut).await?;
+                futures::future::try_join(o_fut, e_fut).await?;
 
-            e_output.shutdown().await.context("shutdown e_output")?;
-            o_output.shutdown().await.context("shutdown o_output")?;
+                e_output.shutdown().await.context("shutdown e_output")?;
+                o_output.shutdown().await.context("shutdown o_output")?;
 
-            handle
-                .exit(cmd.wait().await?)
-                .instrument(cargo_span)
-                .await?;
-            Ok(())
+                let status = cmd.wait().await?;
+                final_code = status.code().unwrap_or(128);
+                handle.exit(status).instrument(cargo_span).await?;
+                Ok(())
+            }
+            .await;
+
+            job.finish(final_code).await;
+            result
         });
 
         Ok(())
@@ -2292,6 +2507,7 @@ impl Handler for AppServer {
             "scp" => self.scp(command).await,
             "put" => self.put(command).await,
             "admin" => self.admin(command).await,
+            "job" => self.job(command).await,
             "ssh" => self.ssh(command).await,
             action => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();

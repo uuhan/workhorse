@@ -129,6 +129,8 @@ pub enum Commands {
     Ssh(SshOptions),
     #[command(name = "logs", about = "查看服务器日志")]
     Logs(LogsOptions),
+    #[command(name = "job", about = "查看任务并附加输出")]
+    Job(JobOptions),
     #[command(name = "watch", about = "监控文件变动并执行命令")]
     Watch(WatchOptions),
     #[command(name = "health", about = "服务器健康检查")]
@@ -201,6 +203,14 @@ pub struct LogsOptions {
     pub horse: HorseOptions,
     #[clap(short, help = "持续获取日志")]
     pub forward: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct JobOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
+    #[clap(help = "job 命令, 例如: list / attach <job_id> -f")]
+    pub command: Vec<String>,
 }
 
 #[derive(Clone, Debug, Args)]

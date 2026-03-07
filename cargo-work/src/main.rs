@@ -1,6 +1,8 @@
 #[allow(unused_imports)]
 use cargo_work::{
-    command::{admin, cargo, cmd, get, health, just, logs, ping, pull, push, put, scp, ssh, watch},
+    command::{
+        admin, cargo, cmd, get, health, job, just, logs, ping, pull, push, put, scp, ssh, watch,
+    },
     logger,
     options::*,
 };
@@ -182,6 +184,12 @@ async fn main() -> Result<()> {
                     Commands::Logs(mut options) => {
                         merge_options(&mut options.horse, &horse);
                         if let Err(err) = logs::run(&key, options).await {
+                            tracing::error!("执行失败: {}", err);
+                        }
+                    }
+                    Commands::Job(mut options) => {
+                        merge_options(&mut options.horse, &horse);
+                        if let Err(err) = job::run(&key, options).await {
                             tracing::error!("执行失败: {}", err);
                         }
                     }
