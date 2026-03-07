@@ -70,3 +70,5 @@ cargo work just --repo ssh://git@10.0.0.8:2222/team/app.git deploy
 
 - `cargo work watch` exists in the CLI but the current implementation does not execute the requested command on file changes. Treat it as experimental and do not recommend it as the default path.
 - When repo detection fails, the fix is usually to add `git remote add horsed ssh://git@HOST:2222/ns/repo.git` or pass `--repo`.
+- Current patch sync includes both local worktree changes (`git diff HEAD`) and ahead-of-upstream commits (`<upstream>..HEAD`) when upstream exists.
+- For `just install-horsed`, keep the `horsed` remote branch up to date (`cargo work push` or `git push horsed <branch>`) to avoid protocol/version drift between client and server baseline.

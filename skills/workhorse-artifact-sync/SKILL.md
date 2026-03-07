@@ -46,7 +46,7 @@ cargo work logs -f
 
 1. If the task is "build then download", run the remote build first with `$workhorse-remote-build`.
 2. Use `cargo work ping` or plain `cargo work` for a quick connectivity check.
-3. Use `health` when the user needs server readiness details like reported `ulimit -n`.
+3. Use `health` when the user needs server readiness details such as `version`, `commit`, `os/arch/family`, default shell, and `ulimit -n`.
 4. Use `logs` for service-side debugging.
 5. Use `get` when the file lives under the remote worktree and should be materialized locally with path awareness.
 6. Use `scp` when a raw file stream is sufficient.
@@ -58,6 +58,7 @@ cargo work logs -f
 - `cargo work get` will not overwrite an existing local file unless `-f`, `--outfile`, or `--stdout` is used.
 - `cargo work scp` creates the destination file with `create_new`, so an existing destination path will fail.
 - `cargo work push` and `cargo work pull` are thin wrappers around local `git push` and `git pull`.
+- If `health` appears silent, check log level first. Use `RUST_LOG=info cargo work health` for visible output; add `WH_DEBUG=1` when you need trace-stage lines.
 
 ## Examples
 

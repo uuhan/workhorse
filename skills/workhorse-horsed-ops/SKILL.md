@@ -48,7 +48,8 @@ cargo work logs
 cargo work logs -f
 ```
 
-- `health` reports `ulimit -n` on Unix.
+- `health` reports `version`, `commit`, `os/arch/family`, default shell, and `ulimit -n` (Unix).
+- If `health` appears to hang or return nothing, verify server version compatibility first, then retry with `RUST_LOG=info WH_DEBUG=1 cargo work health`.
 - `logs` reads the in-memory ring buffer, not just the file on disk.
 - If port `2223` is still open unexpectedly, check whether `horsed.key` is missing or `--dangerous` was enabled.
 
