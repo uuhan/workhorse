@@ -16,6 +16,18 @@ A ci tool designed & used by geeks, with core capabilities in local development 
 
 Just focus on writing code, and leave the compilation to [牛马](https://github.com/uuhan/workhorse/)
 
+### v0.3.0: Added `./skills` Workflow Support
+
+Starting from `0.3.0`, this repository ships with a built-in `./skills` directory. It organizes common `cargo-work` and `horsed` workflows into reusable skill entry points for both team collaboration and AI-assisted execution.
+
+Recommended quick start:
+
+1. Start with `skills/workhorse/SKILL.md` to route requests into either the client-side or server-side path.
+2. For `cargo work`, remote builds, SSH forwarding, and artifact sync, use `skills/workhorse-cargo-work/SKILL.md` (then drill down into its sub-skills when needed).
+3. For `horsed` setup, service operations, and server-side development, use `skills/workhorse-horsed/SKILL.md` (then drill down into setup/ops/dev sub-skills when needed).
+
+If you add or rename any skill, update the Project Skills section in `AGENTS.md` in the same change so docs and directory structure stay aligned.
+
 ### Supported Platforms
 
 - Linux

@@ -1,3 +1,13 @@
+### v0.3.0
+
+- skills: release artifacts now include packaged Workhorse skills, with added `./skills` workflow docs and `job attach` guidance for a unified task entry path
+- job: added attach support for remote job output and classified `cargo` jobs by subcommand to improve long-running task tracking
+- docs: expanded README command coverage (including push/pull, watch, job), full admin users/keys CRUD examples, and split deploy guides for Linux/macOS vs Windows
+- windows-pty: fixed SSH PTY input latency with read/write/flush/buffer path optimizations for better interactive echo
+- windows-pty: fixed potential deadlock caused by PTY read lock contention and reduced hang risk with a non-blocking read path
+- windows-pty: introduced adaptive backoff polling (`yield -> 100us -> 1ms`) to balance low latency and idle CPU usage
+- windows-pty: adjusted winpty-rs upgrade/rollback strategy with latency fixes backported and added `conpty_local` compatibility support
+
 ### v0.2.9
 
 - workhorse: upgraded the account model with admin/user roles and an admin CLI (user/key add, update, enable/disable, delete)
@@ -12,7 +22,7 @@
 
 ### v0.2.8
 
-- cargo-work: 兼容 windows 的路径
+- cargo-work: improve Windows path compatibility
 - horsed: fix promise test case
 - horsed: fix just args
 - cargo-work: pass GIT_COMMIT & GIT_MESSAGE to horsed

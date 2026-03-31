@@ -20,6 +20,18 @@ n. 驮马，做粗工者，重负荷机器
 
 你就安心写代码，编译的事情交给 [牛马](https://github.com/uuhan/workhorse/)
 
+### v0.3.0：新增 `./skills` 工作流支持
+
+从 `0.3.0` 开始，仓库内置 `./skills` 目录，把 `cargo-work` 与 `horsed` 的常见任务整理为可复用的技能入口，方便团队协作和 AI 辅助执行。
+
+推荐这样上手：
+
+1. 先看 `skills/workhorse/SKILL.md`，它会先把请求分流到客户端或服务端路径。
+2. `cargo work`、远程构建、端口转发、产物同步等任务，走 `skills/workhorse-cargo-work/SKILL.md`（再按需下钻到对应子 skill）。
+3. `horsed` 首次部署、服务运维、服务端开发等任务，走 `skills/workhorse-horsed/SKILL.md`（再按需下钻到 setup/ops/dev 子 skill）。
+
+如果你在扩展工作流，请在新增或重命名 skill 后同步更新 `AGENTS.md` 的 Project Skills 列表，保持入口文档和实际目录一致。
+
 ### 支持的平台
 
 - Linux
