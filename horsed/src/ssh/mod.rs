@@ -875,13 +875,22 @@ impl AppServer {
                         let mut ch_reader = handle.make_reader();
 
                         task_block.spawn_blocking(async move {
+                            let mut idle_count = 0u32;
                             loop {
                                 match pty1.read(1024 * 4, false) {
                                     Ok(buf) if buf.is_empty() => {
-                                        // 无数据, 短暂让出避免空转和 Mutex 争抢
-                                        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+                                        idle_count = idle_count.saturating_add(1);
+                                        // 渐进退避: 前几次快速重试, 之后逐渐放慢
+                                        let wait = match idle_count {
+                                            1..=3 => tokio::task::yield_now().await,
+                                            4..=20 => tokio::time::sleep(
+                                                std::time::Duration::from_micros(100)).await,
+                                            _ => tokio::time::sleep(
+                                                std::time::Duration::from_millis(1)).await,
+                                        };
                                     }
                                     Ok(buf) => {
+                                        idle_count = 0;
                                         let buf = buf.as_encoded_bytes();
                                         ch_writer.write_all(&buf).await?;
                                         ch_writer.flush().await?;
