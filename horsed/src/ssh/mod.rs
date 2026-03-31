@@ -875,15 +875,19 @@ impl AppServer {
                         let mut ch_reader = handle.make_reader();
 
                         task_block.spawn_blocking(async move {
-                            while let Ok(buf) = pty1.read(1024 * 4, true) {
-                                if buf.len() == 0 {
-                                    tracing::debug!("pty read 0 bytes, EOF");
-                                    break;
+                            loop {
+                                match pty1.read(1024 * 4, false) {
+                                    Ok(buf) if buf.is_empty() => {
+                                        // 无数据, 短暂让出避免空转和 Mutex 争抢
+                                        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+                                    }
+                                    Ok(buf) => {
+                                        let buf = buf.as_encoded_bytes();
+                                        ch_writer.write_all(&buf).await?;
+                                        ch_writer.flush().await?;
+                                    }
+                                    Err(_) => break, // EOF or error
                                 }
-
-                                let buf = buf.as_encoded_bytes();
-                                ch_writer.write_all(&buf).await?;
-                                ch_writer.flush().await?;
                             }
                             Ok(())
                         });
