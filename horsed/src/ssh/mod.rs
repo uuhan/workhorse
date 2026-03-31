@@ -887,25 +887,28 @@ impl AppServer {
                         // }
 
                         task_block.spawn_blocking(async move {
-                            while let Ok(buf) = pty1.read(1024 * 4, false) {
+                            while let Ok(buf) = pty1.read(1024 * 4, true) {
                                 if buf.len() == 0 {
-                                    tracing::debug!("pty read 0 bytes");
-                                    continue;
+                                    tracing::debug!("pty read 0 bytes, EOF");
+                                    break;
                                 }
 
                                 let buf = buf.as_encoded_bytes();
                                 ch_writer.write_all(&buf).await?;
+                                ch_writer.flush().await?;
                             }
                             Ok(())
                         });
 
                         use std::os::windows::ffi::OsStringExt;
-                        let mut buf = [0u8; 4];
+                        let mut buf = [0u8; 1024];
                         while let Ok(len) = ch_reader.read(&mut buf).await {
+                            if len == 0 {
+                                break;
+                            }
                             let buf = &buf[..len];
                             let s = String::from_utf8_lossy(buf);
                             let os_str = OsStr::new(s.as_ref());
-                            tracing::debug!("pty write: {:?}", pty.is_alive());
                             if let Ok(true) = pty.is_alive() {
                                 match pty.write(os_str.to_owned()) {
                                     Ok(_) => {}
@@ -914,7 +917,6 @@ impl AppServer {
                                     }
                                 }
                             } else {
-                                // pty is not alive
                                 break;
                             }
                         }
