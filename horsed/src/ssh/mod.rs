@@ -115,7 +115,7 @@ pub struct AppServer {
     clients: Arc<Mutex<HashMap<usize, (Pty, Pts)>>>,
     #[cfg(windows)]
     /// 一些共享数据
-    clients: Arc<Mutex<HashMap<usize, Arc<winptyrs::PTY>>>>,
+    clients: Arc<Mutex<HashMap<usize, winptyrs::PTY>>>,
     /// 任务管理器
     tm: TaskManager,
     /// 数据库连接
@@ -858,33 +858,24 @@ impl AppServer {
 
                 let mut clients = clients.lock().await;
                 // TODO: resize at runtime?
-                let Some(pty) = clients.remove(&id) else {
+                let Some(pty) = clients.get(&id) else {
                     tracing::error!("empty pty?: {}", id);
                     handle.eof().await?;
                     handle.close().await?;
                     return Ok(());
                 };
+                let pty = pty.clone();
                 drop(clients);
 
-                // spawn 需要 &mut self, 通过 Arc::try_unwrap 取得所有权
-                let Ok(mut pty) = Arc::try_unwrap(pty) else {
-                    tracing::error!("pty is still shared: {}", id);
-                    handle.eof().await?;
-                    handle.close().await?;
-                    return Ok(());
-                };
+                let pty1 = pty.clone();
                 match pty.spawn(appname, Some(args), Some(work_path), None) {
                     Ok(_) => {
                         tracing::info!("conpty spawned");
-                        // spawn 之后只需 &self, 用 Arc 共享给读写两端
-                        let pty = Arc::new(pty);
-                        let pty1 = pty.clone();
-
                         let mut ch_writer = handle.make_writer();
                         let mut ch_reader = handle.make_reader();
 
                         task_block.spawn_blocking(async move {
-                            while let Ok(buf) = pty1.read(true) {
+                            while let Ok(buf) = pty1.read(1024 * 4, true) {
                                 if buf.len() == 0 {
                                     tracing::debug!("pty read 0 bytes, EOF");
                                     break;
@@ -2452,7 +2443,7 @@ impl Handler for AppServer {
         match PTY::new_with_backend(&pty_args, PTYBackend::ConPTY) {
             Ok(pty) => {
                 let mut clients = self.clients.lock().await;
-                clients.insert(self.id, Arc::new(pty));
+                clients.insert(self.id, pty);
 
                 session.channel_success(channel)?;
             }
