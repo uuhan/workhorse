@@ -62,7 +62,7 @@ atomicring = "1.2.9"
 pty-process = { version = "0.5", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
-winpty-rs = { git = "https://github.com/uuhan/winpty-rs", branch = "workhorse", features = [
+winpty-rs = { version = "1.0.5", features = [
   "conpty",
 ] }
 
