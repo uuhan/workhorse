@@ -81,17 +81,20 @@ Currently the supported actions are:
 
 - git: use as a remote git repository via ssh protocol
 - cmd: run command in remote server
-- cargo: run cargo command in remote server
+- cargo: run cargo command in remote server (build/check/clippy/test/run/doc, etc.)
 - apply: accept git patch and apply it to the working tree
 - just: run just command defined in _justfile_
 - get: get the build artifact from remote server
 - put: upload local files to the remote worktree
 - scp: like scp, to copy files from remote server to local
+- push/pull: push or pull code to/from the remote repository
 - ping: check server connectivity
 - health: inspect server health info (version/commit/os/shell/ulimit)
 - logs: inspect server logs
+- job: view remote jobs and attach to their output
+- watch: watch file changes and auto-run commands
 - admin: admin user/key management
-- ssh: local(-L) and reverse(-R) port forward
+- ssh: interactive shell, local(-L) and reverse(-R) port forward
 
 Workhorse is designed to work with two kinds of clients:
 
@@ -259,29 +262,55 @@ RUST_LOG=info WH_DEBUG=1 cargo work health
 Admins can manage users and public keys with the `admin` subcommand:
 
 ```bash
+# User management
 cargo work admin users list
-cargo work admin keys list
+cargo work admin users add <name> [admin|user]
+cargo work admin users enable <name>
+cargo work admin users disable <name>
+cargo work admin users role <name> <admin|user>
+cargo work admin users delete <name>
+
+# Public key management
+cargo work admin keys list [user]
+cargo work admin keys add <user> <alg> <key> [comment]
+cargo work admin keys enable <alg> <key>
+cargo work admin keys disable <alg> <key>
+cargo work admin keys delete <alg> <key>
 ```
 
 ### Frontend/Backend Update Workflow (Recommended)
+
+#### Linux / macOS Server
 
 ```bash
 # 1) Update local client binary
 just install-work
 
-# 2) Update remote server binary (choose one)
+# 2) Sync code and build on remote
+git push horsed main
 HORSED_SHELL=/bin/bash cargo work just install-horsed
-# Or sync horsed remote baseline first, then install
-git push horsed main && HORSED_SHELL=/bin/bash cargo work just install-horsed
 
 # 3) Restart remote horsed service
 HORSED_SHELL=/bin/bash cargo work -- systemctl --user restart horsed
 ```
 
-Notes:
+#### Windows Server
 
-- If the server does not have `nu`, do not use `HORSED_SHELL=nu`; use `/bin/bash` or `/bin/sh`.
-- `install-horsed` builds from the server-side repo baseline. Before release, make sure the `horsed` remote branch is in sync.
+```bash
+# 1) Update local client binary
+just install-work
+
+# 2) One-step remote deploy (build + auto-restart)
+git push horsed main
+HORSED_SHELL=powershell.exe cargo work just deploy-horsed
+```
+
+`deploy-horsed` runs `cargo build --release` on the remote, then uses a delayed background script to automatically stop the old process, copy the new binary, and start it — no manual steps required.
+
+#### Notes
+
+- If the server does not have `nu`, do not use `HORSED_SHELL=nu`; use `/bin/bash` or `/bin/sh` (Linux), or `powershell.exe` (Windows).
+- Builds are based on the server-side repo branch. Before release, make sure the `horsed` remote is in sync (`git push horsed main`).
 
 More help info can be found by running:
 
