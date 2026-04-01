@@ -51,6 +51,7 @@ cargo work job attach <job_id> -f
 ```
 
 - `health` reports `version`, `commit`, `os/arch/family`, default shell, and `ulimit -n` (Unix).
+- `cargo work ping` is continuous when `--count` is omitted; for diagnostics and agent automation, always pass `--count` unless continuous probing is explicitly requested.
 - If `health` appears to hang or return nothing, verify server version compatibility first, then retry with `RUST_LOG=info WH_DEBUG=1 cargo work health`.
 - `logs` reads the in-memory ring buffer, not just the file on disk.
 - `job attach` is the preferred path for attaching to one running build/test command by `job_id` without tailing unrelated service logs.

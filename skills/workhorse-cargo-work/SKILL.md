@@ -39,6 +39,7 @@ Route to exactly one primary sub-skill whenever possible:
 - Most commands assume the current directory is inside a Git repository.
 - Most commands fail if neither `--repo` nor a `horsed` Git remote can identify the target.
 - The client will auto-discover `~/.ssh/id_rsa` or `~/.ssh/id_ed25519` unless `--ssh-key` is provided.
+- `cargo work ping` without `--count` keeps running; use plain `cargo work` or `cargo work ping --count <n>` for finite connectivity checks.
 - `cargo work watch` exists but is not reliable enough to recommend as a default workflow.
 
 ## Handoff Policy

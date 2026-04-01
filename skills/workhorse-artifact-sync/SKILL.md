@@ -14,6 +14,7 @@ This skill handles file retrieval, Git sync, job inspection/attach, and server i
 - Repo and host resolution follow the same `cargo-work` rules: `--repo-name`, `--repo`, or Git remote `horsed`; host from `HORSED`, `--repo`, or Git remote `horsed`.
 - For `push`, the local Git remote defaults to `horsed`.
 - For `get` and `scp`, prefer forward-slash remote paths even when the server is Windows-backed.
+- `cargo work ping` runs continuously when `--count` is omitted. For a bounded check, use `cargo work ping --count <n>` or plain `cargo work` (which defaults to `ping --count 3`).
 
 ## Retrieval Commands
 
@@ -47,7 +48,7 @@ cargo work job attach <job_id> -f
 ## Workflow
 
 1. If the task is "build then download", run the remote build first with `$workhorse-remote-build`.
-2. Use `cargo work ping` or plain `cargo work` for a quick connectivity check.
+2. For a quick connectivity check, use plain `cargo work` or `cargo work ping --count <n>`. Do not run bare `cargo work ping` unless the user explicitly asks for continuous probing.
 3. Use `health` when the user needs server readiness details such as `version`, `commit`, `os/arch/family`, default shell, and `ulimit -n`.
 4. Use `job list` and `job attach` when the user needs stdout/stderr from a running or finished remote command.
 5. Use `logs` for service-side debugging.
@@ -60,6 +61,7 @@ cargo work job attach <job_id> -f
 - `cargo work get` writes directories as `.tar` archives.
 - `cargo work get` will not overwrite an existing local file unless `-f`, `--outfile`, or `--stdout` is used.
 - `cargo work scp` creates the destination file with `create_new`, so an existing destination path will fail.
+- `cargo work ping` without `--count` is an endless loop by design; always set `--count` in automated or agent-driven checks.
 - `cargo work push` and `cargo work pull` are thin wrappers around local `git push` and `git pull`.
 - `cargo work job list` returns JSON summaries, including `id`, `action`, `running`, and `exit_code`. Cargo tasks are classified as `cargo.<subcommand>` (for example `cargo.check`, `cargo.test`).
 - `cargo work job attach <job_id>` replays buffered output and follows by default; use `--no-follow` for snapshot-only output.
