@@ -501,7 +501,7 @@ fn summarize_git_output(output: &std::process::Output) -> String {
     }
 }
 
-async fn git_push_upstream(repo: &Repository, upstream: &str) -> Result<std::process::Output> {
+async fn git_push_remote(repo: &Repository, remote: &str) -> Result<std::process::Output> {
     let mut cmd = tokio::process::Command::new("git");
     #[cfg(target_os = "windows")]
     {
@@ -513,17 +513,14 @@ async fn git_push_upstream(repo: &Repository, upstream: &str) -> Result<std::pro
 
     cmd.current_dir(repo.workdir().unwrap_or_else(|| std::path::Path::new(".")));
     cmd.arg("push");
+    cmd.arg(remote);
     cmd.arg("--porcelain");
-
-    if let Some((remote, branch)) = parse_upstream_remote_branch(upstream) {
-        cmd.arg(remote);
-        cmd.arg(format!("HEAD:refs/heads/{branch}"));
-    }
 
     cmd.output().await.wrap_err("执行自动 push 失败")
 }
 
-pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
+pub async fn collect_remote_patch(repo: &Repository, push_remote: Option<&str>) -> Result<Vec<u8>> {
+    let push_remote = push_remote.unwrap_or("horsed");
     let mut patch = vec![];
 
     if let Some((upstream, ahead)) = upstream_status(repo)? {
@@ -534,23 +531,25 @@ pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
 
             let mut need_commit_patch = true;
             let mut auto_push_succeeded = false;
-            match git_push_upstream(repo, upstream.as_str()).await {
+            match git_push_remote(repo, push_remote).await {
                 Ok(output) => {
                     let summary = summarize_git_output(&output);
                     if output.status.success() {
                         auto_push_succeeded = true;
-                        tracing::warn!("自动 push 结果: 成功 ({summary})");
-                        if upstream_remote_name(upstream.as_str()) == Some("horsed") {
+                        tracing::warn!("自动 push 结果: 成功 (remote={push_remote}; {summary})");
+                        if upstream_remote_name(upstream.as_str()) == Some(push_remote) {
                             need_commit_patch = false;
                         }
                     } else {
                         tracing::warn!(
-                            "自动 push 结果: 失败 ({summary})，将继续通过补丁同步未推送提交"
+                            "自动 push 结果: 失败 (remote={push_remote}; {summary})，将继续通过补丁同步未推送提交"
                         );
                     }
                 }
                 Err(err) => {
-                    tracing::warn!("自动 push 结果: 失败 ({err})，将继续通过补丁同步未推送提交");
+                    tracing::warn!(
+                        "自动 push 结果: 失败 (remote={push_remote}; {err})，将继续通过补丁同步未推送提交"
+                    );
                 }
             }
 

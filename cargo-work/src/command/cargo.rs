@@ -53,7 +53,8 @@ pub async fn run(sk: &Path, options: impl CargoKind) -> Result<()> {
     let env = super::ssh::start_proxy(sk, host, options.horse_options()).await?;
     super::log_stage(&trace_id, action, "proxy.ready");
 
-    let diff = super::collect_remote_patch(&repo).await?;
+    let diff =
+        super::collect_remote_patch(&repo, options.horse_options().remote.as_deref()).await?;
 
     #[cfg(not(feature = "use-system-ssh"))]
     {

@@ -56,7 +56,7 @@ pub async fn run(sk: &Path, options: JustOptions) -> Result<()> {
     let env = super::ssh::start_proxy(sk, host, &options.horse).await?;
     super::log_stage(&trace_id, action, "proxy.ready");
 
-    let diff = super::collect_remote_patch(&repo).await?;
+    let diff = super::collect_remote_patch(&repo, options.horse.remote.as_deref()).await?;
 
     #[cfg(feature = "use-system-ssh")]
     {
