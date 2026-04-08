@@ -464,6 +464,65 @@ async fn git_diff(repo: &Repository, args: &[&str]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+fn parse_upstream_remote_branch(upstream: &str) -> Option<(&str, &str)> {
+    let suffix = upstream.strip_prefix("refs/remotes/")?;
+    let (remote, branch) = suffix.split_once('/')?;
+    Some((remote, branch))
+}
+
+fn upstream_remote_name(upstream: &str) -> Option<&str> {
+    parse_upstream_remote_branch(upstream).map(|(remote, _)| remote)
+}
+
+fn summarize_git_output(output: &std::process::Output) -> String {
+    let mut lines = Vec::new();
+    for stream in [&output.stdout, &output.stderr] {
+        let text = String::from_utf8_lossy(stream);
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            lines.push(line.to_string());
+            if lines.len() >= 4 {
+                break;
+            }
+        }
+        if lines.len() >= 4 {
+            break;
+        }
+    }
+
+    let code = output.status.code().unwrap_or(128);
+    if lines.is_empty() {
+        format!("exit={code}")
+    } else {
+        format!("exit={code}; {}", lines.join(" | "))
+    }
+}
+
+async fn git_push_upstream(repo: &Repository, upstream: &str) -> Result<std::process::Output> {
+    let mut cmd = tokio::process::Command::new("git");
+    #[cfg(target_os = "windows")]
+    {
+        #[allow(unused_imports)]
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.current_dir(repo.workdir().unwrap_or_else(|| std::path::Path::new(".")));
+    cmd.arg("push");
+    cmd.arg("--porcelain");
+
+    if let Some((remote, branch)) = parse_upstream_remote_branch(upstream) {
+        cmd.arg(remote);
+        cmd.arg(format!("HEAD:refs/heads/{branch}"));
+    }
+
+    cmd.output().await.wrap_err("执行自动 push 失败")
+}
+
 pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
     let mut patch = vec![];
 
@@ -472,12 +531,37 @@ pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
             tracing::warn!(
                 "检测到本地分支领先上游 {ahead} 个提交，将同步未推送提交到远端工作区: {upstream}"
             );
-            let range = format!("{upstream}..HEAD");
-            let commit_patch = git_diff(repo, &["--binary", range.as_str()]).await?;
-            if commit_patch.is_empty() {
-                bail!("本地分支领先上游 {ahead} 个提交，但未能生成补丁，请先 push 后重试");
+
+            let mut need_commit_patch = true;
+            match git_push_upstream(repo, upstream.as_str()).await {
+                Ok(output) => {
+                    let summary = summarize_git_output(&output);
+                    if output.status.success() {
+                        tracing::warn!("自动 push 结果: 成功 ({summary})");
+                        if upstream_remote_name(upstream.as_str()) == Some("horsed") {
+                            need_commit_patch = false;
+                        }
+                    } else {
+                        tracing::warn!(
+                            "自动 push 结果: 失败 ({summary})，将继续通过补丁同步未推送提交"
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!("自动 push 结果: 失败 ({err})，将继续通过补丁同步未推送提交");
+                }
             }
-            patch.extend_from_slice(&commit_patch);
+
+            if need_commit_patch {
+                let range = format!("{upstream}..HEAD");
+                let commit_patch = git_diff(repo, &["--binary", range.as_str()]).await?;
+                if commit_patch.is_empty() {
+                    bail!(
+                        "本地分支领先上游 {ahead} 个提交，自动 push 后仍未能生成补丁，请先手动 push 后重试"
+                    );
+                }
+                patch.extend_from_slice(&commit_patch);
+            }
         }
     }
 
