@@ -533,10 +533,12 @@ pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
             );
 
             let mut need_commit_patch = true;
+            let mut auto_push_succeeded = false;
             match git_push_upstream(repo, upstream.as_str()).await {
                 Ok(output) => {
                     let summary = summarize_git_output(&output);
                     if output.status.success() {
+                        auto_push_succeeded = true;
                         tracing::warn!("自动 push 结果: 成功 ({summary})");
                         if upstream_remote_name(upstream.as_str()) == Some("horsed") {
                             need_commit_patch = false;
@@ -556,11 +558,18 @@ pub async fn collect_remote_patch(repo: &Repository) -> Result<Vec<u8>> {
                 let range = format!("{upstream}..HEAD");
                 let commit_patch = git_diff(repo, &["--binary", range.as_str()]).await?;
                 if commit_patch.is_empty() {
-                    bail!(
-                        "本地分支领先上游 {ahead} 个提交，自动 push 后仍未能生成补丁，请先手动 push 后重试"
-                    );
+                    if auto_push_succeeded {
+                        tracing::warn!(
+                            "本地分支领先上游 {ahead} 个提交，但自动 push 后提交补丁为空，将继续仅同步工作区改动"
+                        );
+                    } else {
+                        tracing::warn!(
+                            "本地分支领先上游 {ahead} 个提交，但提交补丁为空，将继续仅同步工作区改动"
+                        );
+                    }
+                } else {
+                    patch.extend_from_slice(&commit_patch);
                 }
-                patch.extend_from_slice(&commit_patch);
             }
         }
     }
