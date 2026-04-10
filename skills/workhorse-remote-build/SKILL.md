@@ -29,7 +29,7 @@ cargo work run -- --help
 cargo work just build
 ```
 
-Most build-like actions print a server-side `job_id=...` line. Use that id with `cargo work job attach <job_id> -f` from another terminal when you need to follow the same task output concurrently.
+Most build-like actions print a server-side `job_id=...` line. Use that id with `cargo work job attach <job_id>` from another terminal when you need to follow the same task output concurrently.
 
 For an explicit host instead of a Git remote:
 
@@ -70,7 +70,7 @@ cargo work just --repo ssh://git@10.0.0.8:2222/team/app.git deploy
 
 # Start a build, then attach by job id in another terminal
 cargo work check
-cargo work job attach <job_id> -f
+cargo work job attach <job_id>
 ```
 
 ## Caveats

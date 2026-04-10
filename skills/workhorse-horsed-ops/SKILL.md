@@ -47,7 +47,7 @@ cargo work health
 cargo work logs
 cargo work logs -f
 cargo work job list
-cargo work job attach <job_id> -f
+cargo work job attach <job_id>
 ```
 
 - `health` reports `version`, `commit`, `os/arch/family`, default shell, and `ulimit -n` (Unix).

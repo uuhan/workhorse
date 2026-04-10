@@ -209,7 +209,7 @@ pub struct LogsOptions {
 pub struct JobOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
-    #[clap(help = "job 命令, 例如: list / attach <job_id> -f")]
+    #[clap(help = "job 命令, 例如: list / attach <job_id> [-- --no-follow]")]
     pub command: Vec<String>,
 }
 

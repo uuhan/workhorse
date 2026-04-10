@@ -1512,13 +1512,26 @@ impl AppServer {
                             .fail_with_error(
                                 2,
                                 "HSSH_JOB_BAD_REQUEST",
-                                "用法: attach <job_id> [-f]",
+                                "用法: attach <job_id> [--no-follow]",
                             )
                             .await?;
                         return Ok(());
                     }
-                    let follow = command.iter().any(|arg| arg == "-f" || arg == "--follow")
-                        || !command.iter().any(|arg| arg == "--no-follow");
+                    if let Some(arg) = command
+                        .iter()
+                        .skip(2)
+                        .find(|arg| arg.as_str() != "--no-follow")
+                    {
+                        handle
+                            .fail_with_error(
+                                2,
+                                "HSSH_JOB_BAD_REQUEST",
+                                format!("不支持的参数: {arg}, 用法: attach <job_id> [--no-follow]"),
+                            )
+                            .await?;
+                        return Ok(());
+                    }
+                    let follow = !command.iter().any(|arg| arg == "--no-follow");
 
                     let Some(job) = jobs.get_visible(&id, &actor.name, actor.is_admin()).await
                     else {

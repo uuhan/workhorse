@@ -42,7 +42,7 @@ cargo work health
 cargo work logs
 cargo work logs -f
 cargo work job list
-cargo work job attach <job_id> -f
+cargo work job attach <job_id>
 ```
 
 ## Workflow
@@ -64,7 +64,7 @@ cargo work job attach <job_id> -f
 - `cargo work ping` without `--count` is an endless loop by design; always set `--count` in automated or agent-driven checks.
 - `cargo work push` and `cargo work pull` are thin wrappers around local `git push` and `git pull`.
 - `cargo work job list` returns JSON summaries, including `id`, `action`, `running`, and `exit_code`. Cargo tasks are classified as `cargo.<subcommand>` (for example `cargo.check`, `cargo.test`).
-- `cargo work job attach <job_id>` replays buffered output and follows by default; use `--no-follow` for snapshot-only output.
+- `cargo work job attach <job_id>` replays buffered output and follows by default; use `cargo work job attach <job_id> -- --no-follow` for snapshot-only output.
 - If `health` appears silent, check log level first. Use `RUST_LOG=info cargo work health` for visible output; add `WH_DEBUG=1` when you need trace-stage lines.
 
 ## Examples
@@ -81,7 +81,7 @@ cargo work logs -f
 
 # Attach to a running build from another terminal
 cargo work job list
-cargo work job attach job-xxxx -f
+cargo work job attach job-xxxx
 
 # Push the current branch to the default remote
 cargo work push
