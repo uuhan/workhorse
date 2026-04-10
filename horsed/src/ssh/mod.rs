@@ -1506,32 +1506,78 @@ impl AppServer {
                     Ok(())
                 }
                 "attach" => {
-                    let id = command.get(1).cloned().unwrap_or_default();
-                    if id.trim().is_empty() {
+                    let mut id = None;
+                    let mut follow = true;
+                    for arg in command.iter().skip(1) {
+                        if arg == "--no-follow" {
+                            follow = false;
+                            continue;
+                        }
+
+                        if arg.starts_with("--") {
+                            handle
+                                .fail_with_error(
+                                    2,
+                                    "HSSH_JOB_BAD_REQUEST",
+                                    format!(
+                                        "不支持的参数: {arg}, 用法: attach [job_id] [--no-follow]"
+                                    ),
+                                )
+                                .await?;
+                            return Ok(());
+                        }
+
+                        if id.is_none() {
+                            id = Some(arg.clone());
+                            continue;
+                        }
+
                         handle
                             .fail_with_error(
                                 2,
                                 "HSSH_JOB_BAD_REQUEST",
-                                "用法: attach <job_id> [--no-follow]",
+                                format!("不支持的参数: {arg}, 用法: attach [job_id] [--no-follow]"),
                             )
                             .await?;
                         return Ok(());
                     }
-                    if let Some(arg) = command
-                        .iter()
-                        .skip(2)
-                        .find(|arg| arg.as_str() != "--no-follow")
-                    {
-                        handle
-                            .fail_with_error(
-                                2,
-                                "HSSH_JOB_BAD_REQUEST",
-                                format!("不支持的参数: {arg}, 用法: attach <job_id> [--no-follow]"),
-                            )
-                            .await?;
-                        return Ok(());
-                    }
-                    let follow = !command.iter().any(|arg| arg == "--no-follow");
+
+                    let id = if let Some(id) = id.filter(|id| !id.trim().is_empty()) {
+                        id
+                    } else {
+                        let mut running = jobs
+                            .list_visible(&actor.name, actor.is_admin())
+                            .await
+                            .into_iter()
+                            .filter(|job| job.running)
+                            .collect::<Vec<_>>();
+
+                        match running.len() {
+                            0 => {
+                                handle
+                                    .fail_with_error(2, "HSSH_JOB_NOT_FOUND", "没有运行中的任务")
+                                    .await?;
+                                return Ok(());
+                            }
+                            1 => running.swap_remove(0).id,
+                            _ => {
+                                let mut writer = handle.make_writer();
+                                let body = serde_json::to_vec_pretty(&running)?;
+                                writer.write_all(&body).await?;
+                                writer.write_all(b"\n").await?;
+                                drop(writer);
+
+                                handle
+                                    .fail_with_error(
+                                        2,
+                                        "HSSH_JOB_AMBIGUOUS",
+                                        "存在多个运行中的任务，请指定 job_id",
+                                    )
+                                    .await?;
+                                return Ok(());
+                            }
+                        }
+                    };
 
                     let Some(job) = jobs.get_visible(&id, &actor.name, actor.is_admin()).await
                     else {
