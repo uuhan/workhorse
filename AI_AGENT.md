@@ -4,13 +4,13 @@ This file is the single entry point for AI agents operating on this repository.
 
 ## Primary Routing
 
-1. Read `/home/runner/work/workhorse/workhorse/skills/index.json`.
+1. Read `skills/index.json`.
 2. Classify task into one domain:
    - `cargo-work` client workflow
    - `horsed` server workflow
    - cross-boundary workflow
 3. Dispatch to the matching skill in `skills/`.
-4. Use standard playbooks in `/home/runner/work/workhorse/workhorse/docs/agent-playbooks.md`.
+4. Use standard playbooks in `docs/agent-playbooks.md`.
 
 ## Task Classification -> Skill
 
@@ -55,6 +55,6 @@ Require explicit confirmation from the user before high-risk actions:
 
 ## Related Assets
 
-- Agent skill index: `/home/runner/work/workhorse/workhorse/skills/index.json`
-- Agent playbooks: `/home/runner/work/workhorse/workhorse/docs/agent-playbooks.md`
-- Human-oriented guidance: `/home/runner/work/workhorse/workhorse/README.md`, `/home/runner/work/workhorse/workhorse/README.en.md`, `/home/runner/work/workhorse/workhorse/AGENTS.md`
+- Agent skill index: `skills/index.json`
+- Agent playbooks: `docs/agent-playbooks.md`
+- Human-oriented guidance: `README.md`, `README.en.md`, `AGENTS.md`
