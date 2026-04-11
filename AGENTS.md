@@ -50,6 +50,8 @@ Notes:
 - Add regression tests for protocol, IPC, and path-handling fixes (common failure areas).
 
 ## Project Skills
+- `./AI_AGENT.md`: single entry for AI agents, including routing rules, standard commands, success criteria, and safety boundaries.
+- `./skills/index.json`: machine-readable skill index for deterministic task-to-skill routing and risk classification.
 - `./skills/workhorse/SKILL.md`: top-level dispatcher for this repo; use first when the task broadly mentions Workhorse.
 - `./skills/workhorse-cargo-work/SKILL.md`: entry skill for client-side `cargo work` usage.
 - `./skills/workhorse-remote-build/SKILL.md`: remote Cargo and `just` build/test/lint/run workflows.

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "case-01",
+    "query": "帮我在远端跑 cargo test",
+    "expected_skill": "workhorse-remote-build",
+    "expected_playbook": "Remote Build Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-02",
+    "query": "开个 ssh shell 并转发 3000",
+    "expected_skill": "workhorse-remote-access",
+    "expected_playbook": "Health/Logs Troubleshooting Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-03",
+    "query": "把远端构建好的二进制拉回来",
+    "expected_skill": "workhorse-artifact-sync",
+    "expected_playbook": "Artifact Retrieval Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-04",
+    "query": "我想看看服务端健康情况",
+    "expected_skill": "workhorse-artifact-sync",
+    "expected_playbook": "Health/Logs Troubleshooting Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-05",
+    "query": "首次部署 horsed 怎么做",
+    "expected_skill": "workhorse-horsed-setup",
+    "expected_playbook": "Horsed Deploy Playbook",
+    "requires_confirmation": true
+  },
+  {
+    "id": "case-06",
+    "query": "给我重启远端 horsed 服务",
+    "expected_skill": "workhorse-horsed-ops",
+    "expected_playbook": "Horsed Deploy Playbook",
+    "requires_confirmation": true
+  },
+  {
+    "id": "case-07",
+    "query": "我要改 horsed 的 setup 逻辑",
+    "expected_skill": "workhorse-horsed-dev",
+    "expected_playbook": "Remote Build Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-08",
+    "query": "帮我分类这条 Workhorse 请求",
+    "expected_skill": "workhorse",
+    "expected_playbook": "Health/Logs Troubleshooting Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-09",
+    "query": "运行 cargo work ping 三次",
+    "expected_skill": "workhorse-artifact-sync",
+    "expected_playbook": "Health/Logs Troubleshooting Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-10",
+    "query": "使用 dangerous 模式录入公钥",
+    "expected_skill": "workhorse-horsed-setup",
+    "expected_playbook": "Horsed Deploy Playbook",
+    "requires_confirmation": true
+  },
+  {
+    "id": "case-11",
+    "query": "我要看远端运行中的 job 并 attach",
+    "expected_skill": "workhorse-artifact-sync",
+    "expected_playbook": "Health/Logs Troubleshooting Playbook",
+    "requires_confirmation": false
+  },
+  {
+    "id": "case-12",
+    "query": "我需要一个统一 AI agent 入口",
+    "expected_skill": "workhorse",
+    "expected_playbook": "Remote Build Playbook",
+    "requires_confirmation": false
+  }
+]

@@ -16,7 +16,7 @@ pub async fn run(sk: &Path, mut options: PingOptions) -> Result<()> {
     let repo = Repository::discover(".")?;
     let head = repo.head()?;
 
-    if let Some(remote) = options.remote {
+    if let Some(remote) = options.host {
         // arg comes first
         options.horse.remote.replace(remote);
     }

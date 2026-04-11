@@ -10,6 +10,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  agent-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build cargo-work for CLI regression checks
+        run: cargo build --bin cargo-work
+      - name: Agent docs consistency checks
+        run: python3 scripts/check-agent-docs.py
+      - name: Agent regression checks
+        run: python3 scripts/check-agent-regression.py
+
   build-linux:
     runs-on: ubuntu-latest
 

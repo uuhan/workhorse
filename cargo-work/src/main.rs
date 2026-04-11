@@ -219,7 +219,7 @@ async fn main() -> Result<()> {
                 let options = PingOptions {
                     horse: horse.clone(),
                     count: Some(3),
-                    remote: None,
+                    host: None,
                 };
                 if let Err(err) = ping::run(&key, options).await {
                     tracing::error!("执行失败: {}", err);

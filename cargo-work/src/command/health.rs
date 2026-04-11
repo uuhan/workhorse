@@ -3,6 +3,7 @@ use crate::options::HealthOptions;
 use color_eyre::eyre::WrapErr;
 use color_eyre::eyre::{anyhow, ContextCompat, Result};
 use git2::Repository;
+use serde_json::json;
 use stable::data::v2::{self, Body};
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
@@ -14,7 +15,7 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
     super::log_stage(&trace_id, action, "resolve.start");
     let repo = Repository::discover(".")?;
 
-    if let Some(remote) = options.remote {
+    if let Some(remote) = options.host {
         options.horse.remote.replace(remote);
     }
 
@@ -38,7 +39,9 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
         match call_health_once(sk, &options.horse, host, &trace_id, Body::HealthCheckV2).await {
             Ok(body) => body,
             Err(err) => {
-                tracing::warn!("health v2 失败, 回退到 v1: {}", err);
+                if !options.json {
+                    tracing::warn!("health v2 失败, 回退到 v1: {}", err);
+                }
                 call_health_once(sk, &options.horse, host, &trace_id, Body::HealthCheck).await?
             }
         };
@@ -52,25 +55,49 @@ pub async fn run(sk: &Path, mut options: HealthOptions) -> Result<()> {
             family,
             default_shell,
         } => {
-            tracing::info!("Health OK.");
-            tracing::info!("Server version: {} ({})", version, commit);
-            tracing::info!("Server OS: {} / {} ({})", os, arch, family);
-            tracing::info!(
-                "Server default shell: {}",
-                default_shell.unwrap_or_else(|| "unknown".to_string())
-            );
-            if let Some(lim) = ulimit {
-                tracing::info!("Server ulimit -n: {}", lim);
+            if options.json {
+                let out = json!({
+                    "status": "ok",
+                    "protocol": "v2",
+                    "version": version,
+                    "commit": commit,
+                    "os": os,
+                    "arch": arch,
+                    "family": family,
+                    "default_shell": default_shell.unwrap_or_else(|| "unknown".to_string()),
+                    "ulimit_nofile": ulimit,
+                });
+                println!("{}", serde_json::to_string_pretty(&out)?);
             } else {
-                tracing::info!("Server ulimit -n: unknown");
+                tracing::info!("Health OK.");
+                tracing::info!("Server version: {} ({})", version, commit);
+                tracing::info!("Server OS: {} / {} ({})", os, arch, family);
+                tracing::info!(
+                    "Server default shell: {}",
+                    default_shell.unwrap_or_else(|| "unknown".to_string())
+                );
+                if let Some(lim) = ulimit {
+                    tracing::info!("Server ulimit -n: {}", lim);
+                } else {
+                    tracing::info!("Server ulimit -n: unknown");
+                }
             }
         }
         Body::HealthStatus { ulimit } => {
-            tracing::info!("Health OK (legacy).");
-            if let Some(lim) = ulimit {
-                tracing::info!("Server ulimit -n: {}", lim);
+            if options.json {
+                let out = json!({
+                    "status": "ok",
+                    "protocol": "v1",
+                    "ulimit_nofile": ulimit,
+                });
+                println!("{}", serde_json::to_string_pretty(&out)?);
             } else {
-                tracing::info!("Server ulimit -n: unknown");
+                tracing::info!("Health OK (legacy).");
+                if let Some(lim) = ulimit {
+                    tracing::info!("Server ulimit -n: {}", lim);
+                } else {
+                    tracing::info!("Server ulimit -n: unknown");
+                }
             }
         }
         _ => {
