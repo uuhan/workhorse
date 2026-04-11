@@ -32,6 +32,12 @@ n. 驮马，做粗工者，重负荷机器
 
 如果你在扩展工作流，请在新增或重命名 skill 后同步更新 `AGENTS.md` 的 Project Skills 列表，保持入口文档和实际目录一致。
 
+### AI Agent 入口（Claude Code / Codex）
+
+- 统一入口：`AI_AGENT.md`
+- 机器可读技能索引：`skills/index.json`
+- 标准任务配方：`docs/agent-playbooks.md`
+
 ### 支持的平台
 
 - Linux
@@ -265,6 +271,8 @@ cargo work health
 RUST_LOG=info cargo work health
 # 排障时可附加 trace 流：
 RUST_LOG=info WH_DEBUG=1 cargo work health
+# 机器可读输出（推荐给 AI Agent）：
+cargo work health --json
 ```
 
 管理员可以使用 `admin` 子命令管理用户和公钥：

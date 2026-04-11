@@ -38,3 +38,7 @@ changes:
 get-release:
   cargo work get ./target/release/cargo-work -f
   cargo work get ./target/release/horsed -f
+
+agent-check:
+  @python3 scripts/check-agent-docs.py
+  @python3 scripts/check-agent-regression.py

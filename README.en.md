@@ -28,6 +28,12 @@ Recommended quick start:
 
 If you add or rename any skill, update the Project Skills section in `AGENTS.md` in the same change so docs and directory structure stay aligned.
 
+### AI Agent Entry (Claude Code / Codex)
+
+- Unified entry: `AI_AGENT.md`
+- Machine-readable skill index: `skills/index.json`
+- Standard task playbooks: `docs/agent-playbooks.md`
+
 ### Supported Platforms
 
 - Linux
@@ -269,6 +275,8 @@ cargo work health
 RUST_LOG=info cargo work health
 # For trace-stage diagnostics:
 RUST_LOG=info WH_DEBUG=1 cargo work health
+# Machine-readable output (recommended for AI agents):
+cargo work health --json
 ```
 
 Admins can manage users and public keys with the `admin` subcommand:

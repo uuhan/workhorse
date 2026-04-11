@@ -883,10 +883,18 @@ impl AppServer {
                                         // 渐进退避: 前几次快速重试, 之后逐渐放慢
                                         let wait = match idle_count {
                                             1..=3 => tokio::task::yield_now().await,
-                                            4..=20 => tokio::time::sleep(
-                                                std::time::Duration::from_micros(100)).await,
-                                            _ => tokio::time::sleep(
-                                                std::time::Duration::from_millis(1)).await,
+                                            4..=20 => {
+                                                tokio::time::sleep(
+                                                    std::time::Duration::from_micros(100),
+                                                )
+                                                .await
+                                            }
+                                            _ => {
+                                                tokio::time::sleep(
+                                                    std::time::Duration::from_millis(1),
+                                                )
+                                                .await
+                                            }
                                         };
                                     }
                                     Ok(buf) => {
