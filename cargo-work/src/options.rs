@@ -137,6 +137,21 @@ pub enum Commands {
     Health(HealthOptions),
     #[command(name = "admin", about = "管理员交互与用户/公钥管理")]
     Admin(AdminOptions),
+    #[command(
+        name = "exec",
+        about = "从标准输入读取整段脚本, 原样在服务器执行 (适合含引号/JSON 的多行命令, 免去多层 shell 转义)"
+    )]
+    Exec(ExecOptions),
+}
+
+/// `cargo work exec` — read a script from stdin and run it verbatim on the
+/// server. The script is base64-transported so it survives the client join +
+/// horsed's `shellwords::split` + the remote `$SHELL -c` re-parse untouched;
+/// use with a heredoc: `cargo work exec <<'EOF' ... EOF`.
+#[derive(Clone, Debug, Args)]
+pub struct ExecOptions {
+    #[clap(flatten)]
+    pub horse: HorseOptions,
 }
 
 #[derive(Clone, Debug, Args)]

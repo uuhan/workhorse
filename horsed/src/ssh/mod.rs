@@ -392,9 +392,20 @@ impl AppServer {
                     cmd.stdout(Stdio::piped());
                     cmd.stderr(Stdio::piped());
 
+                    // Login + interactive (`-lic`) so the user's rc files load
+                    // (`~/.zshrc`, `~/.bash_profile`→`~/.bashrc`). Without it a
+                    // PATH set up there (nvm/pnpm, fnm, cargo shims, ...) is
+                    // missing and commands like `pnpm` fail with "not found".
+                    // Only bash/zsh define `-lic`; other shells (sh/dash/nu/...)
+                    // keep plain `-c`.
+                    let shell_arg = if shell.ends_with("bash") || shell.ends_with("zsh") {
+                        "-lic"
+                    } else {
+                        "-c"
+                    };
                     cmd.current_dir(&cmd_dir)
                         .kill_on_drop(true)
-                        .arg("-c")
+                        .arg(shell_arg)
                         .arg(command.join(" "));
 
                     let mut cmd = match cmd.spawn() {

@@ -8,6 +8,7 @@ default = []
 use-system-ssh = []
 
 [dependencies]
+base64 = "0.22.1"
 indicatif = "0.17.9"
 url = "2.5.4"
 color-eyre = "0.6.3"

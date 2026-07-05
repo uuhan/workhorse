@@ -213,6 +213,12 @@ async fn main() -> Result<()> {
                             tracing::error!("执行失败: {}", err);
                         }
                     }
+                    Commands::Exec(mut options) => {
+                        merge_options(&mut options.horse, &horse);
+                        if let Err(err) = exec_stdin(&key, options.horse).await {
+                            tracing::error!("执行失败: {}", err);
+                        }
+                    }
                 }
             } else {
                 // default to ping server 3 times
@@ -242,6 +248,30 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Read a whole script from stdin and run it verbatim on the server. The script
+/// is base64-encoded and sent as `echo <b64> | base64 -d | bash`: base64 has no
+/// shell metacharacters, so it passes untouched through the client's arg join,
+/// horsed's `shellwords::split`, and the remote `$SHELL -c` re-parse. The final
+/// `bash` reads the decoded script from its stdin and runs it as one unit — so
+/// the script uses ordinary quoting (single-quoted JSON, etc.) with no escaping
+/// across shell layers. With horsed's login+interactive shell it also inherits
+/// the rc-loaded PATH (nvm/pnpm, ...).
+async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
+    use base64::Engine as _;
+    use std::io::Read as _;
+
+    let mut script = String::new();
+    std::io::stdin().read_to_string(&mut script)?;
+    if script.trim().is_empty() {
+        return Err(color_eyre::eyre::eyre!(
+            "exec: 标准输入为空 (用法: cargo work exec <<'EOF' ... EOF)"
+        ));
+    }
+    let b64 = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
+    let wrapper = format!("echo {b64} | base64 -d | bash");
+    cmd::run(key, horse, vec![wrapper]).await
 }
 
 fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
