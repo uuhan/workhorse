@@ -78,3 +78,31 @@
 ### Acceptance Signals
 - JSON includes stable fields: `status`, `protocol`, `ulimit_nofile`.
 - Logs show expected service state transitions.
+
+## 5) Remote Exec Playbook
+
+### Preconditions
+- Target server is resolvable via `--repo`, `--repo-name`, or git remote `horsed`.
+- SSH key is available (`--ssh-key` or default key path).
+- Remote host has `bash` and `base64 -d` available.
+
+### Steps
+1. Use `cargo work -- <cmd>` for a short one-line command.
+2. Use a quoted heredoc for multi-line scripts or commands containing JSON/headers/quotes:
+
+```bash
+cargo work exec <<'EOF'
+set -euo pipefail
+printf '%s\n' '{"name":"demo app","ok":true}'
+EOF
+```
+
+3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm the remote shell is bash/zsh so rc-loaded PATH is available.
+
+### Fallback
+- If `exec` fails because `bash` or `base64 -d` is missing, use `cargo work -- ...` with explicit command paths or a server-supported shell.
+- If repo/host resolve fails, pass `--repo ssh://git@HOST:2222/ns/repo.git`.
+
+### Acceptance Signals
+- The command exits with code `0`.
+- Script output matches the expected stdout/stderr without local-shell quote expansion.

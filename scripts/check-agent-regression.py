@@ -52,6 +52,7 @@ if "--json" not in health_help:
     fail("health --help does not expose --json")
 
 for cmd in (
+    [str(binary), "work", "exec", "--help"],
     [str(binary), "work", "job", "--help"],
     [str(binary), "work", "logs", "--help"],
     [str(binary), "work", "ping", "--help"],

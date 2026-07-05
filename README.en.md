@@ -99,6 +99,7 @@ Currently the supported actions are:
 
 - git: use as a remote git repository via ssh protocol
 - cmd: run command in remote server
+- exec: read a whole script from stdin and run it on the remote server, useful for AI agents, heredocs, JSON, and complex quoting
 - cargo: run cargo command in remote server (build/check/clippy/test/run/doc, etc.)
 - apply: accept git patch and apply it to the working tree
 - just: run just command defined in _justfile_
@@ -191,6 +192,18 @@ You can also run any command remotely:
 cargo work -- scoop install vcpkg
 ```
 
+For AI-generated multi-line scripts, or commands containing JSON, HTTP headers, parentheses, or quotes, prefer `cargo work exec` and pass the whole script on stdin to avoid multi-layer shell escaping:
+
+```bash
+cargo work exec <<'EOF'
+set -euo pipefail
+printf '%s\n' '{"name":"demo app","ok":true}'
+pnpm --version
+EOF
+```
+
+`exec` transports the script with base64 and runs it with `bash` on the server. It is best suited for Linux/macOS bash environments; if the server does not have `bash` or `base64 -d`, continue to use `cargo work -- ...` or explicit server-side command paths.
+
 The default intepreter is `powershell.exe` on Windows, and `bash` on Linux/MacOS.
 You can also specify the interpreter by `--shell` option:
 
@@ -201,6 +214,8 @@ cargo work --shell nu -- ls
 export HORSED_SHELL=nu
 cargo work ls
 ```
+
+For bash/zsh, `cmd` remote commands now start the shell as login+interactive (`-lic`), so PATH configured in `~/.zshrc`, `~/.bash_profile` / `~/.bashrc` works as expected for tools such as nvm, pnpm, fnm, and cargo shims. Other shells such as `sh`, `dash`, and `nu` still use plain `-c`.
 
 You can pass the horsed target apparently to any cargo command:
 

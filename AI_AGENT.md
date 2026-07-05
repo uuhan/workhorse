@@ -16,7 +16,7 @@ This file is the single entry point for AI agents operating on this repository.
 
 - General Workhorse triage -> `skills/workhorse/SKILL.md`
 - `cargo work` remote build/test/check/clippy/run/just -> `skills/workhorse-remote-build/SKILL.md`
-- `cargo work ssh` / raw remote commands / forwarding / proxy -> `skills/workhorse-remote-access/SKILL.md`
+- `cargo work ssh` / `cargo work exec` / raw remote commands / forwarding / proxy -> `skills/workhorse-remote-access/SKILL.md`
 - `get/scp/push/pull/ping/health/logs/job` -> `skills/workhorse-artifact-sync/SKILL.md`
 - `horsed` bootstrap / first user / setup mode -> `skills/workhorse-horsed-setup/SKILL.md`
 - `horsed` ops / service manager / troubleshooting -> `skills/workhorse-horsed-ops/SKILL.md`
@@ -30,6 +30,7 @@ This file is the single entry point for AI agents operating on this repository.
 - Health (machine): `cargo work health --json`
 - Logs: `cargo work logs` / `cargo work logs -f`
 - Jobs: `cargo work job list` / `cargo work job attach <job_id> -f`
+- Agent script exec: `cargo work exec <<'EOF' ... EOF`
 
 ## Success Criteria
 
@@ -41,7 +42,7 @@ This file is the single entry point for AI agents operating on this repository.
 ## Safety Boundaries
 
 - Low risk: read-only inspection (`ping`, `health`, `logs`, `job list`).
-- Medium risk: remote command execution, file sync, interactive shell, forwarding/proxy.
+- Medium risk: remote command execution, stdin script execution, file sync, interactive shell, forwarding/proxy.
 - High risk: `horsed --dangerous`, service restart/replace, user/key admin mutation.
 
 ## Confirmation Policy

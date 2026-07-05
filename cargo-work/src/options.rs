@@ -245,7 +245,7 @@ pub struct PingOptions {
     pub horse: HorseOptions,
     #[clap(short, long, help = "指定次数")]
     pub count: Option<u32>,
-    #[clap(value_name = "REMOTE")]
+    #[clap(value_name = "GIT_REMOTE")]
     pub host: Option<String>,
 }
 
@@ -277,7 +277,7 @@ pub struct JustOptions {
 pub struct HealthOptions {
     #[clap(flatten)]
     pub horse: HorseOptions,
-    #[clap(value_name = "REMOTE")]
+    #[clap(value_name = "GIT_REMOTE")]
     pub host: Option<String>,
     #[clap(long, help = "以 JSON 格式输出健康信息")]
     pub json: bool,

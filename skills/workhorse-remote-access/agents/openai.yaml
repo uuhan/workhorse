@@ -1,4 +1,4 @@
 interface:
   display_name: "Workhorse Remote Access"
-  short_description: "Remote shell, command, proxy, and port forwarding"
-  default_prompt: "Use $workhorse-remote-access to reach a horsed server or run remote commands."
+  short_description: "Remote shell, command, exec script, proxy, and port forwarding"
+  default_prompt: "Use $workhorse-remote-access to reach a horsed server, run remote commands, or execute stdin scripts."

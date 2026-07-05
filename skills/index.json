@@ -23,7 +23,7 @@
     {
       "id": "workhorse-cargo-work",
       "entry": "skills/workhorse-cargo-work/SKILL.md",
-      "keywords": ["cargo work", "remote build", "remote command", "artifact sync"],
+      "keywords": ["cargo work", "remote build", "remote command", "exec", "artifact sync"],
       "preconditions": ["task belongs to client side"],
       "recommended_commands": ["cargo work --help"],
       "risk": { "level": "low", "notes": ["dispatcher"] },
@@ -41,10 +41,10 @@
     {
       "id": "workhorse-remote-access",
       "entry": "skills/workhorse-remote-access/SKILL.md",
-      "keywords": ["ssh", "port forwarding", "proxy", "remote shell", "cargo work --"],
-      "preconditions": ["target host is resolvable", "interactive/adhoc execution is required"],
-      "recommended_commands": ["cargo work ssh", "cargo work ssh -L 3000:127.0.0.1:3000", "cargo work -- ls -al"],
-      "risk": { "level": "medium", "notes": ["interactive remote command execution and forwarding"] },
+      "keywords": ["ssh", "port forwarding", "proxy", "remote shell", "cargo work --", "cargo work exec", "heredoc", "json"],
+      "preconditions": ["target host is resolvable", "interactive/adhoc execution is required", "remote bash and base64 -d are available when using exec"],
+      "recommended_commands": ["cargo work ssh", "cargo work ssh -L 3000:127.0.0.1:3000", "cargo work -- ls -al", "cargo work exec <<'EOF'"],
+      "risk": { "level": "medium", "notes": ["interactive remote command execution, stdin script execution, and forwarding"] },
       "requires_confirmation": false
     },
     {

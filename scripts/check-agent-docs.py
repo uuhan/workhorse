@@ -71,6 +71,7 @@ for token in [
     "Horsed Deploy Playbook",
     "Artifact Retrieval Playbook",
     "Health/Logs Troubleshooting Playbook",
+    "Remote Exec Playbook",
 ]:
     if token not in playbooks_text:
         fail(f"agent-playbooks.md missing playbook: {token}")

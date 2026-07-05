@@ -14,7 +14,7 @@ This is the dispatcher skill for the `cargo-work` side of Workhorse. Use it when
 Route to exactly one primary sub-skill whenever possible:
 
 - Use `$workhorse-remote-build` for remote `build`, `test`, `check`, `clippy`, `run`, `install`, `doc`, `metadata`, `rustc`, `zigbuild`, or `just`.
-- Use `$workhorse-remote-access` for `cargo work -- ...`, `cargo work ssh`, interactive shells, PTY-backed commands, port forwarding, remote env injection, or proxy bridging.
+- Use `$workhorse-remote-access` for `cargo work -- ...`, `cargo work exec`, `cargo work ssh`, interactive shells, PTY-backed commands, port forwarding, remote env injection, or proxy bridging.
 - Use `$workhorse-artifact-sync` for `get`, `scp`, `push`, `pull`, `ping`, `health`, `logs`, or `job`.
 
 ## Triage Checklist
@@ -29,6 +29,7 @@ Route to exactly one primary sub-skill whenever possible:
 
 - "帮我在远端跑 `cargo test`" -> `$workhorse-remote-build`
 - "去服务器上执行一个命令" -> `$workhorse-remote-access`
+- "用 heredoc 在远端跑一段带 JSON 的脚本" -> `$workhorse-remote-access`
 - "开一个 SSH shell 并转发 3000 端口" -> `$workhorse-remote-access`
 - "把远端构建好的二进制拉回来" -> `$workhorse-artifact-sync`
 - "看看 horsed 现在健不健康" -> `$workhorse-artifact-sync`

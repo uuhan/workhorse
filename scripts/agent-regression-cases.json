@@ -82,5 +82,12 @@
     "expected_skill": "workhorse",
     "expected_playbook": "Remote Build Playbook",
     "requires_confirmation": false
+  },
+  {
+    "id": "case-13",
+    "query": "用 heredoc 在远端执行一段包含 JSON 的多行脚本",
+    "expected_skill": "workhorse-remote-access",
+    "expected_playbook": "Remote Exec Playbook",
+    "requires_confirmation": false
   }
 ]

@@ -24,6 +24,7 @@ This is the top-level dispatcher for the Workhorse repository. Use it when a req
 ## Common Intents
 
 - "帮我在远端编译这个 Rust 项目" -> `$workhorse-cargo-work`
+- "用 `cargo work exec` 在远端跑一段脚本" -> `$workhorse-cargo-work`
 - "帮我把远端产物拉回来" -> `$workhorse-cargo-work`
 - "帮我首次配置一台 horsed 服务器" -> `$workhorse-horsed`
 - "给 horsed 配开机自启" -> `$workhorse-horsed`
