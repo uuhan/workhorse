@@ -93,7 +93,7 @@ fn cmd_shell_arg(shell: &str) -> &'static str {
         .unwrap_or(shell);
 
     if matches!(shell_name, "bash" | "zsh") {
-        "-lc"
+        "-ic"
     } else {
         "-c"
     }
@@ -405,11 +405,9 @@ impl AppServer {
                     cmd.stdout(Stdio::piped());
                     cmd.stderr(Stdio::piped());
 
-                    // Login shell (`-lc`) for bash/zsh so script execution can
-                    // inherit profile-managed PATH without enabling interactive
-                    // startup behavior. Interactive rc files such as `.zshrc`
-                    // may print prompts, load completion plugins, or assume a
-                    // TTY; keep them out of non-interactive remote commands.
+                    // Use interactive mode for bash/zsh so their rc files
+                    // (`.bashrc` / `.zshrc`) are loaded by default. Many
+                    // developer toolchains put PATH setup there.
                     let shell_arg = cmd_shell_arg(&shell);
                     cmd.current_dir(&cmd_dir)
                         .kill_on_drop(true)

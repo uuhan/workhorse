@@ -20,18 +20,15 @@ use tokio::net::ToSocketAddrs;
 type Result<T> = std::result::Result<T, Error>;
 
 #[rstest]
-#[case("bash", "-lc")]
-#[case("/bin/bash", "-lc")]
-#[case("zsh", "-lc")]
-#[case("/opt/homebrew/bin/zsh", "-lc")]
+#[case("bash", "-ic")]
+#[case("/bin/bash", "-ic")]
+#[case("zsh", "-ic")]
+#[case("/opt/homebrew/bin/zsh", "-ic")]
 #[case("sh", "-c")]
 #[case("/bin/dash", "-c")]
 #[case("nu", "-c")]
 #[case("powershell.exe", "-c")]
-fn cmd_shell_arg_uses_login_without_interactive_for_bash_and_zsh(
-    #[case] shell: &str,
-    #[case] expected: &str,
-) {
+fn cmd_shell_arg_loads_user_rc_for_bash_and_zsh(#[case] shell: &str, #[case] expected: &str) {
     assert_eq!(cmd_shell_arg(shell), expected);
 }
 

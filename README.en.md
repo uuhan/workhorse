@@ -215,7 +215,7 @@ export HORSED_SHELL=nu
 cargo work ls
 ```
 
-For bash/zsh, `cmd` remote commands now start the shell as a login shell (`-lc`), so PATH configured in login profiles works as expected for tools such as nvm, pnpm, fnm, and cargo shims. It does not load interactive shell files such as `.zshrc` by default, avoiding prompts, completion plugins, or TTY assumptions in script execution. Other shells such as `sh`, `dash`, and `nu` still use plain `-c`.
+For bash/zsh, `cmd` remote commands start the shell as interactive (`-ic`) so common PATH setup in `.bashrc` / `.zshrc` is loaded for tools such as nvm, pnpm, fnm, and cargo shims. Other shells such as `sh`, `dash`, and `nu` still use plain `-c`.
 
 You can pass the horsed target apparently to any cargo command:
 

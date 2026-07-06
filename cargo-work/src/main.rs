@@ -256,8 +256,8 @@ async fn main() -> Result<()> {
 /// horsed's `shellwords::split`, and the remote `$SHELL -c` re-parse. The final
 /// `bash` reads the decoded script from its stdin and runs it as one unit — so
 /// the script uses ordinary quoting (single-quoted JSON, etc.) with no escaping
-/// across shell layers. With horsed's login shell it also inherits profile
-/// managed PATH entries (nvm/pnpm, ... when configured there).
+/// across shell layers. On the server, horsed invokes bash/zsh as interactive
+/// shells so `.bashrc` / `.zshrc` PATH setup is loaded by default.
 async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
     use base64::Engine as _;
     use std::io::Read as _;
