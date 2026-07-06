@@ -212,7 +212,7 @@ export HORSED_SHELL=nu
 cargo work ls
 ```
 
-bash/zsh 下，`cmd` 类远程命令会以 login+interactive shell（`-lic`）启动，因此 `~/.zshrc`、`~/.bash_profile` / `~/.bashrc` 中配置的 PATH（例如 nvm、pnpm、fnm、cargo shims）会生效；`sh`、`dash`、`nu` 等其他 shell 仍使用普通 `-c`。
+bash/zsh 下，`cmd` 类远程命令会以 login shell（`-lc`）启动，因此登录 profile 中配置的 PATH（例如 nvm、pnpm、fnm、cargo shims）会生效；不会默认加载 `.zshrc` 这类交互 shell 配置，避免 prompt、补全插件或 TTY 假设污染脚本执行。`sh`、`dash`、`nu` 等其他 shell 仍使用普通 `-c`。
 
 cargo-work 也支持显式传入机器地址:
 

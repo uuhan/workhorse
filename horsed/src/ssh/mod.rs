@@ -1,7 +1,7 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
 use std::str::from_utf8;
 use std::sync::Arc;
@@ -84,6 +84,19 @@ where
         total = total.saturating_add(len as u64);
     }
     Ok(total)
+}
+
+fn cmd_shell_arg(shell: &str) -> &'static str {
+    let shell_name = Path::new(shell)
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or(shell);
+
+    if matches!(shell_name, "bash" | "zsh") {
+        "-lc"
+    } else {
+        "-c"
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -392,17 +405,12 @@ impl AppServer {
                     cmd.stdout(Stdio::piped());
                     cmd.stderr(Stdio::piped());
 
-                    // Login + interactive (`-lic`) so the user's rc files load
-                    // (`~/.zshrc`, `~/.bash_profile`→`~/.bashrc`). Without it a
-                    // PATH set up there (nvm/pnpm, fnm, cargo shims, ...) is
-                    // missing and commands like `pnpm` fail with "not found".
-                    // Only bash/zsh define `-lic`; other shells (sh/dash/nu/...)
-                    // keep plain `-c`.
-                    let shell_arg = if shell.ends_with("bash") || shell.ends_with("zsh") {
-                        "-lic"
-                    } else {
-                        "-c"
-                    };
+                    // Login shell (`-lc`) for bash/zsh so script execution can
+                    // inherit profile-managed PATH without enabling interactive
+                    // startup behavior. Interactive rc files such as `.zshrc`
+                    // may print prompts, load completion plugins, or assume a
+                    // TTY; keep them out of non-interactive remote commands.
+                    let shell_arg = cmd_shell_arg(&shell);
                     cmd.current_dir(&cmd_dir)
                         .kill_on_drop(true)
                         .arg(shell_arg)

@@ -97,7 +97,7 @@ printf '%s\n' '{"name":"demo app","ok":true}'
 EOF
 ```
 
-3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm the remote shell is bash/zsh so rc-loaded PATH is available.
+3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm they are configured from the remote login profile used by bash/zsh `-lc`.
 
 ### Fallback
 - If `exec` fails because `bash` or `base64 -d` is missing, use `cargo work -- ...` with explicit command paths or a server-supported shell.

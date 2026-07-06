@@ -66,7 +66,7 @@ ALL_PROXY=socks5://127.0.0.1:1080 cargo work -x -- curl -I https://example.com
 - `cargo work ssh` defaults to an interactive shell on the server when no command is provided.
 - `cargo work exec` reads the whole script from stdin, transports it as base64, and runs the decoded script with `bash` on the server. It is best for Linux/macOS bash hosts with `base64 -d` available.
 - `cargo work exec` rejects empty stdin. Use a quoted heredoc delimiter such as `<<'EOF'` so the local shell does not expand the script before it is sent.
-- For `cmd` remote execution under bash/zsh, `horsed` starts the shell as login+interactive (`-lic`), so rc-loaded PATH entries such as nvm, pnpm, fnm, and cargo shims are available. Other shells keep plain `-c`.
+- For `cmd` remote execution under bash/zsh, `horsed` starts the shell as a login shell (`-lc`), so profile-managed PATH entries such as nvm, pnpm, fnm, and cargo shims are available when configured there. Interactive files such as `.zshrc` are not loaded by default. Other shells keep plain `-c`.
 - Reverse proxy mode picks a random remote port and exports `ALL_PROXY`, `HTTP_PROXY`, and `HTTPS_PROXY` back into the remote environment.
 - If `-x` is set without local `ALL_PROXY` or `all_proxy`, the command warns and continues without proxy setup.
 
