@@ -32,6 +32,29 @@ fn cmd_shell_arg_loads_user_rc_for_bash_and_zsh(#[case] shell: &str, #[case] exp
     assert_eq!(cmd_shell_arg(shell), expected);
 }
 
+#[test]
+fn cmd_action_preserves_raw_exec_command() {
+    let command = r#"eval "$(printf %s abc | base64 -d)""#;
+
+    assert_eq!(
+        parse_exec_command("cmd", command).unwrap(),
+        ExecCommand::Raw(command.to_string())
+    );
+}
+
+#[test]
+fn non_cmd_actions_still_parse_exec_command_args() {
+    assert_eq!(
+        parse_exec_command("cargo", r#"build --features "a b""#).unwrap(),
+        ExecCommand::Args(vec![
+            "build".to_string(),
+            "--features".to_string(),
+            "a b".to_string()
+        ])
+    );
+    assert!(parse_exec_command("cargo", r#""unterminated"#).is_err());
+}
+
 struct TestClient {
     handle: Handle<Client>,
 }

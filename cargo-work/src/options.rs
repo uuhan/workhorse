@@ -144,10 +144,10 @@ pub enum Commands {
     Exec(ExecOptions),
 }
 
-/// `cargo work exec` — read a script from stdin and run it verbatim on the
-/// server. The script is base64-transported so it survives the client join +
-/// horsed's `shellwords::split` + the remote `$SHELL -c` re-parse untouched;
-/// use with a heredoc: `cargo work exec <<'EOF' ... EOF`.
+/// `cargo work exec` — read a script from stdin and run it with the selected
+/// remote shell. The script is base64-transported so it survives the client
+/// join and remote shell re-parse untouched; use with a heredoc:
+/// `cargo work exec <<'EOF' ... EOF`.
 #[derive(Clone, Debug, Args)]
 pub struct ExecOptions {
     #[clap(flatten)]

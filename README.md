@@ -199,7 +199,7 @@ pnpm --version
 EOF
 ```
 
-`exec` 会把脚本用 base64 传输后在服务端用 `bash` 执行，适合 Linux/macOS 的 bash 环境；如果服务端没有 `bash` 或 `base64 -d`，请继续使用 `cargo work -- ...` 或指定服务端可用的命令路径。
+`exec` 会把脚本用 base64 传输后交给当前选择的远程 shell 执行（默认 `bash`，可用 `--shell` 或 `HORSED_SHELL` 改为 `zsh` 等）。如果服务端没有 `base64 -d`，或选择的 shell 不支持 POSIX 风格的 `eval "$( ... )"` wrapper，请继续使用 `cargo work -- ...` 或指定服务端可用的命令路径。
 
 默认 Windows 系统使用 `powershell.exe`, 非 Windows 系统使用 `bash` 执行命令,
 你也可以使用 `--shell` 来指定你喜欢的解释器:
@@ -212,7 +212,7 @@ export HORSED_SHELL=nu
 cargo work ls
 ```
 
-bash/zsh 下，`cmd` 类远程命令会以 interactive shell（`-ic`）启动，从而默认加载 `.bashrc` / `.zshrc` 中常见的 PATH 配置（例如 nvm、pnpm、fnm、cargo shims）。`sh`、`dash`、`nu` 等其他 shell 仍使用普通 `-c`。
+bash/zsh 下，`cmd` / `exec` 类远程命令会以 interactive shell（`-ic`）启动，从而默认加载 `.bashrc` / `.zshrc` 中常见的 PATH 配置（例如 nvm、pnpm、fnm、cargo shims）。zsh 不使用 `-lic`：`-ic` 已经会加载 `.zshrc`，而 `-lic` 还会额外加载 `.zprofile` / `.zlogin` 这类登录 shell 文件，容易引入一次性命令不需要的副作用。`sh`、`dash`、`nu` 等其他 shell 仍使用普通 `-c`。
 
 cargo-work 也支持显式传入机器地址:
 

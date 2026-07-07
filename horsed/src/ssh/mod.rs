@@ -92,10 +92,30 @@ fn cmd_shell_arg(shell: &str) -> &'static str {
         .and_then(OsStr::to_str)
         .unwrap_or(shell);
 
+    // `zsh -ic` is enough to load `.zshrc`. Avoid `-lic`: login zsh also reads
+    // `.zprofile` and `.zlogin`, which are often meant for login-only side
+    // effects rather than remote one-shot commands.
     if matches!(shell_name, "bash" | "zsh") {
         "-ic"
     } else {
         "-c"
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ExecCommand {
+    Raw(String),
+    Args(Vec<String>),
+}
+
+fn parse_exec_command(
+    action: &str,
+    command: &str,
+) -> Result<ExecCommand, shellwords::MismatchedQuotes> {
+    if action == "cmd" {
+        Ok(ExecCommand::Raw(command.to_string()))
+    } else {
+        Ok(ExecCommand::Args(split(command)?))
     }
 }
 
@@ -321,8 +341,8 @@ impl AppServer {
 
     /// 服务端执行命令
     #[tracing::instrument(skip(self), err)]
-    pub async fn cmd(&mut self, command: Vec<String>) -> HorseResult<()> {
-        tracing::info!("CMD: {}", command.join(" "));
+    pub async fn cmd(&mut self, command_line: String) -> HorseResult<()> {
+        tracing::info!("CMD: {}", command_line);
 
         let env_repo = self.env.get("REPO").cloned();
         let env_branch = self.env.get("BRANCH").cloned();
@@ -377,7 +397,6 @@ impl AppServer {
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
-        let command_line = command.join(" ");
         let owner = self.user_name().to_string();
         let job = self
             .jobs
@@ -385,7 +404,7 @@ impl AppServer {
             .await;
         handle.info(format!("job_id={}", job.id())).await?;
         let task = self.tm.spawn_handle();
-        let span = tracing::info_span!("spawn", command = ?command, cmd_dir = ?cmd_dir);
+        let span = tracing::info_span!("spawn", command = %command_line, cmd_dir = ?cmd_dir);
         let mut cmd = Command::new(&shell);
         cmd.envs(&self.env);
 
@@ -412,7 +431,7 @@ impl AppServer {
                     cmd.current_dir(&cmd_dir)
                         .kill_on_drop(true)
                         .arg(shell_arg)
-                        .arg(command.join(" "));
+                        .arg(command_line);
 
                     let mut cmd = match cmd.spawn() {
                         Ok(cmd) => cmd,
@@ -2562,8 +2581,12 @@ impl Handler for AppServer {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         let command = from_utf8(data).context(format!("无效请求: {:?}", &data))?;
-        let command = split(command).context(format!("无效命令: {command}"))?;
-        let command_line = command.join(" ");
+        let command = parse_exec_command(self.action.as_str(), command)
+            .context(format!("无效命令: {command}"))?;
+        let command_line = match &command {
+            ExecCommand::Raw(command) => command.clone(),
+            ExecCommand::Args(command) => command.join(" "),
+        };
         let started = std::time::Instant::now();
         if self.debug_enabled() {
             tracing::info!(
@@ -2576,14 +2599,14 @@ impl Handler for AppServer {
             );
         }
 
-        let dispatch_res = match self.action.as_str() {
-            "health" => self.health(command).await,
-            "ping" => self.ping(command).await,
-            "logs" => self.logs(command).await,
-            "cargo" => self.cargo(command).await,
-            "apply" => self.apply(command).await,
+        let dispatch_res = match (self.action.as_str(), command) {
+            ("health", ExecCommand::Args(command)) => self.health(command).await,
+            ("ping", ExecCommand::Args(command)) => self.ping(command).await,
+            ("logs", ExecCommand::Args(command)) => self.logs(command).await,
+            ("cargo", ExecCommand::Args(command)) => self.cargo(command).await,
+            ("apply", ExecCommand::Args(command)) => self.apply(command).await,
             // just 命令支持 just.xxx 格式, xxx 对应 justfile 中的运行指令
-            "just" => self.just(command).await,
+            ("just", ExecCommand::Args(command)) => self.just(command).await,
             // action if action.starts_with("just") => {
             //     let mut subaction = action.split(".").skip(1).collect::<Vec<_>>().join(".");
             //     if subaction.is_empty() {
@@ -2591,15 +2614,15 @@ impl Handler for AppServer {
             //     }
             //     self.just(command, subaction).await?;
             // }
-            "git" => self.git(command).await,
-            "cmd" => self.cmd(command).await,
-            "get" => self.get(command).await,
-            "scp" => self.scp(command).await,
-            "put" => self.put(command).await,
-            "admin" => self.admin(command).await,
-            "job" => self.job(command).await,
-            "ssh" => self.ssh(command).await,
-            action => {
+            ("git", ExecCommand::Args(command)) => self.git(command).await,
+            ("cmd", ExecCommand::Raw(command)) => self.cmd(command).await,
+            ("get", ExecCommand::Args(command)) => self.get(command).await,
+            ("scp", ExecCommand::Args(command)) => self.scp(command).await,
+            ("put", ExecCommand::Args(command)) => self.put(command).await,
+            ("admin", ExecCommand::Args(command)) => self.admin(command).await,
+            ("job", ExecCommand::Args(command)) => self.job(command).await,
+            ("ssh", ExecCommand::Args(command)) => self.ssh(command).await,
+            (action, _) => {
                 let handle = self.handle.take().context("FIXME: NO HANDLE").unwrap();
                 handle
                     .error_with_code("HSSH_ACTION_UNSUPPORTED", format!("不支持的命令: {action}"))

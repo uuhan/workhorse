@@ -251,15 +251,13 @@ async fn main() -> Result<()> {
 }
 
 /// Read a whole script from stdin and run it verbatim on the server. The script
-/// is base64-encoded and sent as `echo <b64> | base64 -d | bash`: base64 has no
-/// shell metacharacters, so it passes untouched through the client's arg join,
-/// horsed's `shellwords::split`, and the remote `$SHELL -c` re-parse. The final
-/// `bash` reads the decoded script from its stdin and runs it as one unit — so
-/// the script uses ordinary quoting (single-quoted JSON, etc.) with no escaping
-/// across shell layers. On the server, horsed invokes bash/zsh as interactive
-/// shells so `.bashrc` / `.zshrc` PATH setup is loaded by default.
+/// is base64-encoded and sent as a small `eval "$(base64 -d ...)"` wrapper:
+/// base64 has no shell metacharacters, so the payload survives the client join
+/// and remote shell re-parse untouched. The selected remote shell evaluates the
+/// decoded script itself, so `--shell zsh` / `HORSED_SHELL=zsh` really means the
+/// script is interpreted by zsh. On the server, horsed invokes bash/zsh as
+/// interactive shells so `.bashrc` / `.zshrc` PATH setup is loaded by default.
 async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
-    use base64::Engine as _;
     use std::io::Read as _;
 
     let mut script = String::new();
@@ -269,9 +267,15 @@ async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
             "exec: 标准输入为空 (用法: cargo work exec <<'EOF' ... EOF)"
         ));
     }
-    let b64 = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
-    let wrapper = format!("echo {b64} | base64 -d | bash");
+    let wrapper = exec_script_wrapper(&script);
     cmd::run(key, horse, vec![wrapper]).await
+}
+
+fn exec_script_wrapper(script: &str) -> String {
+    use base64::Engine as _;
+
+    let b64 = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
+    format!("eval \"$(printf %s {b64} | base64 -d)\"")
 }
 
 fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
@@ -306,4 +310,29 @@ fn merge_options(options: &mut HorseOptions, horse: &HorseOptions) {
     }
 
     options.env.append(&mut horse.env.clone());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+
+    #[test]
+    fn exec_script_wrapper_evaluates_with_selected_outer_shell() {
+        let script = "set -euo pipefail\nprintf '%s\\n' '{\"ok\":true}'\n";
+        let b64 = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
+
+        assert_eq!(
+            exec_script_wrapper(script),
+            format!("eval \"$(printf %s {b64} | base64 -d)\"")
+        );
+    }
+
+    #[test]
+    fn exec_script_wrapper_does_not_hardcode_bash() {
+        let wrapper = exec_script_wrapper("echo ok\n");
+
+        assert!(!wrapper.contains("| bash"));
+        assert!(!wrapper.ends_with(" bash"));
+    }
 }

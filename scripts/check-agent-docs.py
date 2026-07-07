@@ -82,5 +82,18 @@ for readme in [ROOT / "README.md", ROOT / "README.en.md"]:
         fail(f"{readme.name} must mention AI_AGENT.md")
     if "health --json" not in text:
         fail(f"{readme.name} must mention health --json")
+    if "base64" not in text or ("selected" not in text and "当前选择" not in text):
+        fail(f"{readme.name} must describe exec using the selected remote shell")
+
+remote_access_text = (ROOT / "skills" / "workhorse-remote-access" / "SKILL.md").read_text(
+    encoding="utf-8"
+)
+if "selected remote shell" not in remote_access_text:
+    fail("workhorse-remote-access skill must describe exec using the selected remote shell")
+if "zsh does not need `-lic`" not in remote_access_text:
+    fail("workhorse-remote-access skill must document the zsh -ic/-lic decision")
+
+if "selected shell" not in playbooks_text or "zsh does not need `-lic`" not in playbooks_text:
+    fail("agent-playbooks.md must document exec selected-shell semantics and zsh -ic policy")
 
 print("[agent-doc-check] OK")

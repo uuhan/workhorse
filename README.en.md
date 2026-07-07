@@ -202,7 +202,7 @@ pnpm --version
 EOF
 ```
 
-`exec` transports the script with base64 and runs it with `bash` on the server. It is best suited for Linux/macOS bash environments; if the server does not have `bash` or `base64 -d`, continue to use `cargo work -- ...` or explicit server-side command paths.
+`exec` transports the script with base64 and runs it with the selected remote shell (default `bash`; use `--shell` or `HORSED_SHELL` for `zsh`, etc.). If the server does not have `base64 -d`, or the selected shell does not support the POSIX-style `eval "$( ... )"` wrapper, continue to use `cargo work -- ...` or explicit server-side command paths.
 
 The default intepreter is `powershell.exe` on Windows, and `bash` on Linux/MacOS.
 You can also specify the interpreter by `--shell` option:
@@ -215,7 +215,7 @@ export HORSED_SHELL=nu
 cargo work ls
 ```
 
-For bash/zsh, `cmd` remote commands start the shell as interactive (`-ic`) so common PATH setup in `.bashrc` / `.zshrc` is loaded for tools such as nvm, pnpm, fnm, and cargo shims. Other shells such as `sh`, `dash`, and `nu` still use plain `-c`.
+For bash/zsh, `cmd` / `exec` remote commands start the shell as interactive (`-ic`) so common PATH setup in `.bashrc` / `.zshrc` is loaded for tools such as nvm, pnpm, fnm, and cargo shims. zsh intentionally does not use `-lic`: `-ic` already loads `.zshrc`, while `-lic` also loads login-shell files such as `.zprofile` / `.zlogin`, which can add side effects that one-shot remote commands do not need. Other shells such as `sh`, `dash`, and `nu` still use plain `-c`.
 
 You can pass the horsed target apparently to any cargo command:
 

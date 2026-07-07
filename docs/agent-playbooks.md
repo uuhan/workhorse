@@ -84,7 +84,7 @@
 ### Preconditions
 - Target server is resolvable via `--repo`, `--repo-name`, or git remote `horsed`.
 - SSH key is available (`--ssh-key` or default key path).
-- Remote host has `bash` and `base64 -d` available.
+- Remote host has the selected shell and `base64 -d` available. `exec` uses a POSIX-style `eval "$( ... )"` wrapper, so prefer bash/zsh/sh-style shells for this path.
 
 ### Steps
 1. Use `cargo work -- <cmd>` for a short one-line command.
@@ -97,10 +97,10 @@ printf '%s\n' '{"name":"demo app","ok":true}'
 EOF
 ```
 
-3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm the selected remote shell loads the file that configures them: bash/zsh use `-ic` and read `.bashrc` / `.zshrc`; other shells keep plain `-c`.
+3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm the selected remote shell loads the file that configures them: bash/zsh use `-ic` and read `.bashrc` / `.zshrc`; zsh does not need `-lic` for `.zshrc`; other shells keep plain `-c`.
 
 ### Fallback
-- If `exec` fails because `bash` or `base64 -d` is missing, use `cargo work -- ...` with explicit command paths or a server-supported shell.
+- If `exec` fails because `base64 -d` is missing or the selected shell cannot run the wrapper, use `cargo work -- ...` with explicit command paths or a server-supported shell.
 - If repo/host resolve fails, pass `--repo ssh://git@HOST:2222/ns/repo.git`.
 
 ### Acceptance Signals
