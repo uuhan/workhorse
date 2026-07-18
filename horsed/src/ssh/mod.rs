@@ -112,7 +112,7 @@ fn parse_exec_command(
     action: &str,
     command: &str,
 ) -> Result<ExecCommand, shellwords::MismatchedQuotes> {
-    if action == "cmd" {
+    if matches!(action, "cmd" | "cmd-sync") {
         Ok(ExecCommand::Raw(command.to_string()))
     } else {
         Ok(ExecCommand::Args(split(command)?))
@@ -341,11 +341,16 @@ impl AppServer {
 
     /// 服务端执行命令
     #[tracing::instrument(skip(self), err)]
-    pub async fn cmd(&mut self, command_line: String) -> HorseResult<()> {
+    pub async fn cmd(&mut self, command_line: String, sync: bool) -> HorseResult<()> {
         tracing::info!("CMD: {}", command_line);
 
         let env_repo = self.env.get("REPO").cloned();
         let env_branch = self.env.get("BRANCH").cloned();
+        let local_commit = self
+            .env
+            .get("GIT_COMMIT")
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
 
         let shell = if let Some(shell) = self.env.get("SHELL").cloned() {
             shell
@@ -356,7 +361,9 @@ impl AppServer {
         };
 
         // 如果命令中包含 REPO 或者 BRANCH 环境变量, 则切换到工作目录执行命令
-        let cmd_dir = if let (Some(env_repo), Some(_)) = (env_repo, env_branch) {
+        let (cmd_dir, sync_context) = if let (Some(env_repo), Some(env_branch)) =
+            (env_repo, env_branch)
+        {
             let mut repo_path = PathBuf::from(env_repo);
             // 去除开头的 /
             if let Ok(stripped) = repo_path.strip_prefix("/") {
@@ -380,27 +387,54 @@ impl AppServer {
                 return Ok(());
             }
 
+            let repo = Repo::from(std::env::current_dir()?.join("repos").join(&repo_path));
             let mut work_path = std::env::current_dir()?.join("workspace").join(repo_path);
             // 构建目录不包含 .git 后缀
             work_path.set_extension("");
 
-            if work_path.exists() {
-                work_path
+            if sync {
+                if !repo.exists() {
+                    let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+                    handle
+                        .fail_with_error(2, "HSSH_REPO_NOT_FOUND", "代码仓库不存在，请先 push 代码")
+                        .await?;
+                    return Ok(());
+                }
+                if !work_path.exists() {
+                    std::fs::create_dir_all(&work_path).context("创建工作目录失败")?;
+                }
+                (work_path, Some((repo, env_branch, local_commit.clone())))
+            } else if work_path.exists() {
+                (work_path, None)
             } else {
-                std::env::current_dir()?
+                (std::env::current_dir()?, None)
             }
+        } else if sync {
+            let handle = self.handle.take().context("FIXME: NO HANDLE")?;
+            handle
+                .fail_with_error(
+                    2,
+                    "HSSH_SYNC_CONTEXT_MISSING",
+                    "同步执行需要 REPO 和 BRANCH 环境变量",
+                )
+                .await?;
+            return Ok(());
         } else {
-            std::env::current_dir()?
+            (std::env::current_dir()?, None)
         };
 
-        let handle = self
+        let mut handle = self
             .handle
             .take()
             .context("FIXME: NO HANDLE".color(Color::Red))?;
         let owner = self.user_name().to_string();
         let job = self
             .jobs
-            .create_job(owner, "cmd", command_line.clone())
+            .create_job(
+                owner,
+                if sync { "cmd-sync" } else { "cmd" },
+                command_line.clone(),
+            )
             .await;
         handle.info(format!("job_id={}", job.id())).await?;
         let task = self.tm.spawn_handle();
@@ -412,6 +446,38 @@ impl AppServer {
             async move {
                 let mut final_code = 1_i32;
                 let result: anyhow::Result<()> = async {
+                    if let Some((repo, branch, local_commit)) = sync_context {
+                        let remote_commit = repo
+                            .rev_parse(&branch)
+                            .await
+                            .context("读取远端分支提交失败")?;
+                        handle
+                            .info(format!(
+                                "code_sync=enabled local_commit={local_commit} remote_commit={remote_commit} branch={branch}"
+                            ))
+                            .await?;
+
+                        repo.checkout(&cmd_dir, Some(&branch))
+                            .await
+                            .context("检出代码失败")?;
+                        let mut patch_input = handle.make_reader();
+                        let mut patch = Vec::new();
+                        patch_input.read_to_end(&mut patch).await?;
+                        drop(patch_input);
+                        repo.apply(&cmd_dir, &patch)
+                            .await
+                            .context("应用代码快照失败")?;
+                        handle
+                            .info(format!("code_sync=applied patch_bytes={}", patch.len()))
+                            .await?;
+                    } else {
+                        handle
+                            .info(format!(
+                                "code_sync=disabled local_commit={local_commit} remote_commit=unverified"
+                            ))
+                            .await?;
+                    }
+
                     #[cfg(target_os = "windows")]
                     {
                         #[allow(unused_imports)]
@@ -476,8 +542,17 @@ impl AppServer {
                 }
                 .await;
 
+                if let Err(err) = result {
+                    tracing::error!("同步远端代码并执行命令失败: {err:#}");
+                    job.finish(final_code).await;
+                    handle
+                        .fail_with_error(1, "HSSH_CMD_SYNC_FAILED", err.to_string())
+                        .await?;
+                    return Ok(());
+                }
+
                 job.finish(final_code).await;
-                result
+                Ok(())
             }
             .instrument(span),
         );
@@ -2615,7 +2690,8 @@ impl Handler for AppServer {
             //     self.just(command, subaction).await?;
             // }
             ("git", ExecCommand::Args(command)) => self.git(command).await,
-            ("cmd", ExecCommand::Raw(command)) => self.cmd(command).await,
+            ("cmd", ExecCommand::Raw(command)) => self.cmd(command, false).await,
+            ("cmd-sync", ExecCommand::Raw(command)) => self.cmd(command, true).await,
             ("get", ExecCommand::Args(command)) => self.get(command).await,
             ("scp", ExecCommand::Args(command)) => self.scp(command).await,
             ("put", ExecCommand::Args(command)) => self.put(command).await,

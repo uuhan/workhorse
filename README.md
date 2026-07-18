@@ -189,6 +189,8 @@ cargo work put ./target/release/horsed target/release/horsed
 cargo work -- scoop install vcpkg
 ```
 
+`cargo work -- ...` 直接使用远端现有状态，不同步本地代码；需要基于当前本地代码运行多行脚本时使用下面的 `cargo work exec`。
+
 对于 AI Agent 生成的多行脚本，或包含 JSON、HTTP header、括号、引号的命令，优先使用 `cargo work exec` 从标准输入传整段脚本，避免多层 shell 转义：
 
 ```bash
@@ -199,7 +201,9 @@ pnpm --version
 EOF
 ```
 
-`exec` 会把脚本用 base64 传输后交给当前选择的远程 shell 执行（默认 `bash`，可用 `--shell` 或 `HORSED_SHELL` 改为 `zsh` 等）。如果服务端没有 `base64 -d`，或选择的 shell 不支持 POSIX 风格的 `eval "$( ... )"` wrapper，请继续使用 `cargo work -- ...` 或指定服务端可用的命令路径。
+`exec` 默认会像 `build` / `just` 一样，先将当前代码快照同步到远端工作区，再把 base64 传输的脚本交给当前选择的远程 shell 执行（默认 `bash`，可用 `--shell` 或 `HORSED_SHELL` 改为 `zsh` 等）。启动输出会显示 `code_sync`、本地 commit、远端 commit 和补丁大小，避免静默地在旧代码上运行。系统检查或运维脚本若明确需要保留远端现状，请使用 `cargo work exec --no-sync`；交互式原始远程访问继续使用 `cargo work ssh`。
+
+同步模式需要支持 `cmd-sync` 的新版 `horsed`。旧服务端会明确拒绝该动作，不会自动降级为未同步执行。如果服务端没有 `base64 -d`，或选择的 shell 不支持 POSIX 风格的 `eval "$( ... )"` wrapper，请继续使用 `cargo work -- ...` 或指定服务端可用的命令路径。
 
 默认 Windows 系统使用 `powershell.exe`, 非 Windows 系统使用 `bash` 执行命令,
 你也可以使用 `--shell` 来指定你喜欢的解释器:

@@ -43,6 +43,16 @@ fn cmd_action_preserves_raw_exec_command() {
 }
 
 #[test]
+fn cmd_sync_action_preserves_raw_exec_command() {
+    let command = r#"eval "$(printf %s abc | base64 -d)""#;
+
+    assert_eq!(
+        parse_exec_command("cmd-sync", command).unwrap(),
+        ExecCommand::Raw(command.to_string())
+    );
+}
+
+#[test]
 fn non_cmd_actions_still_parse_exec_command_args() {
     assert_eq!(
         parse_exec_command("cargo", r#"build --features "a b""#).unwrap(),

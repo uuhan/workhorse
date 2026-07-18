@@ -464,16 +464,6 @@ async fn git_diff(repo: &Repository, args: &[&str]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-fn parse_upstream_remote_branch(upstream: &str) -> Option<(&str, &str)> {
-    let suffix = upstream.strip_prefix("refs/remotes/")?;
-    let (remote, branch) = suffix.split_once('/')?;
-    Some((remote, branch))
-}
-
-fn upstream_remote_name(upstream: &str) -> Option<&str> {
-    parse_upstream_remote_branch(upstream).map(|(remote, _)| remote)
-}
-
 fn summarize_git_output(output: &std::process::Output) -> String {
     let mut lines = Vec::new();
     for stream in [&output.stdout, &output.stderr] {
@@ -530,16 +520,15 @@ pub async fn collect_remote_patch(repo: &Repository, push_remote: Option<&str>) 
             );
 
             let mut need_commit_patch = true;
-            let mut auto_push_succeeded = false;
             match git_push_remote(repo, push_remote).await {
                 Ok(output) => {
                     let summary = summarize_git_output(&output);
                     if output.status.success() {
-                        auto_push_succeeded = true;
                         tracing::warn!("自动 push 结果: 成功 (remote={push_remote}; {summary})");
-                        if upstream_remote_name(upstream.as_str()) == Some(push_remote) {
-                            need_commit_patch = false;
-                        }
+                        // The target bare repository now contains HEAD, so the
+                        // server checkout already includes these commits. Only
+                        // the remaining worktree diff must be applied.
+                        need_commit_patch = false;
                     } else {
                         tracing::warn!(
                             "自动 push 结果: 失败 (remote={push_remote}; {summary})，将继续通过补丁同步未推送提交"
@@ -557,15 +546,9 @@ pub async fn collect_remote_patch(repo: &Repository, push_remote: Option<&str>) 
                 let range = format!("{upstream}..HEAD");
                 let commit_patch = git_diff(repo, &["--binary", range.as_str()]).await?;
                 if commit_patch.is_empty() {
-                    if auto_push_succeeded {
-                        tracing::warn!(
-                            "本地分支领先上游 {ahead} 个提交，但自动 push 后提交补丁为空，将继续仅同步工作区改动"
-                        );
-                    } else {
-                        tracing::warn!(
-                            "本地分支领先上游 {ahead} 个提交，但提交补丁为空，将继续仅同步工作区改动"
-                        );
-                    }
+                    tracing::warn!(
+                        "本地分支领先上游 {ahead} 个提交，但提交补丁为空，将继续仅同步工作区改动"
+                    );
                 } else {
                     patch.extend_from_slice(&commit_patch);
                 }

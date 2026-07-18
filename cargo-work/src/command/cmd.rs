@@ -1,10 +1,32 @@
 use super::*;
-use color_eyre::eyre::{anyhow, bail, ContextCompat, Result, WrapErr};
+#[cfg(not(feature = "use-system-ssh"))]
+use color_eyre::eyre::WrapErr;
+use color_eyre::eyre::{anyhow, bail, ContextCompat, Result};
 use git2::Repository;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
-pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result<()> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CodeSync {
+    Enabled,
+    Disabled,
+}
+
+impl CodeSync {
+    fn action(self) -> &'static str {
+        match self {
+            Self::Enabled => "cmd-sync",
+            Self::Disabled => "cmd",
+        }
+    }
+}
+
+pub async fn run(
+    sk: &Path,
+    horse: HorseOptions,
+    scripts: Vec<String>,
+    sync: CodeSync,
+) -> Result<()> {
     let action = "cmd";
     let trace_id = super::new_trace_id(action);
     super::log_stage(&trace_id, action, "resolve.start");
@@ -50,11 +72,17 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
 
     let env = super::ssh::start_proxy(sk, host, &horse).await?;
     super::log_stage(&trace_id, action, "proxy.ready");
+    let patch = if sync == CodeSync::Enabled {
+        Some(super::collect_remote_patch(&repo, horse.remote.as_deref()).await?)
+    } else {
+        None
+    };
 
     #[cfg(not(feature = "use-system-ssh"))]
     {
         super::log_stage(&trace_id, action, "connect.start");
-        let mut ssh = HorseClient::connect(sk, horse.key_hash_alg, "cmd", host, None, None).await?;
+        let mut ssh =
+            HorseClient::connect(sk, horse.key_hash_alg, sync.action(), host, None, None).await?;
         let mut channel = ssh.channel_open_session().await?;
         super::log_stage(&trace_id, action, "channel.open");
 
@@ -92,6 +120,13 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             .exec(true, scripts.join(" ").as_bytes())
             .await
             .wrap_err("exec")?;
+
+        if let Some(patch) = patch {
+            let mut stdin = channel.make_writer();
+            stdin.write_all(&patch).await?;
+            stdin.shutdown().await?;
+            drop(stdin);
+        }
 
         let mut stdout = tokio::io::stdout();
         let mut stderr = tokio::io::stderr();
@@ -162,7 +197,10 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
             envs.insert(k.to_string(), v.to_string());
         }
 
-        let mut cmd = super::run_system_ssh(sk, envs, "cmd", host, scripts);
+        let mut cmd = super::run_system_ssh(sk, envs, sync.action(), host, scripts);
+        if sync == CodeSync::Enabled {
+            cmd.stdin(std::process::Stdio::piped());
+        }
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
         cmd.spawn()?
@@ -171,6 +209,11 @@ pub async fn run(sk: &Path, horse: HorseOptions, scripts: Vec<String>) -> Result
     #[cfg(feature = "use-system-ssh")]
     {
         super::log_stage(&trace_id, action, "connect.start");
+        if let Some(patch) = patch {
+            let mut stdin = ssh.stdin.take().context("获取远端命令 stdin 失败")?;
+            stdin.write_all(&patch).await?;
+            stdin.shutdown().await?;
+        }
         let mut stdout = ssh.stdout.take().unwrap();
         let mut stderr = ssh.stderr.take().unwrap();
         let mut out = tokio::io::stdout();

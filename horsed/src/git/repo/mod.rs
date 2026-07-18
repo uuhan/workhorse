@@ -120,13 +120,36 @@ impl Repo {
         let out = cmd.wait_with_output().await?;
 
         if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
+            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
             tracing::error!("{}", err);
+            return Err(anyhow::anyhow!("git checkout failed: {err}").into());
         } else {
             tracing::info!("[git] checkout done");
         }
 
         Ok(Repo::from(to))
+    }
+
+    pub async fn rev_parse(&self, revision: impl AsRef<str>) -> HorseResult<String> {
+        let mut cmd = Command::new("git");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let output = cmd
+            .current_dir(&self.dir)
+            .arg("rev-parse")
+            .arg(revision.as_ref())
+            .output()
+            .await?;
+        output.status.exit_ok()?;
+
+        let stdout = String::from_utf8(output.stdout).map_err(anyhow::Error::from)?;
+        Ok(stdout.trim().to_string())
     }
 
     #[tracing::instrument(skip(to, patch), fields(to = ?to.as_ref(), patch = patch.as_ref().len()))]
@@ -154,9 +177,10 @@ impl Repo {
         drop(stdin);
 
         let output = cmd.wait_with_output().await?;
-        if !output.stderr.is_empty() {
-            let err = String::from_utf8_lossy(&output.stderr);
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
             tracing::error!("[git] apply failed: {}", err);
+            return Err(anyhow::anyhow!("git apply failed: {err}").into());
         }
 
         tracing::info!("[git] apply done");

@@ -51,8 +51,17 @@ health_help = subprocess.run(
 if "--json" not in health_help:
     fail("health --help does not expose --json")
 
-for cmd in (
+exec_help = subprocess.run(
     [str(binary), "work", "exec", "--help"],
+    cwd=str(ROOT),
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout
+if "--no-sync" not in exec_help:
+    fail("exec --help does not expose --no-sync")
+
+for cmd in (
     [str(binary), "work", "job", "--help"],
     [str(binary), "work", "logs", "--help"],
     [str(binary), "work", "ping", "--help"],

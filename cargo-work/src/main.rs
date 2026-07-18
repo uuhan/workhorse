@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
             // cargo work -- <SCRIPTS>
             // e.g. cargo work -- ls -al
             if !scripts.is_empty() {
-                if let Err(err) = cmd::run(&key, horse, scripts).await {
+                if let Err(err) = cmd::run(&key, horse, scripts, cmd::CodeSync::Disabled).await {
                     tracing::error!("执行失败: {}", err);
                 }
             } else if let Some(commands) = w_opt.commands {
@@ -215,7 +215,12 @@ async fn main() -> Result<()> {
                     }
                     Commands::Exec(mut options) => {
                         merge_options(&mut options.horse, &horse);
-                        if let Err(err) = exec_stdin(&key, options.horse).await {
+                        let sync = if options.no_sync {
+                            cmd::CodeSync::Disabled
+                        } else {
+                            cmd::CodeSync::Enabled
+                        };
+                        if let Err(err) = exec_stdin(&key, options.horse, sync).await {
                             tracing::error!("执行失败: {}", err);
                         }
                     }
@@ -257,7 +262,7 @@ async fn main() -> Result<()> {
 /// decoded script itself, so `--shell zsh` / `HORSED_SHELL=zsh` really means the
 /// script is interpreted by zsh. On the server, horsed invokes bash/zsh as
 /// interactive shells so `.bashrc` / `.zshrc` PATH setup is loaded by default.
-async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
+async fn exec_stdin(key: &PathBuf, horse: HorseOptions, sync: cmd::CodeSync) -> Result<()> {
     use std::io::Read as _;
 
     let mut script = String::new();
@@ -268,7 +273,7 @@ async fn exec_stdin(key: &PathBuf, horse: HorseOptions) -> Result<()> {
         ));
     }
     let wrapper = exec_script_wrapper(&script);
-    cmd::run(key, horse, vec![wrapper]).await
+    cmd::run(key, horse, vec![wrapper], sync).await
 }
 
 fn exec_script_wrapper(script: &str) -> String {

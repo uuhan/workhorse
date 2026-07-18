@@ -30,7 +30,8 @@ This file is the single entry point for AI agents operating on this repository.
 - Health (machine): `cargo work health --json`
 - Logs: `cargo work logs` / `cargo work logs -f`
 - Jobs: `cargo work job list` / `cargo work job attach <job_id> -f`
-- Agent script exec: `cargo work exec <<'EOF' ... EOF`
+- Agent script exec with current code sync: `cargo work exec <<'EOF' ... EOF`
+- Explicit existing-remote-state exec: `cargo work exec --no-sync <<'EOF' ... EOF`
 
 ## Success Criteria
 

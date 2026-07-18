@@ -192,6 +192,8 @@ You can also run any command remotely:
 cargo work -- scoop install vcpkg
 ```
 
+`cargo work -- ...` uses the existing remote state and does not synchronize local code. Use `cargo work exec` below for multi-line scripts that must run against the current local snapshot.
+
 For AI-generated multi-line scripts, or commands containing JSON, HTTP headers, parentheses, or quotes, prefer `cargo work exec` and pass the whole script on stdin to avoid multi-layer shell escaping:
 
 ```bash
@@ -202,7 +204,9 @@ pnpm --version
 EOF
 ```
 
-`exec` transports the script with base64 and runs it with the selected remote shell (default `bash`; use `--shell` or `HORSED_SHELL` for `zsh`, etc.). If the server does not have `base64 -d`, or the selected shell does not support the POSIX-style `eval "$( ... )"` wrapper, continue to use `cargo work -- ...` or explicit server-side command paths.
+By default, `exec` now behaves like `build` / `just`: it synchronizes the current code snapshot into the remote worktree before running the base64-transported script with the selected remote shell (default `bash`; use `--shell` or `HORSED_SHELL` for `zsh`, etc.). Startup output reports `code_sync`, the local commit, the remote commit, and patch size so stale-code execution is not silent. Use `cargo work exec --no-sync` for system inspection or operations that intentionally need the existing remote state; continue to use `cargo work ssh` for raw interactive remote access.
+
+Synchronized exec requires a new `horsed` that supports the `cmd-sync` action. Older servers reject the action explicitly instead of silently falling back to unsynchronized execution. If the server does not have `base64 -d`, or the selected shell does not support the POSIX-style `eval "$( ... )"` wrapper, continue to use `cargo work -- ...` or explicit server-side command paths.
 
 The default intepreter is `powershell.exe` on Windows, and `bash` on Linux/MacOS.
 You can also specify the interpreter by `--shell` option:

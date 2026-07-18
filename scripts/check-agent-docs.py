@@ -90,10 +90,19 @@ remote_access_text = (ROOT / "skills" / "workhorse-remote-access" / "SKILL.md").
 )
 if "selected remote shell" not in remote_access_text:
     fail("workhorse-remote-access skill must describe exec using the selected remote shell")
+if "cmd-sync" not in remote_access_text or "--no-sync" not in remote_access_text:
+    fail("workhorse-remote-access skill must document exec code sync and its opt-out")
 if "zsh does not need `-lic`" not in remote_access_text:
     fail("workhorse-remote-access skill must document the zsh -ic/-lic decision")
 
 if "selected shell" not in playbooks_text or "zsh does not need `-lic`" not in playbooks_text:
     fail("agent-playbooks.md must document exec selected-shell semantics and zsh -ic policy")
+if "code_sync=enabled" not in playbooks_text or "--no-sync" not in playbooks_text:
+    fail("agent-playbooks.md must document exec sync status and explicit opt-out")
+
+for readme in [ROOT / "README.md", ROOT / "README.en.md"]:
+    text = readme.read_text(encoding="utf-8")
+    if "cmd-sync" not in text or "--no-sync" not in text:
+        fail(f"{readme.name} must document exec code sync compatibility")
 
 print("[agent-doc-check] OK")

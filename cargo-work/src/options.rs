@@ -139,7 +139,7 @@ pub enum Commands {
     Admin(AdminOptions),
     #[command(
         name = "exec",
-        about = "从标准输入读取整段脚本, 原样在服务器执行 (适合含引号/JSON 的多行命令, 免去多层 shell 转义)"
+        about = "同步当前代码后，从标准输入读取整段脚本并在服务器执行（可用 --no-sync 保留远端现状）"
     )]
     Exec(ExecOptions),
 }
@@ -150,8 +150,39 @@ pub enum Commands {
 /// `cargo work exec <<'EOF' ... EOF`.
 #[derive(Clone, Debug, Args)]
 pub struct ExecOptions {
+    #[clap(
+        long,
+        help = "不将本地代码快照同步到远端工作区，直接在远端现有状态上执行"
+    )]
+    pub no_sync: bool,
     #[clap(flatten)]
     pub horse: HorseOptions,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn exec_options(args: &[&str]) -> ExecOptions {
+        let cli = Cli::try_parse_from(args).expect("exec arguments should parse");
+        let SubCommands::Work(work) = cli.sub_commands else {
+            panic!("expected cargo work command");
+        };
+        let Some(Commands::Exec(options)) = work.commands else {
+            panic!("expected exec command");
+        };
+        options
+    }
+
+    #[test]
+    fn exec_syncs_code_by_default() {
+        assert!(!exec_options(&["cargo-work", "work", "exec"]).no_sync);
+    }
+
+    #[test]
+    fn exec_can_disable_code_sync_explicitly() {
+        assert!(exec_options(&["cargo-work", "work", "exec", "--no-sync"]).no_sync);
+    }
 }
 
 #[derive(Clone, Debug, Args)]

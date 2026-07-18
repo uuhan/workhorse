@@ -84,10 +84,11 @@
 ### Preconditions
 - Target server is resolvable via `--repo`, `--repo-name`, or git remote `horsed`.
 - SSH key is available (`--ssh-key` or default key path).
+- Default synchronized `exec` requires a `horsed` version that supports the `cmd-sync` action.
 - Remote host has the selected shell and `base64 -d` available. `exec` uses a POSIX-style `eval "$( ... )"` wrapper, so prefer bash/zsh/sh-style shells for this path.
 
 ### Steps
-1. Use `cargo work -- <cmd>` for a short one-line command.
+1. Use `cargo work -- <cmd>` for a short one-line command that intentionally targets the existing remote state; this raw path does not synchronize code.
 2. Use a quoted heredoc for multi-line scripts or commands containing JSON/headers/quotes:
 
 ```bash
@@ -98,11 +99,15 @@ EOF
 ```
 
 3. If environment-dependent tools such as `pnpm`, `nvm`, `fnm`, or cargo shims are missing, confirm the selected remote shell loads the file that configures them: bash/zsh use `-ic` and read `.bashrc` / `.zshrc`; zsh does not need `-lic` for `.zshrc`; other shells keep plain `-c`.
+4. Treat `exec` as code-synchronized by default. Confirm the startup output reports `code_sync=enabled`, the expected local/remote commits, and `code_sync=applied` before trusting repository reads or tests.
+5. Use `cargo work exec --no-sync` only when the script intentionally targets the existing remote state. Use `cargo work ssh` for raw interactive access.
 
 ### Fallback
 - If `exec` fails because `base64 -d` is missing or the selected shell cannot run the wrapper, use `cargo work -- ...` with explicit command paths or a server-supported shell.
+- If the server rejects `cmd-sync`, update `horsed`; do not silently retry without synchronization. Use `--no-sync` only when stale remote state is explicitly acceptable.
 - If repo/host resolve fails, pass `--repo ssh://git@HOST:2222/ns/repo.git`.
 
 ### Acceptance Signals
 - The command exits with code `0`.
+- Default mode reports `code_sync=enabled` and `code_sync=applied`; `--no-sync` reports `code_sync=disabled`.
 - Script output matches the expected stdout/stderr without local-shell quote expansion.
